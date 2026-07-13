@@ -1,0 +1,308 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Platform {
+  id        String   @id @default(cuid())
+  name      String   @default("NEXLIN GHL")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  agencies  Agency[]
+}
+
+model Agency {
+  id          String   @id @default(cuid())
+  platformId  String
+  platform    Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  name        String
+  subdomain   String   @unique
+  logoUrl     String?
+  brandColors String? // JSON string
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users         User[]
+  subAgencies   SubAgency[]
+  contacts      Contact[]
+  deals         Deal[]
+  subscriptions Subscription[]
+  funnels       Funnel[]
+  conversations Conversation[]
+  campaigns     Campaign[]
+  workflows     Workflow[]
+  appointments  Appointment[]
+}
+
+model SubAgency {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  phoneNumber String?
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deals        Deal[]
+  appointments Appointment[]
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String?    @unique
+  passwordHash  String?
+  name          String?
+  role          String     @default("Business Owner") // Super Admin, Agency Owner, Business Owner, Team Member
+  country       String?
+  isAfricaUser  Boolean    @default(false)
+  agencyId      String?
+  agency        Agency?    @relation(fields: [agencyId], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String?
+  email     String?
+  phone     String?
+  company   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deals         Deal[]
+  conversations Conversation[]
+  appointments  Appointment[]
+}
+
+model Deal {
+  id          String     @id @default(cuid())
+  agencyId    String
+  agency      Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subAgencyId String?
+  subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
+  contactId   String?
+  contact     Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  title       String
+  value       Float      @default(0)
+  stage       String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  agencyId             String
+  agency               Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  paymentProcessor     String // "stripe" or "paystack"
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  paystackCode         String?
+  paystackEmail        String?
+  status               String // "active", "past_due", "cancelled"
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  transactions PaymentTransaction[]
+}
+
+model PaymentTransaction {
+  id                     String       @id @default(cuid())
+  subscriptionId         String
+  subscription           Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount                 Float
+  currency               String
+  status                 String // "pending", "succeeded", "failed", "refunded"
+  processor              String
+  processorTransactionId String?
+  processorFee           Float?
+  netAmount              Float?
+  errorMessage           String?
+  processedAt            DateTime?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  entity    String
+  entityId  String
+  details   String? // JSON string
+  createdAt DateTime @default(now())
+}
+
+// --- NextAuth Models ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Phase 2 Feature Models ---
+
+model Funnel {
+  id           String   @id @default(cuid())
+  agencyId     String
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name         String
+  subdomain    String?  @unique
+  customDomain String?  @unique
+  status       String   @default("draft") // draft, active, archived
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  steps FunnelStep[]
+}
+
+model FunnelStep {
+  id        String   @id @default(cuid())
+  funnelId  String
+  funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  name      String
+  path      String
+  order     Int
+  content   String? // JSON string containing builder blocks
+  config    String? // JSON string for configuration (e.g., email subject, wait time)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([funnelId, path])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel   String // email, sms, whatsapp
+  status    String   @default("open") // open, closed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  isOutbound     Boolean      @default(false)
+  content        String
+  status         String       @default("sent") // sent, delivered, read, failed
+  createdAt      DateTime     @default(now())
+}
+
+model Campaign {
+  id        String    @id @default(cuid())
+  agencyId  String
+  agency    Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  subject   String
+  content   String // HTML/JSON
+  status    String    @default("draft") // draft, scheduled, sending, completed
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+// --- Phase 6 Feature Models ---
+
+model Workflow {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  status    String   @default("draft") // draft, active
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  triggers WorkflowTrigger[]
+  actions  WorkflowAction[]
+}
+
+model WorkflowTrigger {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  type       String // e.g. "contact_created", "form_submitted", "tag_added"
+  config     String? // JSON string
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model WorkflowAction {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  type       String // e.g. "send_email", "add_tag", "create_task"
+  order      Int      @default(0)
+  config     String? // JSON string
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Appointment {
+  id          String     @id @default(cuid())
+  title       String
+  startTime   DateTime
+  endTime     DateTime
+  contactId   String
+  contact     Contact    @relation(fields: [contactId], references: [id])
+  agencyId    String
+  agency      Agency     @relation(fields: [agencyId], references: [id])
+  createdAt   DateTime   @default(now())
+  SubAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
+  subAgencyId String?
+}

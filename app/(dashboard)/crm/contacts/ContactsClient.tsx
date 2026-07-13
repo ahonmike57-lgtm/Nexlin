@@ -1,0 +1,123 @@
+"use client"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Search, Plus, Filter, Download, MoreHorizontal, Mail, Phone } from "lucide-react"
+
+export default function ContactsClient({ initialContacts }: { initialContacts: any[] }) {
+  const [searchTerm, setSearchTerm] = useState("")
+
+  return (
+    <div className="animate-in fade-in duration-500 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
+          <p className="text-text-secondary">Manage your leads and customers (1,248 total).</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline"><Download className="w-4 h-4 mr-2" /> Export</Button>
+          <Button><Plus className="w-4 h-4 mr-2" /> Add Contact</Button>
+        </div>
+      </div>
+
+      <div className="bg-bg-primary rounded-xl shadow-soft border border-border flex-1 flex flex-col overflow-hidden">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 justify-between items-center bg-bg-secondary/50">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+            <Input 
+              placeholder="Search by name, email, or company..." 
+              className="pl-9 bg-bg-primary"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" size="sm" className="bg-bg-primary"><Filter className="w-4 h-4 mr-2" /> Filters</Button>
+            <Button variant="outline" size="sm" className="bg-bg-primary">Columns</Button>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-text-secondary uppercase bg-bg-secondary/80 sticky top-0">
+              <tr>
+                <th className="px-6 py-3 font-semibold">
+                  <input type="checkbox" className="rounded border-border" />
+                </th>
+                <th className="px-6 py-3 font-semibold">Name</th>
+                <th className="px-6 py-3 font-semibold">Contact Info</th>
+                <th className="px-6 py-3 font-semibold">Company</th>
+                <th className="px-6 py-3 font-semibold">Tags</th>
+                <th className="px-6 py-3 font-semibold">Last Active</th>
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {initialContacts.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-8 text-text-secondary">
+                    No contacts found. Click "Add Contact" to create one.
+                  </td>
+                </tr>
+              )}
+              {initialContacts.map((contact) => (
+                <tr key={contact.id} className="hover:bg-bg-secondary/50 transition-colors cursor-pointer group">
+                  <td className="px-6 py-4">
+                    <input type="checkbox" className="rounded border-border" />
+                  </td>
+                  <td className="px-6 py-4 font-medium text-text-primary">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                        {contact.firstName?.charAt(0) || "U"}
+                      </div>
+                      {contact.firstName} {contact.lastName}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1 text-text-secondary">
+                      <span className="flex items-center gap-1 hover:text-primary"><Mail className="w-3 h-3" /> {contact.email}</span>
+                      {contact.phone && <span className="flex items-center gap-1 hover:text-primary"><Phone className="w-3 h-3" /> {contact.phone}</span>}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-text-secondary">{contact.company || "-"}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1">
+                       <Badge variant="secondary" className="bg-secondary/10 text-secondary hover:bg-secondary/20 font-medium">
+                         Lead
+                       </Badge>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-text-secondary whitespace-nowrap">
+                    {new Date(contact.updatedAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Pagination */}
+        <div className="p-4 border-t border-border flex items-center justify-between text-sm text-text-secondary bg-bg-secondary/50">
+          <div>Showing 1 to 4 of 1,248 entries</div>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" disabled>Previous</Button>
+            <Button variant="outline" size="sm" className="bg-primary text-white border-primary">1</Button>
+            <Button variant="outline" size="sm">2</Button>
+            <Button variant="outline" size="sm">3</Button>
+            <span className="px-2 self-center">...</span>
+            <Button variant="outline" size="sm">Next</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
