@@ -20,26 +20,44 @@ model Platform {
 }
 
 model Agency {
-  id          String   @id @default(cuid())
-  platformId  String
-  platform    Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
-  name        String
-  subdomain   String   @unique
-  logoUrl     String?
-  brandColors String? // JSON string
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String   @id @default(cuid())
+  platformId        String
+  platform          Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+  name              String
+  subdomain         String   @unique
+  logoUrl           String?
+  brandColors       String? // JSON string
+  missedCallEnabled Boolean  @default(false)
+  missedCallMessage String?  @default("Hi, this is [Agency Name]. We missed your call, how can we help?")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  users         User[]
-  subAgencies   SubAgency[]
-  contacts      Contact[]
-  deals         Deal[]
-  subscriptions Subscription[]
-  funnels       Funnel[]
-  conversations Conversation[]
-  campaigns     Campaign[]
-  workflows     Workflow[]
-  appointments  Appointment[]
+  users             User[]
+  subAgencies       SubAgency[]
+  contacts          Contact[]
+  deals             Deal[]
+  subscriptions     Subscription[]
+  funnels           Funnel[]
+  conversations     Conversation[]
+  campaigns         Campaign[]
+  workflows         Workflow[]
+  appointments      Appointment[]
+  phoneNumbers      PhoneNumber[]
+  portRequests      PortRequest[]
+  tickets           Ticket[]
+  articles          KnowledgeArticle[]
+  agents            VoiceAgent[]
+  socialAccounts    SocialAccount[]
+  mcpConnections    McpConnection[]
+  extensionInstalls ExtensionInstall[]
+  formSubmissions   FormSubmission[]
+  mediaFiles        MediaFile[]
+  SocialPost        SocialPost[]
+  AdCampaign        AdCampaign[]
+  Review            Review[]
+  ReviewRequest     ReviewRequest[]
+  Form              Form[]
+  ExtensionAuditLog ExtensionAuditLog[]
 }
 
 model SubAgency {
@@ -87,9 +105,13 @@ model Contact {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  deals         Deal[]
-  conversations Conversation[]
-  appointments  Appointment[]
+  deals           Deal[]
+  conversations   Conversation[]
+  appointments    Appointment[]
+  tickets         Ticket[]
+  reviews         Review[]
+  reviewRequests  ReviewRequest[]
+  formSubmissions FormSubmission[]
 }
 
 model Deal {
@@ -305,4 +327,232 @@ model Appointment {
   createdAt   DateTime   @default(now())
   SubAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
   subAgencyId String?
+}
+
+model PhoneNumber {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  number    String   @unique
+  status    String   @default("active") // active, porting, inactive
+  provider  String   @default("twilio")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PortRequest {
+  id             String   @id @default(cuid())
+  agencyId       String
+  agency         Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  numberToPort   String
+  currentCarrier String
+  accountNumber  String?
+  accountPin     String?
+  status         String   @default("pending") // pending, approved, rejected, completed
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Ticket {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contactId   String?
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  title       String
+  description String?
+  status      String   @default("open") // open, pending, resolved, closed
+  priority    String   @default("normal") // low, normal, high, urgent
+  assignedTo  String? // userId
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model KnowledgeArticle {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  title     String
+  content   String // HTML or Markdown
+  category  String   @default("general")
+  status    String   @default("draft") // draft, published
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VoiceAgent {
+  id           String   @id @default(cuid())
+  agencyId     String
+  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name         String
+  systemPrompt String?
+  voiceId      String? // e.g. elevenlabs voice id
+  greeting     String?
+  isActive     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SocialAccount {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  platform    String // facebook, instagram, linkedin, twitter
+  handle      String
+  accessToken String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts SocialPost[]
+}
+
+model SocialPost {
+  id           String        @id @default(cuid())
+  agencyId     String
+  agency       Agency        @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  accountId    String
+  account      SocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  content      String
+  mediaUrls    String? // JSON array
+  status       String        @default("scheduled") // draft, scheduled, published, failed
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model AdCampaign {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  platform    String // google, facebook, tiktok
+  name        String
+  status      String   @default("active") // active, paused, completed
+  budget      Float    @default(0)
+  spend       Float    @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  conversions Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// --- Phase 12 Feature Models ---
+
+model Review {
+  id         String   @id @default(cuid())
+  agencyId   String
+  agency     Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contactId  String?
+  contact    Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  platform   String // google, facebook, yelp
+  rating     Int
+  content    String?
+  authorName String
+  url        String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model ReviewRequest {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel   String // email, sms
+  status    String   @default("sent") // sent, delivered, opened, clicked, reviewed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Form {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  fields    String // JSON array of field definitions
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions FormSubmission[]
+}
+
+model FormSubmission {
+  id        String   @id @default(cuid())
+  formId    String
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  data      String // JSON object of submitted data
+  createdAt DateTime @default(now())
+}
+
+model MediaFile {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  size      Int // in bytes
+  type      String // image/jpeg, video/mp4, application/pdf
+  folder    String? // optional logical folder
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- MCP & Extensions Models ---
+
+model McpConnection {
+  id                   String   @id @default(cuid())
+  agencyId             String
+  agency               Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name                 String
+  serverUrl            String
+  encryptedCredentials String?
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Extension {
+  id          String   @id @default(cuid())
+  agencyId    String? // null means it's a globally available extension
+  name        String
+  description String?
+  manifest    String // JSON string defining triggers, actions, etc.
+  version     String   @default("1.0.0")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  installs ExtensionInstall[]
+}
+
+model ExtensionInstall {
+  id          String    @id @default(cuid())
+  agencyId    String
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  extensionId String
+  extension   Extension @relation(fields: [extensionId], references: [id], onDelete: Cascade)
+  config      String? // JSON string holding agency-specific config
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([agencyId, extensionId])
+}
+
+model ExtensionAuditLog {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  userId    String?
+  action    String // e.g. MCP_INVOKE, EXTENSION_WEBHOOK
+  details   String? // JSON string
+  createdAt DateTime @default(now())
 }

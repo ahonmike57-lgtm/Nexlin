@@ -3,28 +3,209 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Save } from "lucide-react"
-import { Editor, Frame, Element, useNode } from "@craftjs/core"
+import { Input } from "@/components/ui/input"
+import { ArrowLeft, Save, Sparkles, Type, Square, Image as ImageIcon, Video, MousePointerClick, Send, Loader2 } from "lucide-react"
+import { Editor, Frame, Element, useNode, useEditor } from "@craftjs/core"
 import { updateFunnelStepContent } from "@/app/actions/funnels"
 
-const TextComponent = ({ text }: { text: string }) => {
-  const { connectors: { connect, drag } } = useNode();
-  return (
-    <div ref={(ref: any) => connect(drag(ref))} className="p-4 bg-bg-secondary mb-2 rounded border border-border">
-      <h2 className="text-xl font-bold">{text}</h2>
-      <p className="text-sm text-text-secondary">Drag me around!</p>
-    </div>
-  )
-}
+/* --- CRAFT.JS COMPONENTS --- */
 
-const ContainerComponent = ({ children }: { children?: React.ReactNode }) => {
-  const { connectors: { connect, drag } } = useNode();
+// 1. Container Component
+const ContainerComponent = ({ children, padding = 20, background = "#ffffff" }: any) => {
+  const { connectors: { connect, drag }, selected } = useNode((node) => ({
+    selected: node.events.selected,
+  }));
   return (
-    <div ref={(ref: any) => connect(drag(ref))} className="p-8 bg-white border border-dashed border-primary/50 min-h-[200px] w-full">
+    <div 
+      ref={(ref: any) => connect(drag(ref))} 
+      style={{ padding: `${padding}px`, backgroundColor: background }}
+      className={`min-h-[100px] w-full transition-all ${selected ? 'border-2 border-primary' : 'border border-dashed border-border'}`}
+    >
       {children}
     </div>
   )
 }
+ContainerComponent.craft = {
+  props: { padding: 20, background: "#ffffff" },
+  rules: { canDrag: () => true },
+}
+
+// 2. Text Component
+const TextComponent = ({ text, fontSize = 16, textAlign = "left", color = "#000000" }: any) => {
+  const { connectors: { connect, drag }, selected } = useNode((node) => ({
+    selected: node.events.selected,
+  }));
+  return (
+    <div 
+      ref={(ref: any) => connect(drag(ref))} 
+      style={{ fontSize: `${fontSize}px`, textAlign, color }}
+      className={`p-2 ${selected ? 'border-2 border-primary' : ''}`}
+    >
+      {text}
+    </div>
+  )
+}
+TextComponent.craft = {
+  props: { text: "Double click to edit", fontSize: 16, textAlign: "left", color: "#000000" },
+  rules: { canDrag: () => true },
+}
+
+// 3. Button Component
+const ButtonComponent = ({ text = "Click Me", variant = "default" }: any) => {
+  const { connectors: { connect, drag }, selected } = useNode((node) => ({
+    selected: node.events.selected,
+  }));
+  return (
+    <div ref={(ref: any) => connect(drag(ref))} className={`inline-block p-2 ${selected ? 'border-2 border-primary' : ''}`}>
+      <Button variant={variant}>{text}</Button>
+    </div>
+  )
+}
+ButtonComponent.craft = {
+  props: { text: "Click Me", variant: "default" },
+  rules: { canDrag: () => true },
+}
+
+// 4. Image Component
+const ImageComponent = ({ src = "https://via.placeholder.com/400x200" }: any) => {
+  const { connectors: { connect, drag }, selected } = useNode((node) => ({
+    selected: node.events.selected,
+  }));
+  return (
+    <div ref={(ref: any) => connect(drag(ref))} className={`p-2 ${selected ? 'border-2 border-primary' : ''}`}>
+      <img src={src} alt="Builder Image" className="w-full h-auto rounded-lg" />
+    </div>
+  )
+}
+ImageComponent.craft = {
+  props: { src: "https://via.placeholder.com/400x200" },
+  rules: { canDrag: () => true },
+}
+
+/* --- SIDEBAR COMPONENTS --- */
+
+const Toolbox = () => {
+  const { connectors, query } = useEditor();
+
+  return (
+    <div className="w-64 bg-bg-primary border-r border-border flex flex-col h-full shrink-0">
+      <div className="p-4 border-b border-border">
+        <h3 className="font-semibold text-sm">Elements</h3>
+      </div>
+      <div className="p-4 flex flex-col gap-3 flex-1 overflow-y-auto">
+        <div className="grid grid-cols-2 gap-2">
+          <Button 
+            variant="outline" 
+            className="flex flex-col items-center justify-center h-20 gap-2 cursor-grab"
+            ref={(ref: any) => connectors.create(ref, <Element is={ContainerComponent} canvas />)}
+          >
+            <Square className="w-5 h-5 text-text-secondary" />
+            <span className="text-xs">Container</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex flex-col items-center justify-center h-20 gap-2 cursor-grab"
+            ref={(ref: any) => connectors.create(ref, <TextComponent text="New Text Block" fontSize={24} />)}
+          >
+            <Type className="w-5 h-5 text-text-secondary" />
+            <span className="text-xs">Text</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex flex-col items-center justify-center h-20 gap-2 cursor-grab"
+            ref={(ref: any) => connectors.create(ref, <ButtonComponent text="Call to Action" />)}
+          >
+            <MousePointerClick className="w-5 h-5 text-text-secondary" />
+            <span className="text-xs">Button</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex flex-col items-center justify-center h-20 gap-2 cursor-grab"
+            ref={(ref: any) => connectors.create(ref, <ImageComponent />)}
+          >
+            <ImageIcon className="w-5 h-5 text-text-secondary" />
+            <span className="text-xs">Image</span>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const AICopilot = () => {
+  const [prompt, setPrompt] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
+  const { actions, query } = useEditor()
+
+  const handleGenerate = async () => {
+    if (!prompt) return
+    setIsGenerating(true)
+    
+    // Simulate AI generation delay
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    // For the demo, we'll inject a pre-made hero section based on the prompt
+    // In a real app, the LLM would return a JSON representation of a Craft.js Node tree
+    const rootNodeId = query.getEvent('selected').first() || "ROOT"
+    
+    // Simulate adding a newly generated container with text and a button
+    // This requires complex Craft.js node creation, but for UI demonstration
+    // we'll just show the loading state and pretend it worked by logging.
+    console.log("AI Generated Layout for:", prompt, "Injecting into", rootNodeId)
+    
+    setIsGenerating(false)
+    setPrompt("")
+  }
+
+  return (
+    <div className="w-80 bg-bg-primary border-l border-border flex flex-col h-full shrink-0">
+      <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-transparent">
+        <h3 className="font-semibold text-sm flex items-center gap-2 text-primary">
+          <Sparkles className="w-4 h-4" /> AI Copilot
+        </h3>
+      </div>
+      
+      <div className="flex-1 p-4 overflow-y-auto">
+        <div className="bg-bg-secondary p-4 rounded-lg border border-border text-sm text-text-secondary mb-4">
+          👋 I'm your AI Web Copilot. Describe a section you want me to build, and I'll generate the layout automatically!
+        </div>
+        
+        {/* Mock history */}
+        <div className="space-y-4 mb-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-primary ml-auto bg-primary/10 px-2 py-1 rounded-md">Generate a hero section for a local gym</span>
+            <div className="text-xs bg-bg-secondary p-2 rounded-md border border-border mt-1 w-[90%]">
+              ✅ Generated "Gym Hero Section" and injected it into the canvas.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-border bg-bg-secondary">
+        <div className="relative">
+          <Input 
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="E.g., A pricing table with 3 tiers..." 
+            className="pr-10"
+            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+          />
+          <Button 
+            size="icon" 
+            variant="ghost" 
+            className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 text-primary"
+            onClick={handleGenerate}
+            disabled={isGenerating || !prompt}
+          >
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* --- MAIN PAGE COMPONENT --- */
 
 export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
   const [isSaving, setIsSaving] = useState(false)
@@ -32,7 +213,8 @@ export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
   const handleSave = async () => {
     if (!funnel.steps?.[0]) return
     setIsSaving(true)
-    // CraftJS save logic would serialize state here
+    // CraftJS save logic:
+    // const json = query.serialize()
     await updateFunnelStepContent(funnel.steps[0].id, JSON.stringify({ saved: true }))
     setIsSaving(false)
   }
@@ -40,43 +222,62 @@ export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
   return (
     <div className="flex flex-col h-screen -m-8">
       {/* Top Navigation Bar */}
-      <header className="h-14 border-b border-border bg-bg-primary flex items-center justify-between px-4 shrink-0">
+      <header className="h-14 border-b border-border bg-bg-primary flex items-center justify-between px-4 shrink-0 z-10 relative">
         <div className="flex items-center gap-4">
           <Link href="/funnels">
             <Button variant="ghost" size="icon" className="w-8 h-8"><ArrowLeft className="w-4 h-4" /></Button>
           </Link>
           <div className="h-4 w-px bg-border"></div>
           <div>
-            <span className="font-semibold text-sm">{funnel.name} (Craft.js Builder)</span>
+            <span className="font-semibold text-sm">{funnel.name}</span>
+            <span className="ml-2 text-xs text-text-secondary bg-bg-secondary px-2 py-1 rounded">AI Builder</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={handleSave} disabled={isSaving}>
-            <Save className="w-3 h-3 mr-2" /> {isSaving ? "Saving..." : "Save"}
+            <Save className="w-4 h-4 mr-2" /> {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </header>
 
-      {/* Main Builder Area */}
-      <div className="flex-1 flex bg-bg-secondary p-8 justify-center overflow-auto">
-        <div className="w-full max-w-4xl bg-bg-primary shadow-xl rounded-lg overflow-hidden border border-border flex flex-col">
-          <div className="bg-bg-secondary border-b border-border p-2 flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-400"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-            <div className="w-3 h-3 rounded-full bg-green-400"></div>
+      <div className="flex-1 flex overflow-hidden">
+        <Editor resolver={{ ContainerComponent, TextComponent, ButtonComponent, ImageComponent }}>
+          {/* Left Toolbox */}
+          <Toolbox />
+
+          {/* Main Canvas Area */}
+          <div className="flex-1 bg-bg-secondary p-8 overflow-auto flex justify-center">
+            <div className="w-full max-w-5xl min-h-[800px] bg-white shadow-2xl rounded-lg overflow-hidden border border-border flex flex-col">
+              {/* Browser Mockup Header */}
+              <div className="bg-slate-100 border-b border-slate-200 p-2 flex items-center gap-2 shrink-0">
+                <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                <div className="ml-4 flex-1">
+                  <div className="bg-white rounded-md h-6 w-full max-w-sm border border-slate-200 mx-auto flex items-center px-2 text-[10px] text-slate-400 font-mono">
+                    https://{funnel.subdomain || "your-site"}.nexlin.com
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex-1 bg-white overflow-y-auto">
+                <Frame>
+                  <Element is={ContainerComponent} padding={40} background="#ffffff" canvas>
+                    <TextComponent text="Start Building Your AI Website" fontSize={36} textAlign="center" />
+                    <TextComponent text="Drag elements from the left, or use the AI Copilot on the right to generate entire sections instantly." fontSize={18} textAlign="center" color="#666666" />
+                    <div className="flex justify-center mt-8">
+                      <ButtonComponent text="Get Started" variant="default" />
+                    </div>
+                  </Element>
+                </Frame>
+              </div>
+            </div>
           </div>
-          
-          <div className="p-4 flex-1">
-            <Editor resolver={{ TextComponent, ContainerComponent }}>
-              <Frame>
-                <Element is={ContainerComponent} canvas>
-                  <TextComponent text="Welcome to the Advanced Craft.js Funnel Builder!" />
-                </Element>
-              </Frame>
-            </Editor>
-          </div>
-        </div>
+
+          {/* Right AI Copilot Panel */}
+          <AICopilot />
+        </Editor>
       </div>
     </div>
   )

@@ -89,6 +89,7 @@ export default function ChatClient({ initialConversations }: { initialConversati
               <Badge className="bg-primary/10 text-primary cursor-pointer hover:bg-primary/20">All</Badge>
               <Badge variant="outline" className="cursor-pointer text-text-secondary"><Mail className="w-3 h-3 mr-1" /> Email</Badge>
               <Badge variant="outline" className="cursor-pointer text-text-secondary"><MessageSquare className="w-3 h-3 mr-1" /> WhatsApp</Badge>
+              <Badge variant="outline" className="cursor-pointer text-text-secondary"><Phone className="w-3 h-3 mr-1" /> SMS</Badge>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />

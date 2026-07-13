@@ -85,3 +85,35 @@ export async function inviteTeamMember(agencyId: string, email: string, role: st
     return { success: false, error: "Failed to invite member" }
   }
 }
+
+export async function getAgencySettings(agencyId: string) {
+  try {
+    const agency = await db.agency.findUnique({
+      where: { id: agencyId },
+      select: {
+        missedCallEnabled: true,
+        missedCallMessage: true,
+      }
+    })
+    return { success: true, agency }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function updateMissedCallTextBack(agencyId: string, enabled: boolean, message: string) {
+  try {
+    await db.agency.update({
+      where: { id: agencyId },
+      data: {
+        missedCallEnabled: enabled,
+        missedCallMessage: message,
+      }
+    })
+    
+    revalidatePath("/settings")
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}

@@ -16,7 +16,17 @@ import {
   Search,
   Bell,
   Mail,
-  Calendar
+  Calendar,
+  Zap,
+  BarChart3,
+  Share2,
+  Megaphone,
+  BookOpen,
+  Star,
+  FileSignature,
+  FolderOpen,
+  Store,
+  LayoutTemplate
 } from "lucide-react"
 
 const sidebarLinks = [
@@ -25,8 +35,20 @@ const sidebarLinks = [
   { href: "/crm/deals", label: "Pipeline", icon: Kanban },
   { href: "/chat", label: "Inbox", icon: MessageSquare },
   { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/funnels", label: "Funnels", icon: Workflow },
+  { href: "/automations", label: "Automations", icon: Zap },
   { href: "/marketing/emails", label: "Email Marketing", icon: Mail },
+  { href: "/social", label: "Social Planner", icon: Share2 },
+  { href: "/ads", label: "Ads Manager", icon: Megaphone },
+  { href: "/reputation", label: "Reputation", icon: Star },
+  { href: "/websites", label: "Websites", icon: LayoutTemplate },
+  { href: "/funnels", label: "Funnels", icon: Workflow },
+  { href: "/forms", label: "Forms & Surveys", icon: FileSignature },
+  { href: "/media", label: "Media Library", icon: FolderOpen },
+  { href: "/marketplace", label: "App Marketplace", icon: Store },
+  { href: "/reporting", label: "Reporting", icon: BarChart3 },
+  { href: "/support", label: "Help Desk", icon: LifeBuoy },
+  { href: "/support/knowledge-base", label: "Knowledge Base", icon: BookOpen },
+  { href: "/voice", label: "Voice AI", icon: Mic },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 

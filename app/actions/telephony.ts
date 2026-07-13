@@ -79,3 +79,72 @@ export async function sendSMS(contactId: string, content: string) {
     return { success: false, error: "Failed to send SMS" }
   }
 }
+
+export async function buyPhoneNumber(agencyId: string, areaCode: string) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    // Mock Twilio Purchase
+    const mockNumber = "+1" + areaCode + Math.floor(1000000 + Math.random() * 9000000).toString()
+    
+    const newPhone = await db.phoneNumber.create({
+      data: {
+        agencyId,
+        number: mockNumber,
+        status: "active",
+        provider: "twilio"
+      }
+    })
+
+    return { success: true, data: newPhone }
+  } catch (error) {
+    return { success: false, error: "Failed to purchase number" }
+  }
+}
+
+export async function submitPortRequest(agencyId: string, data: { numberToPort: string, currentCarrier: string, accountNumber: string, accountPin: string }) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const portReq = await db.portRequest.create({
+      data: {
+        agencyId,
+        numberToPort: data.numberToPort,
+        currentCarrier: data.currentCarrier,
+        accountNumber: data.accountNumber,
+        accountPin: data.accountPin,
+        status: "pending"
+      }
+    })
+
+    // Also add to phone numbers as porting state
+    await db.phoneNumber.create({
+      data: {
+        agencyId,
+        number: data.numberToPort,
+        status: "porting",
+        provider: "twilio"
+      }
+    })
+
+    return { success: true, data: portReq }
+  } catch (error) {
+    return { success: false, error: "Failed to submit port request" }
+  }
+}
+
+export async function getAgencyPhoneData(agencyId: string) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const numbers = await db.phoneNumber.findMany({ where: { agencyId } })
+    const portRequests = await db.portRequest.findMany({ where: { agencyId } })
+    return { success: true, numbers, portRequests }
+  } catch (error) {
+    return { success: false, error: "Failed to fetch phone data" }
+  }
+}
+
