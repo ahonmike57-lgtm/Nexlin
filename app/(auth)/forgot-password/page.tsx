@@ -33,8 +33,8 @@ export default function ForgotPasswordPage() {
         <p className="text-muted-foreground mb-6">
           We've sent a password reset link to your email address. Please check your inbox and spam folder.
         </p>
-        <Button asChild className="w-full">
-          <Link href="/login">Return to Login</Link>
+        <Button type="button" className="w-full" onClick={() => window.location.href = '/login'}>
+          Return to Login
         </Button>
       </div>
     )
