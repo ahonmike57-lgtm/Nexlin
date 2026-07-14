@@ -24,7 +24,7 @@ export default function AddDealModal({ contacts = [] }: { contacts?: any[] }) {
       contactId: formData.get("contactId") as string || undefined,
     }
     
-    const response = await createDeal("agency-1", data)
+    const response = await createDeal(data)
     
     setLoading(false)
     if (response.success) {

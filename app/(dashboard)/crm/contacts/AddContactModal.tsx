@@ -24,8 +24,7 @@ export default function AddContactModal() {
       company: formData.get("company") as string,
     }
     
-    // We are hardcoding the agency ID for now until the global auth context is fully wired up
-    const response = await createContact("agency-1", data)
+    const response = await createContact(data)
     
     setLoading(false)
     if (response.success) {

@@ -2,9 +2,11 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { getOrCreateAgency } from "./agency"
 
-export async function getContacts(agencyId: string) {
+export async function getContacts() {
   try {
+    const agencyId = await getOrCreateAgency()
     const contacts = await db.contact.findMany({
       where: { agencyId },
       orderBy: { createdAt: 'desc' }
@@ -16,8 +18,9 @@ export async function getContacts(agencyId: string) {
   }
 }
 
-export async function createContact(agencyId: string, data: { firstName: string, lastName?: string, email?: string, phone?: string, company?: string }) {
+export async function createContact(data: { firstName: string, lastName?: string, email?: string, phone?: string, company?: string }) {
   try {
+    const agencyId = await getOrCreateAgency()
     const contact = await db.contact.create({
       data: {
         agencyId,
