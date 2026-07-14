@@ -49,7 +49,7 @@ export async function generateAiReply(context: string, prompt: string) {
     }
 
     const { text } = await generateText({
-      model: google("gemini-1.5-pro"),
+      model: google("gemini-pro"),
       system: systemPrompt,
       prompt: finalPrompt
     })
