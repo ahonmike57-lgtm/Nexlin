@@ -61,9 +61,15 @@ export default function ChatClient({ initialConversations }: { initialConversati
   const handleAiReply = async () => {
     if (!activeConversation) return
     setIsAiLoading(true)
-    const res = await generateAiReply("chat", activeConversation.id)
-    if (res.success && res.data) {
-      setNewMessage(res.data)
+    try {
+      const res = await generateAiReply("chat", activeConversation.id)
+      if (res.success && res.data) {
+        setNewMessage(res.data)
+      } else {
+        alert("AI Error: " + (res.error || "Unknown error"))
+      }
+    } catch (err: any) {
+      alert("Client Error: " + err.message)
     }
     setIsAiLoading(false)
   }
