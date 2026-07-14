@@ -1,31 +1,23 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { pusherServer } from "@/lib/pusher"
+import { getOrCreateAgency } from "./agency"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
-import twilio from "twilio"
 
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "AC_mock_sid"
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "mock_token"
-const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || "+1234567890"
-
-const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-
-export async function getConversations(agencyId: string) {
+export async function getConversations() {
   try {
+    const agencyId = await getOrCreateAgency()
     const conversations = await db.conversation.findMany({
       where: { agencyId },
-      include: {
+      include: { 
         contact: true,
         messages: {
-          orderBy: { createdAt: "desc" },
+          orderBy: { createdAt: 'desc' },
           take: 1
         }
       },
-      orderBy: { updatedAt: "desc" }
+      orderBy: { updatedAt: 'desc' }
     })
-    
     return { success: true, data: conversations }
   } catch (error) {
     console.error("Failed to fetch conversations:", error)
@@ -35,9 +27,12 @@ export async function getConversations(agencyId: string) {
 
 export async function getMessages(conversationId: string) {
   try {
+    // Basic auth check
+    await getOrCreateAgency()
+    
     const messages = await db.message.findMany({
       where: { conversationId },
-      orderBy: { createdAt: "asc" }
+      orderBy: { createdAt: 'asc' }
     })
     return { success: true, data: messages }
   } catch (error) {
@@ -46,54 +41,58 @@ export async function getMessages(conversationId: string) {
   }
 }
 
-export async function sendMessage(conversationId: string, content: string) {
+export async function sendMessage(conversationId: string, content: string, isOutbound: boolean = true) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    const conversation = await db.conversation.findUnique({
-      where: { id: conversationId },
-      include: { contact: true }
-    })
+    // Basic auth check
+    await getOrCreateAgency()
     
-    if (!conversation) throw new Error("Conversation not found")
-
-    // If channel is SMS, send via Twilio
-    if (conversation.channel === "sms" && conversation.contact.phone) {
-      if (TWILIO_ACCOUNT_SID !== "AC_mock_sid") {
-        await twilioClient.messages.create({
-          body: content,
-          from: TWILIO_PHONE_NUMBER,
-          to: conversation.contact.phone,
-        })
-      }
-    }
-
-    const newMessage = await db.message.create({
+    const message = await db.message.create({
       data: {
         conversationId,
         content,
-        isOutbound: true,
-        status: "delivered", // default to delivered for UI
-      },
+        isOutbound,
+      }
     })
-
-    try {
-      await pusherServer.trigger(`conversation-${conversationId}`, "new-message", newMessage)
-    } catch (error) {
-      console.error("Pusher trigger error:", error)
-    }
-
+    
     // Update conversation updatedAt
     await db.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() }
     })
-
+    
     revalidatePath("/chat")
-    return { success: true, data: newMessage }
-  } catch (error) {
+    return { success: true, data: message }
+  } catch (error: any) {
     console.error("Failed to send message:", error)
-    return { success: false, error: "Failed to send message" }
+    return { success: false, error: error.message || "Failed to send message" }
+  }
+}
+
+export async function createConversation(contactId: string, channel: string = "sms") {
+  try {
+    const agencyId = await getOrCreateAgency()
+    
+    // Check if open conversation already exists
+    const existing = await db.conversation.findFirst({
+      where: { agencyId, contactId, status: "open", channel }
+    })
+    
+    if (existing) {
+      return { success: true, data: existing }
+    }
+    
+    const conversation = await db.conversation.create({
+      data: {
+        agencyId,
+        contactId,
+        channel
+      }
+    })
+    
+    revalidatePath("/chat")
+    return { success: true, data: conversation }
+  } catch (error: any) {
+    console.error("Failed to create conversation:", error)
+    return { success: false, error: error.message || "Failed to create conversation" }
   }
 }

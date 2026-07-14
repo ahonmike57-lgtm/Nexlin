@@ -10,6 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.14",
     "@auth/prisma-adapter": "^2.11.2",
     "@craftjs/core": "^0.2.12",
     "@craftjs/layers": "^0.2.7",
@@ -19,6 +20,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-dialog": "^1.1.19",
+    "ai": "^7.0.26",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",

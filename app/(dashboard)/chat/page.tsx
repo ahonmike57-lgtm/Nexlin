@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import ChatClient from "./ChatClient"
 import { getConversations } from "@/app/actions/chat"
+import { getOrCreateAgency } from "@/app/actions/agency"
 import { db } from "@/lib/db"
 
 export default async function ChatPage() {
@@ -11,7 +12,7 @@ export default async function ChatPage() {
     redirect("/login")
   }
 
-  const agencyId = "agency-1" // Mock agency ID
+  const agencyId = await getOrCreateAgency()
 
   // Auto-seed mock data if empty (for the mock experience)
   const count = await db.conversation.count({ where: { agencyId } })
@@ -36,7 +37,7 @@ export default async function ChatPage() {
     }
   }
 
-  const conversationsResponse = await getConversations(agencyId)
+  const conversationsResponse = await getConversations()
   const initialConversations = conversationsResponse.data || []
 
   return <ChatClient initialConversations={initialConversations} />
