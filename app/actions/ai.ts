@@ -51,17 +51,38 @@ export async function generateAiReply(context: string, prompt: string) {
     const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`)
     const modelsData = await modelsRes.json()
     
-    let availableModels = []
-    if (modelsData && modelsData.models) {
-      availableModels = modelsData.models
-        .filter((m: any) => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"))
-        .map((m: any) => m.name.replace("models/", ""))
-    }
+    let selectedModel = "gemini-pro"
     
-    // Instead of generating text, we will literally return the list of available models so the user can see them!
-    const debugText = "AVAILABLE MODELS: " + availableModels.join(", ")
+    if (modelsData && modelsData.models) {
+      // Find all models that support text generation
+      let availableModels = modelsData.models.filter((m: any) => 
+        m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")
+      )
+      
+      // Filter out any models we know throw quota/deprecation errors for this user
+      availableModels = availableModels.filter((m: any) => 
+        !m.name.includes("gemini-2.5-flash") && !m.name.includes("gemini-2.5-pro")
+      )
 
-    return { success: true, data: debugText }
+      // Sort by version number descending (e.g. 3.0 > 2.5 > 2.0 > 1.5)
+      availableModels.sort((a: any, b: any) => {
+        const vA = parseFloat(a.name.match(/\d+\.\d+/)?.[0] || "0")
+        const vB = parseFloat(b.name.match(/\d+\.\d+/)?.[0] || "0")
+        return vB - vA
+      })
+
+      if (availableModels.length > 0) {
+        selectedModel = availableModels[0].name.replace("models/", "")
+      }
+    }
+
+    const { text } = await generateText({
+      model: google(selectedModel),
+      system: systemPrompt,
+      prompt: finalPrompt
+    })
+
+    return { success: true, data: text }
   } catch (error: any) {
     console.error("AI Error:", error)
     
