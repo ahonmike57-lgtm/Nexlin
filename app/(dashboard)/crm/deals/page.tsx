@@ -11,12 +11,11 @@ export default async function DealsPage() {
     redirect("/login")
   }
 
-  // Assuming agency is linked to user.
-  // For now we just use a default mocked agencyId as "agency-1"
+  // getDeals and getContacts now dynamically provision and fetch via the session context on the server
   
   const [dealsResponse, contactsResponse] = await Promise.all([
-    getDeals("agency-1"),
-    getContacts("agency-1")
+    getDeals(),
+    getContacts()
   ])
   
   const deals = dealsResponse.data || []

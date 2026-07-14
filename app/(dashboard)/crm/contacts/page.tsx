@@ -10,11 +10,9 @@ export default async function ContactsPage() {
     redirect("/login")
   }
 
-  // Assuming agency is linked to user. In a real app we'd fetch agencyId from session/user
-  // For now we just use a default or fetch by userId
-  // Here we'll just mock agencyId as "agency-1" or fetch all for now
+  // getContacts now dynamically provisions and fetches via the session context on the server
   
-  const contactsResponse = await getContacts("agency-1") // we'll use a hardcoded agencyId until we set up onboarding fully
+  const contactsResponse = await getContacts() 
   const contacts = contactsResponse.data || []
 
   return <ContactsClient initialContacts={contacts} />
