@@ -31,3 +31,20 @@ export async function updateDealStage(dealId: string, newStage: string) {
     return { success: false, error: "Failed to update deal" }
   }
 }
+
+export async function createDeal(agencyId: string, data: { title: string, value: number, stage: string, contactId?: string }) {
+  try {
+    const deal = await db.deal.create({
+      data: {
+        agencyId,
+        ...data
+      }
+    })
+    
+    revalidatePath("/crm/deals")
+    return { success: true, data: deal }
+  } catch (error) {
+    console.error("Failed to create deal:", error)
+    return { success: false, error: "Failed to create deal" }
+  }
+}

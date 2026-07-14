@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Filter, Download, MoreHorizontal, Mail, Phone } from "lucide-react"
+import { Search, Filter, Download, MoreHorizontal, Mail, Phone } from "lucide-react"
+import AddContactModal from "./AddContactModal"
 
 export default function ContactsClient({ initialContacts }: { initialContacts: any[] }) {
   const [searchTerm, setSearchTerm] = useState("")
@@ -14,11 +15,11 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
-          <p className="text-text-secondary">Manage your leads and customers (1,248 total).</p>
+          <p className="text-text-secondary">Manage your leads and customers ({initialContacts.length} total).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline"><Download className="w-4 h-4 mr-2" /> Export</Button>
-          <Button><Plus className="w-4 h-4 mr-2" /> Add Contact</Button>
+          <AddContactModal />
         </div>
       </div>
 

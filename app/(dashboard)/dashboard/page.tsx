@@ -1,19 +1,31 @@
-"use client"
-
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight } from "lucide-react"
+import { PrismaClient } from "@prisma/client"
+import RevenueChart from "./revenue-chart"
 
-export default function DashboardPage() {
+const prisma = new PrismaClient()
+
+export default async function DashboardPage() {
+  // Fetch real data from Prisma
+  const totalContacts = await prisma.contact.count()
+  
+  // Aggregate Deals
+  const deals = await prisma.deal.findMany()
+  const totalRevenue = deals.reduce((acc, deal) => acc + deal.value, 0)
+  
+  const wonDeals = deals.filter(d => d.stage.toLowerCase() === "won" || d.stage.toLowerCase() === "closed won")
+  const winRate = deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0
+
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-text-secondary">Welcome back, John. Here&apos;s what&apos;s happening today.</p>
+          <p className="text-text-secondary">Welcome back. Here&apos;s what&apos;s happening today.</p>
         </div>
-        <Badge variant="success" className="px-3 py-1 text-sm">
-          <Activity className="w-4 h-4 mr-1 inline" /> AI Business Coach Active
+        <Badge variant="success" className="px-3 py-1 text-sm bg-green-500/15 text-green-500 hover:bg-green-500/25 border-none">
+          <Activity className="w-4 h-4 mr-1 inline" /> AI Coach Active
         </Badge>
       </div>
 
@@ -22,14 +34,14 @@ export default function DashboardPage() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-text-secondary">Total Revenue</h3>
+              <h3 className="text-sm font-medium text-text-secondary">Pipeline Value</h3>
               <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center text-success">
                 <DollarSign className="w-5 h-5" />
               </div>
             </div>
-            <div className="text-3xl font-bold">$24,500</div>
+            <div className="text-3xl font-bold">${totalRevenue.toLocaleString()}</div>
             <p className="text-xs text-success flex items-center mt-1">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +12% from last month
+              <ArrowUpRight className="w-3 h-3 mr-1" /> Real-time metrics
             </p>
           </CardContent>
         </Card>
@@ -37,14 +49,14 @@ export default function DashboardPage() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-text-secondary">Active Contacts</h3>
+              <h3 className="text-sm font-medium text-text-secondary">Total Contacts</h3>
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                 <Users className="w-5 h-5" />
               </div>
             </div>
-            <div className="text-3xl font-bold">1,248</div>
+            <div className="text-3xl font-bold">{totalContacts.toLocaleString()}</div>
             <p className="text-xs text-success flex items-center mt-1">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +48 this week
+              <ArrowUpRight className="w-3 h-3 mr-1" /> Real-time metrics
             </p>
           </CardContent>
         </Card>
@@ -57,9 +69,9 @@ export default function DashboardPage() {
                 <TrendingUp className="w-5 h-5" />
               </div>
             </div>
-            <div className="text-3xl font-bold">68%</div>
+            <div className="text-3xl font-bold">{winRate}%</div>
             <p className="text-xs text-success flex items-center mt-1">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +5% from last month
+              <ArrowUpRight className="w-3 h-3 mr-1" /> Based on won deals
             </p>
           </CardContent>
         </Card>
@@ -83,20 +95,8 @@ export default function DashboardPage() {
             <CardDescription>Monthly recurring revenue via Stripe & Paystack</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px] flex items-end gap-2 pt-8">
-              {[40, 60, 45, 80, 65, 90, 75, 100, 85, 110, 95, 120].map((val, i) => (
-                <div key={i} className="w-full bg-primary/20 rounded-t-md relative group">
-                  <div 
-                    className="absolute bottom-0 w-full bg-primary rounded-t-md transition-all duration-500 group-hover:bg-primary-hover"
-                    style={{ height: `${val}%` }}
-                  ></div>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-4 text-xs text-text-secondary">
-              <span>Jan</span>
-              <span>Jun</span>
-              <span>Dec</span>
+            <div className="h-[300px] w-full">
+               <RevenueChart />
             </div>
           </CardContent>
         </Card>
