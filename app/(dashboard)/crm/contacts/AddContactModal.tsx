@@ -30,7 +30,7 @@ export default function AddContactModal() {
     if (response.success) {
       setOpen(false)
     } else {
-      alert("Failed to create contact")
+      alert(response.error || "Failed to create contact")
     }
   }
 

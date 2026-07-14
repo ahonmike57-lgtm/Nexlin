@@ -46,8 +46,8 @@ export async function createDeal(data: { title: string, value: number, stage: st
     
     revalidatePath("/crm/deals")
     return { success: true, data: deal }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to create deal:", error)
-    return { success: false, error: "Failed to create deal" }
+    return { success: false, error: error.message || "Failed to create deal" }
   }
 }
