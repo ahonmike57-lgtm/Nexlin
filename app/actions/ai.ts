@@ -79,6 +79,12 @@ export async function generateAiReply(context: string, prompt: string) {
     return { success: true, data: text }
   } catch (error: any) {
     console.error("AI Error:", error)
-    return { success: false, error: error?.message || "Failed to generate AI content" }
+    
+    let errorMsg = error?.message || "Failed to generate AI content"
+    if (errorMsg.includes("API call error") || errorMsg.includes("fetch failed")) {
+      errorMsg = "Your API Key is invalid or restricted! Please double check your Vercel Environment Variables and ensure there are no spaces in the key."
+    }
+    
+    return { success: false, error: errorMsg }
   }
 }
