@@ -58,13 +58,13 @@ export async function generateAiReply(context: string, prompt: string) {
         m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")
       )
       
-      const proModel = availableModels.find((m: any) => m.name.includes("pro"))
       const flashModel = availableModels.find((m: any) => m.name.includes("flash"))
+      const proModel = availableModels.find((m: any) => m.name.includes("pro"))
       
-      if (proModel) {
-        selectedModel = proModel.name.replace("models/", "")
-      } else if (flashModel) {
+      if (flashModel) {
         selectedModel = flashModel.name.replace("models/", "")
+      } else if (proModel) {
+        selectedModel = proModel.name.replace("models/", "")
       } else if (availableModels.length > 0) {
         selectedModel = availableModels[0].name.replace("models/", "")
       }
