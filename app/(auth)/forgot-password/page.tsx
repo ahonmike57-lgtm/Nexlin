@@ -14,11 +14,28 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setLoading(true)
     
-    // Simulate API call for sending reset email
-    setTimeout(() => {
+    try {
+      const formData = new FormData(e.currentTarget)
+      const email = formData.get("email") as string
+
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      if (res.ok) {
+        setSubmitted(true)
+      } else {
+        const data = await res.json()
+        alert(data.error || "Failed to send reset link")
+      }
+    } catch (error) {
+      console.error(error)
+      alert("An unexpected error occurred")
+    } finally {
       setLoading(false)
-      setSubmitted(true)
-    }, 1500)
+    }
   }
 
   if (submitted) {
