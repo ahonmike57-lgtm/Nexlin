@@ -47,31 +47,8 @@ export async function generateAiReply(context: string, prompt: string) {
       }
     }
 
-    // Dynamically fetch available models to prevent versioning/deprecation errors
-    const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`)
-    const modelsData = await modelsRes.json()
-    
-    // Find the best available generative model (prefer pro, fallback to flash or anything available)
-    let selectedModel = "gemini-1.5-pro"
-    if (modelsData && modelsData.models) {
-      const availableModels = modelsData.models.filter((m: any) => 
-        m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")
-      )
-      
-      const flashModel = availableModels.find((m: any) => m.name.includes("flash"))
-      const proModel = availableModels.find((m: any) => m.name.includes("pro"))
-      
-      if (flashModel) {
-        selectedModel = flashModel.name.replace("models/", "")
-      } else if (proModel) {
-        selectedModel = proModel.name.replace("models/", "")
-      } else if (availableModels.length > 0) {
-        selectedModel = availableModels[0].name.replace("models/", "")
-      }
-    }
-
     const { text } = await generateText({
-      model: google(selectedModel),
+      model: google("gemini-1.5-flash"),
       system: systemPrompt,
       prompt: finalPrompt
     })
