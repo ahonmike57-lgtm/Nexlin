@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Settings2, Search, Filter, MoreHorizontal, Clock, DollarSign } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { updateDealStage } from "@/app/actions/deals"
 import AddDealModal from "./AddDealModal"
 
@@ -17,6 +17,10 @@ const stages = [
 
 export default function DealsClient({ initialDeals, contacts = [] }: { initialDeals: any[], contacts?: any[] }) {
   const [deals, setDeals] = useState(initialDeals)
+
+  useEffect(() => {
+    setDeals(initialDeals)
+  }, [initialDeals])
 
   const handleDragStart = (e: React.DragEvent, dealId: string) => {
     e.dataTransfer.setData("dealId", dealId)
@@ -58,7 +62,9 @@ export default function DealsClient({ initialDeals, contacts = [] }: { initialDe
           <p className="text-text-secondary">Drag and drop deals across stages.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline"><Settings2 className="w-4 h-4 mr-2" /> Pipeline Settings</Button>
+          <Button variant="outline" onClick={() => alert("Pipeline Settings coming in Phase 2!")}>
+            <Settings2 className="w-4 h-4 mr-2" /> Pipeline Settings
+          </Button>
           <AddDealModal contacts={contacts} />
         </div>
       </div>
