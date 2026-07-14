@@ -31,7 +31,7 @@ If they ask questions you do not know the answer to, politely explain that a hum
 
   // Use Google's Gemini 1.5 Pro model via the AI SDK
   const result = streamText({
-    model: google('gemini-1.5-pro-latest'),
+    model: google('gemini-1.5-pro'),
     system: systemPrompt,
     messages,
   })
