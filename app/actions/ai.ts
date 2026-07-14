@@ -47,13 +47,21 @@ export async function generateAiReply(context: string, prompt: string) {
       }
     }
 
-    const { text } = await generateText({
-      model: google("gemini-1.5-flash"),
-      system: systemPrompt,
-      prompt: finalPrompt
-    })
+    // Dynamically fetch available models to prevent versioning/deprecation errors
+    const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`)
+    const modelsData = await modelsRes.json()
+    
+    let availableModels = []
+    if (modelsData && modelsData.models) {
+      availableModels = modelsData.models
+        .filter((m: any) => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"))
+        .map((m: any) => m.name.replace("models/", ""))
+    }
+    
+    // Instead of generating text, we will literally return the list of available models so the user can see them!
+    const debugText = "AVAILABLE MODELS: " + availableModels.join(", ")
 
-    return { success: true, data: text }
+    return { success: true, data: debugText }
   } catch (error: any) {
     console.error("AI Error:", error)
     
