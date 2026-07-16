@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { cookies } from "next/headers"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function getPipelines() {
   try {
@@ -10,8 +11,15 @@ export async function getPipelines() {
     const agencyId = cookieStore.get("agencyId")?.value
     if (!agencyId) return { success: false, error: "Unauthorized" }
 
+    const subAgencyId = await getActiveSubAccountId()
+    
+    const whereClause: any = { agencyId }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const pipelines = await db.pipeline.findMany({
-      where: { agencyId },
+      where: whereClause,
       include: {
         stages: {
           orderBy: { order: "asc" }
@@ -33,9 +41,12 @@ export async function createPipeline(name: string, stages: { name: string, color
     const agencyId = cookieStore.get("agencyId")?.value
     if (!agencyId) return { success: false, error: "Unauthorized" }
 
+    const subAgencyId = await getActiveSubAccountId()
+
     const pipeline = await db.pipeline.create({
       data: {
         agencyId,
+        subAgencyId,
         name,
         stages: {
           create: stages.map((s, idx) => ({

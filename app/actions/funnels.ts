@@ -3,9 +3,11 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/auth"
+import { getActiveSubAccountId } from "./subaccounts"
 
-export async function getFunnels(agencyId: string, subAgencyId?: string) {
+export async function getFunnels(agencyId: string) {
   try {
+    const subAgencyId = await getActiveSubAccountId()
     const whereClause: any = { agencyId }
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId
@@ -25,10 +27,12 @@ export async function getFunnels(agencyId: string, subAgencyId?: string) {
   }
 }
 
-export async function createFunnel(agencyId: string, name: string, subAgencyId?: string) {
+export async function createFunnel(agencyId: string, name: string) {
   try {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const subAgencyId = await getActiveSubAccountId()
 
     const funnel = await db.funnel.create({
       data: {

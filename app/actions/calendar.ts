@@ -3,11 +3,14 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function createAppointment(agencyId: string, data: { title: string, contactId: string, startTime: Date, endTime: Date }) {
   try {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const subAgencyId = await getActiveSubAccountId()
 
     const appointment = await db.appointment.create({
       data: {
@@ -16,6 +19,7 @@ export async function createAppointment(agencyId: string, data: { title: string,
         startTime: data.startTime,
         endTime: data.endTime,
         agencyId,
+        subAgencyId,
       },
       include: {
         contact: true

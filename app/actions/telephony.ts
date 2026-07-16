@@ -4,6 +4,7 @@ import twilio from "twilio"
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { pusherServer } from "@/lib/pusher"
+import { getActiveSubAccountId } from "./subaccounts"
 
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "AC_mock_sid"
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "mock_token"
@@ -32,13 +33,20 @@ export async function sendSMS(contactId: string, content: string) {
       messageSid = result.sid
     }
 
+    const subAgencyId = await getActiveSubAccountId()
+
     // Find or create SMS conversation
+    const whereClause: any = {
+      contactId,
+      agencyId: contact.agencyId,
+      channel: "sms",
+    }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     let conversation = await db.conversation.findFirst({
-      where: {
-        contactId,
-        agencyId: contact.agencyId,
-        channel: "sms",
-      }
+      where: whereClause
     })
 
     if (!conversation) {
@@ -46,6 +54,7 @@ export async function sendSMS(contactId: string, content: string) {
         data: {
           contactId,
           agencyId: contact.agencyId,
+          subAgencyId,
           channel: "sms"
         }
       })

@@ -3,12 +3,20 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getOrCreateAgency } from "./agency"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function getDeals() {
   try {
     const agencyId = await getOrCreateAgency()
+    const subAgencyId = await getActiveSubAccountId()
+    
+    const whereClause: any = { agencyId }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const deals = await db.deal.findMany({
-      where: { agencyId },
+      where: whereClause,
       include: { contact: true },
       orderBy: { updatedAt: 'desc' }
     })
@@ -37,9 +45,12 @@ export async function updateDealStage(dealId: string, newStage: string) {
 export async function createDeal(data: { title: string, value: number, stage: string, contactId?: string }) {
   try {
     const agencyId = await getOrCreateAgency()
+    const subAgencyId = await getActiveSubAccountId()
+    
     const deal = await db.deal.create({
       data: {
         agencyId,
+        subAgencyId,
         ...data
       }
     })

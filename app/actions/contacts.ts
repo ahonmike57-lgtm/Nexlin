@@ -4,12 +4,20 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getOrCreateAgency } from "./agency"
 import { triggerWorkflows } from "./workflow-engine"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function getContacts() {
   try {
     const agencyId = await getOrCreateAgency()
+    const subAgencyId = await getActiveSubAccountId()
+    
+    const whereClause: any = { agencyId }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const contacts = await db.contact.findMany({
-      where: { agencyId },
+      where: whereClause,
       orderBy: { createdAt: 'desc' }
     })
     return { success: true, data: contacts }
@@ -22,9 +30,12 @@ export async function getContacts() {
 export async function createContact(data: { firstName: string, lastName?: string, email?: string, phone?: string, company?: string }) {
   try {
     const agencyId = await getOrCreateAgency()
+    const subAgencyId = await getActiveSubAccountId()
+    
     const contact = await db.contact.create({
       data: {
         agencyId,
+        subAgencyId,
         ...data
       }
     })

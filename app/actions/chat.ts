@@ -3,12 +3,20 @@
 import { db } from "@/lib/db"
 import { getOrCreateAgency } from "./agency"
 import { revalidatePath } from "next/cache"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function getConversations() {
   try {
     const agencyId = await getOrCreateAgency()
+    const subAgencyId = await getActiveSubAccountId()
+    
+    const whereClause: any = { agencyId }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const conversations = await db.conversation.findMany({
-      where: { agencyId },
+      where: whereClause,
       include: { 
         contact: true,
         messages: {
@@ -71,10 +79,16 @@ export async function sendMessage(conversationId: string, content: string, isOut
 export async function createConversation(contactId: string, channel: string = "sms") {
   try {
     const agencyId = await getOrCreateAgency()
+    const subAgencyId = await getActiveSubAccountId()
     
     // Check if open conversation already exists
+    const whereClause: any = { agencyId, contactId, status: "open", channel }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const existing = await db.conversation.findFirst({
-      where: { agencyId, contactId, status: "open", channel }
+      where: whereClause
     })
     
     if (existing) {
@@ -84,6 +98,7 @@ export async function createConversation(contactId: string, channel: string = "s
     const conversation = await db.conversation.create({
       data: {
         agencyId,
+        subAgencyId,
         contactId,
         channel
       }

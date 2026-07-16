@@ -3,11 +3,19 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/auth"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function getWorkflows(agencyId: string) {
   try {
+    const subAgencyId = await getActiveSubAccountId()
+    
+    const whereClause: any = { agencyId }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const workflows = await db.workflow.findMany({
-      where: { agencyId },
+      where: whereClause,
       include: {
         triggers: true,
         actions: { orderBy: { order: "asc" } }
@@ -26,9 +34,12 @@ export async function createWorkflow(agencyId: string, name: string) {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
+    const subAgencyId = await getActiveSubAccountId()
+
     const workflow = await db.workflow.create({
       data: {
         agencyId,
+        subAgencyId,
         name,
         status: "draft",
         triggers: {

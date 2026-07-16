@@ -1,7 +1,8 @@
-﻿"use server"
+"use server"
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function executeWorkflow(workflowId: string, contactId?: string) {
   try {
@@ -29,7 +30,12 @@ export async function executeWorkflow(workflowId: string, contactId?: string) {
         // If no contactId provided (e.g. Test Workflow button), grab the newest contact to prove it works
         let targetContactId = contactId
         if (!targetContactId) {
-          const fallback = await db.contact.findFirst({ orderBy: { createdAt: "desc" } })
+          const subAgencyId = await getActiveSubAccountId()
+          const whereClause: any = {}
+          if (subAgencyId) {
+            whereClause.subAgencyId = subAgencyId
+          }
+          const fallback = await db.contact.findFirst({ where: whereClause, orderBy: { createdAt: "desc" } })
           if (fallback) targetContactId = fallback.id
         }
 
@@ -65,14 +71,20 @@ export async function executeWorkflow(workflowId: string, contactId?: string) {
 
 export async function triggerWorkflows(agencyId: string, eventType: string, payload?: any) {
   try {
-    const activeWorkflows = await db.workflow.findMany({
-      where: {
-        agencyId,
-        status: "active",
-        triggers: {
-          some: { type: eventType }
-        }
+    const subAgencyId = await getActiveSubAccountId()
+    const whereClause: any = {
+      agencyId,
+      status: "active",
+      triggers: {
+        some: { type: eventType }
       }
+    }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
+    const activeWorkflows = await db.workflow.findMany({
+      where: whereClause
     })
 
     console.log(`[Workflow Engine] Found ${activeWorkflows.length} active workflows for event: ${eventType}`)

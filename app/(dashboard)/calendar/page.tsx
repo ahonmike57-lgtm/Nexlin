@@ -1,9 +1,10 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import CalendarClient from "./CalendarClient"
 import { startOfWeek, endOfWeek, addDays, format } from "date-fns"
+import { getActiveSubAccountId } from "@/app/actions/subaccounts"
 
 export default async function CalendarPage() {
   const session = await getSession()
@@ -24,14 +25,23 @@ export default async function CalendarPage() {
   const startDate = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday
   const endDate = endOfWeek(new Date(), { weekStartsOn: 1 })
 
+  const subAgencyId = await getActiveSubAccountId()
+  const whereClause: any = {
+    agencyId: user.agencyId,
+    startTime: {
+      gte: startDate,
+      lte: endDate,
+    }
+  }
+  const contactWhereClause: any = { agencyId: user.agencyId }
+  
+  if (subAgencyId) {
+    whereClause.subAgencyId = subAgencyId
+    contactWhereClause.subAgencyId = subAgencyId
+  }
+
   const appointments = await db.appointment.findMany({
-    where: {
-      agencyId: user.agencyId,
-      startTime: {
-        gte: startDate,
-        lte: endDate,
-      }
-    },
+    where: whereClause,
     include: {
       contact: true
     },
@@ -42,7 +52,7 @@ export default async function CalendarPage() {
 
   // Fetch contacts for the new appointment dropdown
   const contacts = await db.contact.findMany({
-    where: { agencyId: user.agencyId },
+    where: contactWhereClause,
     select: { id: true, firstName: true, lastName: true }
   })
 

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/auth"
+import { getActiveSubAccountId } from "./subaccounts"
 
 export async function getAgencyBranding(agencyId: string) {
   try {
@@ -45,8 +46,14 @@ export async function updateAgencyBranding(agencyId: string, branding: any) {
 
 export async function getTeamMembers(agencyId: string) {
   try {
+    const subAgencyId = await getActiveSubAccountId()
+    const whereClause: any = { agencyId }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const members = await db.user.findMany({
-      where: { agencyId },
+      where: whereClause,
       select: {
         id: true,
         name: true,
@@ -67,11 +74,14 @@ export async function inviteTeamMember(agencyId: string, email: string, role: st
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
+    const subAgencyId = await getActiveSubAccountId()
+
     // In a real app, this would send an email invite.
     // For now, we just create a stub user.
     const user = await db.user.create({
       data: {
         agencyId,
+        subAgencyId,
         email,
         role,
         name: email.split("@")[0]
