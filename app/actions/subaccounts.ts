@@ -25,10 +25,11 @@ export async function getSubAccounts() {
 
 export async function setActiveSubAccount(subAgencyId: string | null) {
   try {
+    const cookieStore = await cookies()
     if (subAgencyId) {
-      cookies().set("activeSubAccountId", subAgencyId, { path: "/" })
+      cookieStore.set("activeSubAccountId", subAgencyId, { path: "/" })
     } else {
-      cookies().delete("activeSubAccountId")
+      cookieStore.delete("activeSubAccountId")
     }
     return { success: true }
   } catch (error) {
@@ -38,7 +39,7 @@ export async function setActiveSubAccount(subAgencyId: string | null) {
 }
 
 export async function getActiveSubAccountId() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const activeId = cookieStore.get("activeSubAccountId")
   return activeId?.value || null
 }
