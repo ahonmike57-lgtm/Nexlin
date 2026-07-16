@@ -6,7 +6,7 @@ import { cookies } from "next/headers"
 
 export async function getSubAccounts() {
   try {
-    const session = await getAuthSession()
+    const session = await getSession()
     if (!session?.user?.email) return []
 
     const user = await db.user.findUnique({
