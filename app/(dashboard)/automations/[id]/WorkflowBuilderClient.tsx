@@ -27,7 +27,7 @@ const WorkflowNode = ({ data, type }: any) => {
   }
 
   return (
-    <div className={"w-72 bg-bg-primary border \ shadow-md rounded-xl p-4 relative"}>
+    <div className={`w-72 bg-bg-primary border ${isTrigger ? 'border-primary shadow-primary/20' : 'border-border'} shadow-md rounded-xl p-4 relative`}>
       {!isTrigger && <Handle type="target" position={Position.Top} className="w-3 h-3 bg-border" />}
       
       {isTrigger && (
@@ -38,7 +38,7 @@ const WorkflowNode = ({ data, type }: any) => {
       
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className={"w-10 h-10 rounded-md \ border border-border flex items-center justify-center shadow-sm"}>
+          <div className={`w-10 h-10 rounded-md ${isTrigger ? 'bg-white' : 'bg-bg-secondary'} border border-border flex items-center justify-center shadow-sm`}>
             {getIcon(data.type)}
           </div>
           <div>
@@ -80,7 +80,7 @@ export default function WorkflowBuilderClient({ workflow }: { workflow: any }) {
   if (triggers.length > 0) {
     const trigger = triggers[0] // Simplify: 1 main trigger for visual
     initialNodes.push({
-      id: "trigger-\",
+      id: `trigger-${trigger.id}`,
       type: "workflowNode",
       position: { x: 250, y: currentY },
       data: { 
@@ -98,7 +98,7 @@ export default function WorkflowBuilderClient({ workflow }: { workflow: any }) {
   // Create Action Nodes
   actions.forEach((action: any, index: number) => {
     initialNodes.push({
-      id: "action-\",
+      id: `action-${action.id}`,
       type: "workflowNode",
       position: { x: 250, y: currentY },
       data: {
@@ -113,14 +113,14 @@ export default function WorkflowBuilderClient({ workflow }: { workflow: any }) {
     
     // Create edge from previous node
     const prevId = index === 0 && triggers.length > 0 
-      ? "trigger-\" 
-      : index > 0 ? "action-\" : null
+      ? `trigger-${triggers[0].id}` 
+      : index > 0 ? `action-${actions[index-1].id}` : null
       
     if (prevId) {
       initialEdges.push({
-        id: "edge-\-\",
+        id: `edge-${prevId}-${action.id}`,
         source: prevId,
-        target: "action-\",
+        target: `action-${action.id}`,
         type: "smoothstep",
         animated: true,
         markerEnd: { type: MarkerType.ArrowClosed }
@@ -150,7 +150,7 @@ export default function WorkflowBuilderClient({ workflow }: { workflow: any }) {
       }
     })
     
-    const lastNodeId = actions.length > 0 ? "action-\" : "trigger-\"
+    const lastNodeId = actions.length > 0 ? `action-${actions[actions.length-1].id}` : `trigger-${triggers[0].id}`
     initialEdges.push({
       id: "edge-add",
       source: lastNodeId,

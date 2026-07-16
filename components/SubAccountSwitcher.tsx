@@ -60,7 +60,7 @@ export default function SubAccountSwitcher() {
           <div className="max-h-64 overflow-y-auto">
             <button
               onClick={() => handleSelect(null)}
-              className={"w-full flex items-center justify-between p-3 text-sm hover:bg-bg-secondary transition-colors }
+              className={`w-full flex items-center justify-between p-3 text-sm hover:bg-bg-secondary transition-colors ${!activeId ? 'text-primary font-bold bg-primary/5' : ''}`}
             >
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
@@ -73,7 +73,7 @@ export default function SubAccountSwitcher() {
               <button
                 key={account.id}
                 onClick={() => handleSelect(account.id)}
-                className={"w-full flex items-center justify-between p-3 text-sm border-t border-border hover:bg-bg-secondary transition-colors }
+                className={`w-full flex items-center justify-between p-3 text-sm border-t border-border hover:bg-bg-secondary transition-colors ${activeId === account.id ? 'text-primary font-bold bg-primary/5' : ''}`}
               >
                 <div className="flex items-center gap-2 truncate">
                   <div className="w-5 h-5 rounded bg-bg-secondary flex flex-shrink-0 items-center justify-center text-xs font-bold">

@@ -4,10 +4,15 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/auth"
 
-export async function getFunnels(agencyId: string) {
+export async function getFunnels(agencyId: string, subAgencyId?: string) {
   try {
+    const whereClause: any = { agencyId }
+    if (subAgencyId) {
+      whereClause.subAgencyId = subAgencyId
+    }
+
     const funnels = await db.funnel.findMany({
-      where: { agencyId },
+      where: whereClause,
       include: {
         steps: true
       },
@@ -20,7 +25,7 @@ export async function getFunnels(agencyId: string) {
   }
 }
 
-export async function createFunnel(agencyId: string, name: string) {
+export async function createFunnel(agencyId: string, name: string, subAgencyId?: string) {
   try {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
@@ -28,7 +33,9 @@ export async function createFunnel(agencyId: string, name: string) {
     const funnel = await db.funnel.create({
       data: {
         agencyId,
+        subAgencyId,
         name,
+        subdomain: name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 1000),
         status: "Draft",
         steps: {
           create: [
@@ -73,5 +80,61 @@ export async function updateFunnelStepContent(stepId: string, content: string) {
   } catch (error) {
     console.error("Failed to update step content:", error)
     return { success: false, error: "Failed to update step" }
+  }
+}
+
+export async function getLiveFunnelStep(subdomain: string, slug: string) {
+  try {
+    // Treat "home" or undefined slug as "/"
+    const pathToMatch = !slug || slug === 'home' ? '/' : \"/\\"
+    
+    const funnel = await db.funnel.findUnique({
+      where: { subdomain },
+      include: {
+        steps: {
+          where: { path: pathToMatch }
+        }
+      }
+    })
+
+    if (!funnel || funnel.steps.length === 0) {
+      return { success: false, error: "Not found" }
+    }
+
+    return { success: true, data: { funnel, step: funnel.steps[0] } }
+  } catch (error) {
+    console.error("Failed to fetch live funnel:", error)
+    return { success: false, error: "Internal server error" }
+  }
+}
+
+export async function submitLiveFunnelForm(subdomain: string, formData: any) {
+  try {
+    const funnel = await db.funnel.findUnique({
+      where: { subdomain },
+      select: { agencyId: true, subAgencyId: true }
+    })
+
+    if (!funnel) return { success: false, error: "Funnel not found" }
+
+    // 1. Create a contact
+    const contact = await db.contact.create({
+      data: {
+        agencyId: funnel.agencyId,
+        subAgencyId: funnel.subAgencyId,
+        name: formData.name || "Unknown",
+        email: formData.email || "",
+        phone: formData.phone || "",
+        tags: "funnel_lead"
+      }
+    })
+
+    // 2. We could trigger the workflow engine here for "contact_created" trigger
+    // await executeWorkflow(...)
+
+    return { success: true, data: contact }
+  } catch (error) {
+    console.error("Form submission failed:", error)
+    return { success: false, error: "Submission failed" }
   }
 }
