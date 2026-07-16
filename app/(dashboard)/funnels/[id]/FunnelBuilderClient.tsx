@@ -283,13 +283,13 @@ export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
                 </Frame>
               )}
             </div>
-            </div>
           </div>
+        </div>
 
-          {/* Right AI Copilot Panel */}
-          <AICopilot />
-        </Editor>
+        {/* Right AI Copilot Panel */}
+        <AICopilot />
       </div>
+      </Editor>
     </div>
   )
 }

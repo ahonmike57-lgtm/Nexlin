@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getAuthSession } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { cookies } from "next/headers"
 
 export async function getSubAccounts() {

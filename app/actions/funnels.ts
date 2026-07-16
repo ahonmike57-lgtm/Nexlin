@@ -86,7 +86,7 @@ export async function updateFunnelStepContent(stepId: string, content: string) {
 export async function getLiveFunnelStep(subdomain: string, slug: string) {
   try {
     // Treat "home" or undefined slug as "/"
-    const pathToMatch = !slug || slug === 'home' ? '/' : \"/\\"
+    const pathToMatch = !slug || slug === 'home' ? '/' : `/${slug}`
     
     const funnel = await db.funnel.findUnique({
       where: { subdomain },
@@ -122,10 +122,9 @@ export async function submitLiveFunnelForm(subdomain: string, formData: any) {
       data: {
         agencyId: funnel.agencyId,
         subAgencyId: funnel.subAgencyId,
-        name: formData.name || "Unknown",
+        firstName: formData.name || "Unknown",
         email: formData.email || "",
-        phone: formData.phone || "",
-        tags: "funnel_lead"
+        phone: formData.phone || ""
       }
     })
 
