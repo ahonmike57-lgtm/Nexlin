@@ -205,63 +205,73 @@ const AICopilot = () => {
   )
 }
 
-/* --- MAIN PAGE COMPONENT --- */
-
-export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
-  const [isSaving, setIsSaving] = useState(false)
+const Topbar = ({ funnel, isSaving, setIsSaving }: any) => {
+  const { query } = useEditor()
 
   const handleSave = async () => {
     if (!funnel.steps?.[0]) return
     setIsSaving(true)
-    // CraftJS save logic:
-    // const json = query.serialize()
-    await updateFunnelStepContent(funnel.steps[0].id, JSON.stringify({ saved: true }))
+    const json = query.serialize()
+    await updateFunnelStepContent(funnel.steps[0].id, json)
     setIsSaving(false)
   }
 
   return (
-    <div className="flex flex-col h-screen -m-8">
-      {/* Top Navigation Bar */}
-      <header className="h-14 border-b border-border bg-bg-primary flex items-center justify-between px-4 shrink-0 z-10 relative">
-        <div className="flex items-center gap-4">
-          <Link href="/funnels">
-            <Button variant="ghost" size="icon" className="w-8 h-8"><ArrowLeft className="w-4 h-4" /></Button>
-          </Link>
-          <div className="h-4 w-px bg-border"></div>
-          <div>
-            <span className="font-semibold text-sm">{funnel.name}</span>
-            <span className="ml-2 text-xs text-text-secondary bg-bg-secondary px-2 py-1 rounded">AI Builder</span>
-          </div>
+    <header className="h-14 border-b border-border bg-bg-primary flex items-center justify-between px-4 shrink-0 z-10 relative">
+      <div className="flex items-center gap-4">
+        <Link href="/funnels">
+          <Button variant="ghost" size="icon" className="w-8 h-8"><ArrowLeft className="w-4 h-4" /></Button>
+        </Link>
+        <div className="h-4 w-px bg-border"></div>
+        <div>
+          <span className="font-semibold text-sm">{funnel.name}</span>
+          <span className="ml-2 text-xs text-text-secondary bg-bg-secondary px-2 py-1 rounded">AI Builder</span>
         </div>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={handleSave} disabled={isSaving}>
-            <Save className="w-4 h-4 mr-2" /> {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
-      </header>
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={handleSave} disabled={isSaving}>
+          <Save className="w-4 h-4 mr-2" /> {isSaving ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
+    </header>
+  )
+}
+
+export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
+  const [isSaving, setIsSaving] = useState(false)
+  
+  const step = funnel.steps?.[0]
+  const hasContent = step?.content && step.content !== "{}"
+
+  return (
+    <div className="flex flex-col h-screen -m-8">
+      <Editor resolver={{ ContainerComponent, TextComponent, ButtonComponent, ImageComponent }}>
+        <Topbar funnel={funnel} isSaving={isSaving} setIsSaving={setIsSaving} />
 
       <div className="flex-1 flex overflow-hidden">
-        <Editor resolver={{ ContainerComponent, TextComponent, ButtonComponent, ImageComponent }}>
-          {/* Left Toolbox */}
-          <Toolbox />
+        {/* Left Toolbox */}
+        <Toolbox />
 
-          {/* Main Canvas Area */}
-          <div className="flex-1 bg-bg-secondary p-8 overflow-auto flex justify-center">
-            <div className="w-full max-w-5xl min-h-[800px] bg-white shadow-2xl rounded-lg overflow-hidden border border-border flex flex-col">
-              {/* Browser Mockup Header */}
-              <div className="bg-slate-100 border-b border-slate-200 p-2 flex items-center gap-2 shrink-0">
-                <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                <div className="ml-4 flex-1">
-                  <div className="bg-white rounded-md h-6 w-full max-w-sm border border-slate-200 mx-auto flex items-center px-2 text-[10px] text-slate-400 font-mono">
-                    https://{funnel.subdomain || "your-site"}.nexlin.com
-                  </div>
+        {/* Main Canvas Area */}
+        <div className="flex-1 bg-bg-secondary p-8 overflow-auto flex justify-center">
+          <div className="w-full max-w-5xl min-h-[800px] bg-white shadow-2xl rounded-lg overflow-hidden border border-border flex flex-col">
+            {/* Browser Mockup Header */}
+            <div className="bg-slate-100 border-b border-slate-200 p-2 flex items-center gap-2 shrink-0">
+              <div className="w-3 h-3 rounded-full bg-red-400"></div>
+              <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+              <div className="w-3 h-3 rounded-full bg-green-400"></div>
+              <div className="ml-4 flex-1">
+                <div className="bg-white rounded-md h-6 w-full max-w-sm border border-slate-200 mx-auto flex items-center px-2 text-[10px] text-slate-400 font-mono">
+                  https://{funnel.subdomain || "your-site"}.nexlin.com
                 </div>
               </div>
-              
-              <div className="flex-1 bg-white overflow-y-auto">
+            </div>
+            
+            <div className="flex-1 bg-white overflow-y-auto">
+              {hasContent ? (
+                <Frame data={step.content} />
+              ) : (
                 <Frame>
                   <Element is={ContainerComponent} padding={40} background="#ffffff" canvas>
                     <TextComponent text="Start Building Your AI Website" fontSize={36} textAlign="center" />
@@ -271,7 +281,8 @@ export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
                     </div>
                   </Element>
                 </Frame>
-              </div>
+              )}
+            </div>
             </div>
           </div>
 
