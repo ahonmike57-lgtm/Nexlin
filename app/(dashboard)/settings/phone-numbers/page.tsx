@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getAgencyPhoneData } from "@/app/actions/telephony"
@@ -21,3 +22,4 @@ export default async function PhoneNumbersPage() {
     />
   )
 }
+

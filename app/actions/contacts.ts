@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getOrCreateAgency } from "./agency"
+import { triggerWorkflows } from "./workflow-engine"
 
 export async function getContacts() {
   try {
@@ -27,6 +28,9 @@ export async function createContact(data: { firstName: string, lastName?: string
         ...data
       }
     })
+    
+    // Trigger any active workflows for contact creation
+    await triggerWorkflows(agencyId, "contact_created", { contactId: contact.id })
     
     revalidatePath("/crm/contacts")
     return { success: true, data: contact }

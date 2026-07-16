@@ -1,5 +1,7 @@
+﻿export const dynamic = 'force-dynamic';
 import { getDeals } from "@/app/actions/deals"
 import { getContacts } from "@/app/actions/contacts"
+import { getPipelines } from "@/app/actions/pipelines"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import DealsClient from "./DealsClient"
@@ -13,13 +15,16 @@ export default async function DealsPage() {
 
   // getDeals and getContacts now dynamically provision and fetch via the session context on the server
   
-  const [dealsResponse, contactsResponse] = await Promise.all([
+  const [dealsResponse, contactsResponse, pipelinesResponse] = await Promise.all([
     getDeals(),
-    getContacts()
+    getContacts(),
+    getPipelines()
   ])
   
   const deals = dealsResponse.data || []
   const contacts = contactsResponse.data || []
+  const pipelines = pipelinesResponse.data || []
 
-  return <DealsClient initialDeals={deals} contacts={contacts} />
+  return <DealsClient initialDeals={deals} contacts={contacts} pipelines={pipelines} />
 }
+

@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("POSTGRES_PRISMA_URL")
   directUrl = env("POSTGRES_URL_NON_POOLING")
 }
@@ -59,6 +59,7 @@ model Agency {
   ReviewRequest     ReviewRequest[]
   Form              Form[]
   ExtensionAuditLog ExtensionAuditLog[]
+  pipelines         Pipeline[]
 }
 
 model SubAgency {
@@ -71,8 +72,14 @@ model SubAgency {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  deals        Deal[]
-  appointments Appointment[]
+  deals         Deal[]
+  appointments  Appointment[]
+  contacts      Contact[]
+  pipelines     Pipeline[]
+  funnels       Funnel[]
+  conversations Conversation[]
+  workflows     Workflow[]
+  users         User[]
 }
 
 model User {
@@ -85,6 +92,8 @@ model User {
   isAfricaUser  Boolean    @default(false)
   agencyId      String?
   agency        Agency?    @relation(fields: [agencyId], references: [id])
+  subAgencyId   String?
+  subAgency     SubAgency? @relation(fields: [subAgencyId], references: [id])
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   emailVerified DateTime?
@@ -95,16 +104,18 @@ model User {
 }
 
 model Contact {
-  id        String   @id @default(cuid())
-  agencyId  String
-  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  firstName String
-  lastName  String?
-  email     String?
-  phone     String?
-  company   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String     @id @default(cuid())
+  agencyId    String
+  agency      Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String?
+  email       String?
+  phone       String?
+  company     String?
+  subAgencyId String?
+  subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   deals           Deal[]
   conversations   Conversation[]
@@ -116,18 +127,47 @@ model Contact {
 }
 
 model Deal {
-  id          String     @id @default(cuid())
+  id          String         @id @default(cuid())
   agencyId    String
-  agency      Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agency      Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   subAgencyId String?
-  subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
+  subAgency   SubAgency?     @relation(fields: [subAgencyId], references: [id])
   contactId   String?
-  contact     Contact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  contact     Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  pipelineId  String?
+  pipeline    Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  stageId     String?
+  stageObj    PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
   title       String
-  value       Float      @default(0)
-  stage       String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  value       Float          @default(0)
+  stage       String // Legacy string stage for backward compatibility
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Pipeline {
+  id          String          @id @default(cuid())
+  agencyId    String
+  agency      Agency          @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name        String
+  subAgencyId String?
+  subAgency   SubAgency?      @relation(fields: [subAgencyId], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  stages      PipelineStage[]
+  deals       Deal[]
+}
+
+model PipelineStage {
+  id         String   @id @default(cuid())
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  name       String
+  color      String?  @default("bg-primary/20 text-primary border-primary/30")
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deals      Deal[]
 }
 
 model Subscription {
@@ -216,15 +256,17 @@ model VerificationToken {
 // --- Phase 2 Feature Models ---
 
 model Funnel {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   agencyId     String
-  agency       Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agency       Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
   name         String
-  subdomain    String?  @unique
-  customDomain String?  @unique
-  status       String   @default("draft") // draft, active, archived
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  subdomain    String?    @unique
+  customDomain String?    @unique
+  subAgencyId  String?
+  subAgency    SubAgency? @relation(fields: [subAgencyId], references: [id])
+  status       String     @default("draft") // draft, active, archived
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   steps FunnelStep[]
 }
@@ -245,15 +287,17 @@ model FunnelStep {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
-  agencyId  String
-  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  contactId String
-  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  channel   String // email, sms, whatsapp
-  status    String   @default("open") // open, closed
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String     @id @default(cuid())
+  agencyId    String
+  agency      Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  contactId   String
+  contact     Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel     String // email, sms, whatsapp
+  subAgencyId String?
+  subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
+  status      String     @default("open") // open, closed
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   messages Message[]
 }
@@ -283,13 +327,15 @@ model Campaign {
 // --- Phase 6 Feature Models ---
 
 model Workflow {
-  id        String   @id @default(cuid())
-  agencyId  String
-  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  name      String
-  status    String   @default("draft") // draft, active
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String     @id @default(cuid())
+  agencyId    String
+  agency      Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name        String
+  subAgencyId String?
+  subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
+  status      String     @default("draft") // draft, active
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   triggers WorkflowTrigger[]
   actions  WorkflowAction[]

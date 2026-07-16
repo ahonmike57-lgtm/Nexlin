@@ -1,4 +1,5 @@
-﻿import { db } from '@/lib/db'
+﻿export const dynamic = 'force-dynamic';
+import { db } from '@/lib/db'
 import McpClient from './McpClient'
 
 export default async function McpPage() {
@@ -11,3 +12,4 @@ export default async function McpPage() {
 
   return <McpClient connections={connections} agencyId={agencyId} />
 }
+

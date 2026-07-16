@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getSocialAccounts, getSocialPosts } from "@/app/actions/social"
@@ -19,3 +20,4 @@ export default async function SocialPage() {
 
   return <SocialClient initialAccounts={initialAccounts} initialPosts={initialPosts} agencyId={agencyId} />
 }
+

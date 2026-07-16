@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import ReportingClient from "./ReportingClient"
@@ -17,3 +18,4 @@ export default async function ReportingPage() {
 
   return <ReportingClient initialMetrics={metrics} />
 }
+

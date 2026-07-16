@@ -2,12 +2,14 @@
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Settings2, Search, Filter, MoreHorizontal, Clock, DollarSign } from "lucide-react"
+import { Plus, Settings2, Search, Filter, MoreHorizontal, Clock, DollarSign, Grip } from "lucide-react"
 import { useState, useEffect } from "react"
 import { updateDealStage } from "@/app/actions/deals"
 import AddDealModal from "./AddDealModal"
+import { useRouter } from "next/navigation"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-const stages = [
+const DEFAULT_STAGES = [
   { id: "lead", name: "New Lead", amount: "$12,500", color: "bg-primary/20 text-primary border-primary/30" },
   { id: "contacted", name: "Contacted", amount: "$8,200", color: "bg-warning/20 text-warning border-warning/30" },
   { id: "meeting", name: "Meeting Scheduled", amount: "$45,000", color: "bg-secondary/20 text-secondary border-secondary/30" },
@@ -15,12 +17,21 @@ const stages = [
   { id: "won", name: "Closed Won", amount: "$350,000", color: "bg-success/20 text-success border-success/30" },
 ]
 
-export default function DealsClient({ initialDeals, contacts = [] }: { initialDeals: any[], contacts?: any[] }) {
+export default function DealsClient({ initialDeals, contacts = [], pipelines = [] }: { initialDeals: any[], contacts?: any[], pipelines?: any[] }) {
   const [deals, setDeals] = useState(initialDeals)
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>(pipelines[0]?.id || "default")
+  const router = useRouter()
 
   useEffect(() => {
     setDeals(initialDeals)
   }, [initialDeals])
+
+  const currentPipeline = pipelines.find(p => p.id === selectedPipelineId)
+  
+  // Use dynamic stages if a pipeline is selected, otherwise fallback to default
+  const stages = currentPipeline?.stages?.length > 0 
+    ? currentPipeline.stages 
+    : DEFAULT_STAGES
 
   const handleDragStart = (e: React.DragEvent, dealId: string) => {
     e.dataTransfer.setData("dealId", dealId)
@@ -41,18 +52,24 @@ export default function DealsClient({ initialDeals, contacts = [] }: { initialDe
       )
     )
 
-    // Call server action
+    // Call server action (stage could be legacy string or new stageId)
     await updateDealStage(dealId, newStageId)
   }
 
+  // Filter deals to only show ones in the current pipeline stages
+  // If we are on default pipeline, show deals whose stage is in DEFAULT_STAGES
+  // If we are on custom pipeline, show deals whose stage is in currentPipeline.stages
+  const currentStageIds = stages.map((s: any) => s.id)
+  const visibleDeals = deals.filter(d => currentStageIds.includes(d.stage))
+
   // Group deals by stage
-  const dealsByStage = deals.reduce((acc: any, deal: any) => {
+  const dealsByStage = visibleDeals.reduce((acc: any, deal: any) => {
     if (!acc[deal.stage]) acc[deal.stage] = []
     acc[deal.stage].push(deal)
     return acc
   }, {})
 
-  const totalValue = deals.reduce((sum, deal) => sum + (deal.value || 0), 0)
+  const totalValue = visibleDeals.reduce((sum: number, deal: any) => sum + (deal.value || 0), 0)
   
   return (
     <div className="animate-in fade-in duration-500 h-full flex flex-col">
@@ -62,10 +79,24 @@ export default function DealsClient({ initialDeals, contacts = [] }: { initialDe
           <p className="text-text-secondary">Drag and drop deals across stages.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => alert("Pipeline Settings coming in Phase 2!")}>
+          {pipelines.length > 0 && (
+            <div className="w-[200px]">
+              <select 
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                value={selectedPipelineId}
+                onChange={(e) => setSelectedPipelineId(e.target.value)}
+              >
+                {pipelines.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+                <option value="default">Default (Legacy)</option>
+              </select>
+            </div>
+          )}
+          <Button variant="outline" onClick={() => router.push("/settings/pipelines")}>
             <Settings2 className="w-4 h-4 mr-2" /> Pipeline Settings
           </Button>
-          <AddDealModal contacts={contacts} />
+          <AddDealModal contacts={contacts} stages={stages} />
         </div>
       </div>
 
@@ -88,7 +119,7 @@ export default function DealsClient({ initialDeals, contacts = [] }: { initialDe
 
       {/* Kanban Board */}
       <div className="flex-1 flex gap-6 overflow-x-auto pb-4">
-        {stages.map((stage) => {
+        {stages.map((stage: any) => {
           const stageDeals = dealsByStage[stage.id] || []
           
           return (
@@ -101,7 +132,7 @@ export default function DealsClient({ initialDeals, contacts = [] }: { initialDe
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-sm">{stage.name}</h3>
-                  <Badge className={`text-xs font-semibold px-2 py-0 border ${stage.color}`}>
+                  <Badge className={`text-xs font-semibold px-2 py-0 border ${stage.color || 'bg-slate-100 text-slate-800'}`}>
                     {stageDeals.length}
                   </Badge>
                 </div>

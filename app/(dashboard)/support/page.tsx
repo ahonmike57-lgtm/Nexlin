@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getTickets } from "@/app/actions/support"
@@ -16,3 +17,4 @@ export default async function SupportPage() {
 
   return <SupportClient initialTickets={initialTickets} agencyId={agencyId} />
 }
+

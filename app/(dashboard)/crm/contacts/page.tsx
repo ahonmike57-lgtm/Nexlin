@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getContacts } from "@/app/actions/contacts"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
@@ -17,3 +18,4 @@ export default async function ContactsPage() {
 
   return <ContactsClient initialContacts={contacts} />
 }
+

@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth"
 import { db } from "@/lib/db"
@@ -58,3 +59,4 @@ export default async function CalendarPage() {
     </div>
   )
 }
+

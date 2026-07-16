@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import WebsitesClient from "./WebsitesClient"
@@ -15,3 +16,4 @@ export default async function WebsitesPage() {
   
   return <WebsitesClient initialWebsites={funnelsResponse.data || []} agencyId={session.user.id} />
 }
+

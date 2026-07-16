@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
@@ -29,3 +30,4 @@ export default async function DomainsPage() {
     </div>
   )
 }
+

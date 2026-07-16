@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getAdCampaigns } from "@/app/actions/ads"
@@ -25,3 +26,4 @@ export default async function AdsPage() {
 
   return <AdsClient initialCampaigns={initialCampaigns} agencyId={agencyId} />
 }
+

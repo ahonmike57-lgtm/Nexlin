@@ -63,3 +63,74 @@ export async function getWorkflow(id: string) {
     return { success: false, error: "Failed to fetch workflow" }
   }
 }
+
+export async function addWorkflowTrigger(workflowId: string, type: string) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const trigger = await db.workflowTrigger.create({
+      data: { workflowId, type }
+    })
+    revalidatePath(`/automations/${workflowId}`)
+    return { success: true, data: trigger }
+  } catch (error) {
+    console.error("Failed to add trigger:", error)
+    return { success: false, error: "Failed to add trigger" }
+  }
+}
+
+export async function addWorkflowAction(workflowId: string, type: string, order: number) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const action = await db.workflowAction.create({
+      data: { workflowId, type, order }
+    })
+    revalidatePath(`/automations/${workflowId}`)
+    return { success: true, data: action }
+  } catch (error) {
+    console.error("Failed to add action:", error)
+    return { success: false, error: "Failed to add action" }
+  }
+}
+
+export async function deleteWorkflowTrigger(id: string, workflowId: string) {
+  try {
+    await db.workflowTrigger.delete({ where: { id } })
+    revalidatePath(`/automations/${workflowId}`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: "Failed to delete trigger" }
+  }
+}
+
+export async function deleteWorkflowAction(id: string, workflowId: string) {
+  try {
+    await db.workflowAction.delete({ where: { id } })
+    revalidatePath(`/automations/${workflowId}`)
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: "Failed to delete action" }
+  }
+}
+
+export async function updateWorkflowStatus(id: string, status: "draft" | "active") {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const workflow = await db.workflow.update({
+      where: { id },
+      data: { status }
+    })
+    
+    revalidatePath(`/automations/${id}`)
+    revalidatePath("/automations")
+    return { success: true, data: workflow }
+  } catch (error) {
+    console.error("Failed to update status:", error)
+    return { success: false, error: "Failed to update status" }
+  }
+}

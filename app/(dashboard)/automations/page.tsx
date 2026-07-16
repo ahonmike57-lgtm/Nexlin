@@ -1,7 +1,9 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import AutomationsClient from "./AutomationsClient"
 import { getWorkflows } from "@/app/actions/automations"
+import { cookies } from "next/headers"
 
 export default async function AutomationsPage() {
   const session = await getSession()
@@ -10,10 +12,13 @@ export default async function AutomationsPage() {
     redirect("/login")
   }
 
-  const agencyId = "agency-1" // Mock agency ID
+  const cookieStore = await cookies()
+  const agencyId = cookieStore.get("agencyId")?.value
+  if (!agencyId) redirect("/onboarding")
 
   const response = await getWorkflows(agencyId)
   const workflows = response.data || []
 
   return <AutomationsClient initialWorkflows={workflows} agencyId={agencyId} />
 }
+

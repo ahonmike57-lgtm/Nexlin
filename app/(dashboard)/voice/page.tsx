@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getVoiceAgents } from "@/app/actions/voice"
@@ -16,3 +17,4 @@ export default async function VoicePage() {
 
   return <VoiceClient initialAgents={initialAgents} agencyId={agencyId} />
 }
+

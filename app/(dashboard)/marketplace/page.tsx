@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
@@ -22,3 +23,4 @@ export default async function MarketplacePage() {
     agencyId={session.user.id} 
   />
 }
+

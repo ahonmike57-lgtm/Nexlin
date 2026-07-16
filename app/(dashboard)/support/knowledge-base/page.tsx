@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getKnowledgeArticles } from "@/app/actions/knowledge"
@@ -16,3 +17,4 @@ export default async function KnowledgeBasePage() {
 
   return <KnowledgeClient initialArticles={initialArticles} agencyId={agencyId} />
 }
+

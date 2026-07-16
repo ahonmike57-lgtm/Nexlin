@@ -4,6 +4,7 @@ import { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
+import SubAccountSwitcher from "@/components/SubAccountSwitcher"
 import {
   LayoutDashboard,
   Users,
@@ -63,13 +64,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     <div className="flex h-screen bg-bg-secondary overflow-hidden text-text-primary">
       {/* Sidebar */}
       <aside className="w-64 bg-bg-primary border-r border-border flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-border">
+        <div className="h-16 flex items-center px-6 border-b border-border flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-white font-bold text-xl">N</span>
             </div>
             <span className="font-bold tracking-tight text-primary">NEXLIN GHL</span>
           </div>
+        </div>
+
+        <div className="p-4 border-b border-border flex-shrink-0">
+          <SubAccountSwitcher />
         </div>
         
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

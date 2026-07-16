@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { db as prisma } from "@/lib/db"
@@ -30,3 +31,4 @@ export default async function ReputationPage() {
     agencyId={user.agencyId}
   />
 }
+

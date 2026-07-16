@@ -7,20 +7,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus } from "lucide-react"
 import { createDeal } from "@/app/actions/deals"
+import { useRouter } from "next/navigation"
 
-export default function AddDealModal({ contacts = [] }: { contacts?: any[] }) {
+export default function AddDealModal({ contacts = [], stages = [] }: { contacts?: any[], stages?: any[] }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
   
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
     
     const formData = new FormData(e.currentTarget)
+    const stageVal = formData.get("stage") as string
+    
     const data = {
       title: formData.get("title") as string,
       value: parseFloat(formData.get("value") as string) || 0,
-      stage: formData.get("stage") as string || "lead",
+      stage: stageVal || (stages.length > 0 ? stages[0].id : "lead"),
       contactId: formData.get("contactId") as string || undefined,
     }
     
@@ -29,6 +33,7 @@ export default function AddDealModal({ contacts = [] }: { contacts?: any[] }) {
     setLoading(false)
     if (response.success) {
       setOpen(false)
+      router.refresh()
     } else {
       alert("Failed to create deal")
     }
@@ -57,11 +62,9 @@ export default function AddDealModal({ contacts = [] }: { contacts?: any[] }) {
           <div className="space-y-2 flex flex-col">
             <label className="text-sm font-medium">Stage</label>
             <select name="stage" className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                <option value="lead">New Lead</option>
-                <option value="contacted">Contacted</option>
-                <option value="meeting">Meeting Scheduled</option>
-                <option value="proposal">Proposal Sent</option>
-                <option value="won">Closed Won</option>
+                {stages.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
             </select>
           </div>
 

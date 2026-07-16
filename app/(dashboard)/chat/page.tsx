@@ -1,3 +1,4 @@
+﻿export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import ChatClient from "./ChatClient"
@@ -42,3 +43,4 @@ export default async function ChatPage() {
 
   return <ChatClient initialConversations={initialConversations} />
 }
+
