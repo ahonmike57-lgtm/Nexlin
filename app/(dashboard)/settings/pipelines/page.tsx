@@ -1,13 +1,19 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { db } from "@/lib/db"
-import { cookies } from "next/headers"
+import { getSession } from "@/lib/auth"
+import { getOrCreateAgency } from "@/app/actions/agency"
 import { redirect } from "next/navigation"
 import PipelinesClient from "./PipelinesClient"
+import { getActiveSubAccountId } from "@/app/actions/subaccounts"
 
 export default async function PipelinesSettingsPage() {
-  const cookieStore = await cookies()
-  const agencyId = cookieStore.get("agencyId")?.value
-  if (!agencyId) return redirect("/onboarding")
+  const session = await getSession()
+  
+  if (!session?.user?.id) {
+    redirect("/login")
+  }
+
+  const agencyId = await getOrCreateAgency()
 
   const pipelines = await db.pipeline.findMany({
     where: { agencyId },

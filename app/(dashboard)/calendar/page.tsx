@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import CalendarClient from "./CalendarClient"
 import { startOfWeek, endOfWeek, addDays, format } from "date-fns"
 import { getActiveSubAccountId } from "@/app/actions/subaccounts"
+import { getOrCreateAgency } from "@/app/actions/agency"
 
 export default async function CalendarPage() {
   const session = await getSession()
@@ -12,14 +13,7 @@ export default async function CalendarPage() {
     redirect("/login")
   }
 
-  const user = await db.user.findUnique({
-    where: { id: session.user.id },
-    include: { agency: true },
-  })
-
-  if (!user?.agencyId) {
-    return <div className="p-8">No agency found. Please complete onboarding.</div>
-  }
+  const agencyId = await getOrCreateAgency()
 
   // Fetch this week's appointments
   const startDate = startOfWeek(new Date(), { weekStartsOn: 1 }) // Monday
@@ -27,13 +21,13 @@ export default async function CalendarPage() {
 
   const subAgencyId = await getActiveSubAccountId()
   const whereClause: any = {
-    agencyId: user.agencyId,
+    agencyId,
     startTime: {
       gte: startDate,
       lte: endDate,
     }
   }
-  const contactWhereClause: any = { agencyId: user.agencyId }
+  const contactWhereClause: any = { agencyId }
   
   if (subAgencyId) {
     whereClause.subAgencyId = subAgencyId
@@ -65,7 +59,7 @@ export default async function CalendarPage() {
         </div>
       </div>
       
-      <CalendarClient initialAppointments={appointments} contacts={contacts} agencyId={user.agencyId} />
+      <CalendarClient initialAppointments={appointments} contacts={contacts} agencyId={agencyId} />
     </div>
   )
 }

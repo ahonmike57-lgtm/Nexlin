@@ -1,8 +1,9 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { db as prisma } from "@/lib/db"
 import { getForms } from "@/app/actions/forms"
+import { getOrCreateAgency } from "@/app/actions/agency"
 import FormsClient from "./FormsClient"
 import { redirect } from "next/navigation"
 
@@ -10,14 +11,9 @@ export default async function FormsPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) redirect("/login")
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { agencyId: true }
-  })
+  const agencyId = await getOrCreateAgency()
 
-  if (!user?.agencyId) redirect("/onboarding")
-
-  const res = await getForms(user.agencyId)
+  const res = await getForms(agencyId)
   let initialForms = res.success && res.forms ? res.forms : []
 
   // Mock some data if empty
@@ -25,7 +21,7 @@ export default async function FormsPage() {
     initialForms = [
       {
         id: "mock-1",
-        agencyId: user.agencyId,
+        agencyId: agencyId,
         name: "Lead Capture Form",
         fields: "[]",
         isActive: true,
@@ -35,7 +31,7 @@ export default async function FormsPage() {
       },
       {
         id: "mock-2",
-        agencyId: user.agencyId,
+        agencyId: agencyId,
         name: "Customer Survey",
         fields: "[]",
         isActive: true,
@@ -46,6 +42,6 @@ export default async function FormsPage() {
     ] as any
   }
 
-  return <FormsClient initialForms={initialForms} agencyId={user.agencyId} />
+  return <FormsClient initialForms={initialForms} agencyId={agencyId} />
 }
 
