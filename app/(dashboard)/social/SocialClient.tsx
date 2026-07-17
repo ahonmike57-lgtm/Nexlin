@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Calendar as CalendarIcon, Share2, Facebook, Twitter, Instagram, Linkedin, Youtube } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, Share2 } from "lucide-react"
 import { createSocialPost } from "@/app/actions/social"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -42,11 +42,11 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
 
   const getPlatformIcon = (platform: string) => {
     switch (platform?.toLowerCase()) {
-      case "facebook":  return <Facebook className="h-4 w-4 text-[#1877F2]" />
-      case "twitter":   return <Twitter className="h-4 w-4 text-[#1DA1F2]" />
-      case "instagram": return <Instagram className="h-4 w-4 text-[#E1306C]" />
-      case "linkedin":  return <Linkedin className="h-4 w-4 text-[#0A66C2]" />
-      case "youtube":   return <Youtube className="h-4 w-4 text-[#FF0000]" />
+      case "facebook":  return <span className="font-bold text-[#1877F2] text-sm">f</span>
+      case "twitter":   return <span className="font-bold text-[#1DA1F2] text-sm">𝕏</span>
+      case "instagram": return <span className="font-bold text-[#E1306C] text-sm">ig</span>
+      case "linkedin":  return <span className="font-bold text-[#0A66C2] text-sm">in</span>
+      case "youtube":   return <span className="font-bold text-[#FF0000] text-sm">▶</span>
       default:          return <Share2 className="h-4 w-4 text-text-secondary" />
     }
   }
