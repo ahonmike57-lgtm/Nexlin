@@ -10,12 +10,14 @@ import { Input } from "@/components/ui/input"
 import { createForm } from "@/app/actions/forms"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import FormBuilder from "./FormBuilder"
 
 export default function FormsClient({ initialForms, agencyId }: { initialForms: any[], agencyId: string }) {
   const [forms, setForms] = useState(initialForms)
   const [isOpen, setIsOpen] = useState(false)
   const [newFormName, setNewFormName] = useState("")
   const [creating, setCreating] = useState(false)
+  const [editingForm, setEditingForm] = useState<any>(null)
   const router = useRouter()
 
   const handleCreate = async () => {
@@ -36,6 +38,10 @@ export default function FormsClient({ initialForms, agencyId }: { initialForms: 
     } else {
       toast.error(res.error || "Failed to create form")
     }
+  }
+
+  if (editingForm) {
+    return <FormBuilder form={editingForm} onBack={() => setEditingForm(null)} />
   }
 
   return (
@@ -127,7 +133,7 @@ export default function FormsClient({ initialForms, agencyId }: { initialForms: 
                 
                 <div className="mt-6 flex gap-2">
                   <Button variant="outline" className="w-full text-sm h-8">View Results</Button>
-                  <Button className="w-full text-sm h-8">Edit Builder</Button>
+                  <Button className="w-full text-sm h-8" onClick={() => setEditingForm(form)}>Edit Builder</Button>
                 </div>
               </CardContent>
             </Card>
