@@ -8,6 +8,7 @@ import { Palette, Globe, CreditCard, Link as LinkIcon, Building, ShieldCheck, Sa
 
 const tabs = [
   { id: "general", href: "/settings", label: "General", icon: Settings, exact: true },
+  { id: "snapshots", href: "/settings/snapshots", label: "Snapshots", icon: GitBranch }, // New Snapshots tab
   { id: "sub-accounts", href: "/settings/sub-accounts", label: "Sub-Accounts", icon: Building },
   { id: "team", href: "/settings/team", label: "Team", icon: Users },
   { id: "billing", href: "/settings/billing", label: "Billing", icon: CreditCard },

@@ -13,7 +13,10 @@ export async function getAgencyBranding(agencyId: string) {
         name: true,
         logoUrl: true,
         brandColors: true,
-        subdomain: true
+        subdomain: true,
+        customDomain: true,
+        whiteLabelName: true,
+        loginBackgroundImage: true
       }
     })
     return { success: true, data: agency }
@@ -32,7 +35,10 @@ export async function updateAgencyBranding(agencyId: string, branding: any) {
       where: { id: agencyId },
       data: {
         logoUrl: branding.logoUrl,
-        brandColors: JSON.stringify(branding.colors)
+        brandColors: JSON.stringify(branding.colors),
+        customDomain: branding.customDomain || null,
+        whiteLabelName: branding.whiteLabelName || null,
+        loginBackgroundImage: branding.loginBackgroundImage || null
       }
     })
 

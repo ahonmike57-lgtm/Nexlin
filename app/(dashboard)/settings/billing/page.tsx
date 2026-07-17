@@ -189,20 +189,70 @@ export default function BillingPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Billing Settings</CardTitle>
-            <CardDescription>How you charge your clients.</CardDescription>
+            <CardTitle>SaaS Mode Re-billing</CardTitle>
+            <CardDescription>Configure how much you markup usage costs for your sub-accounts (SaaS mode).</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-w-sm">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Default Currency</label>
-                <select className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                  <option>USD ($)</option>
-                  <option>EUR (€)</option>
-                  <option>GBP (£)</option>
-                  <option>NGN (₦)</option>
-                </select>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2 p-4 border border-border rounded-lg bg-bg-secondary/50">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-semibold">SMS / Text Messages</label>
+                  <span className="text-xs text-text-secondary">Base: $0.0079/msg</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Input type="number" step="0.1" defaultValue="1.5" className="bg-bg-primary" />
+                  </div>
+                  <span className="text-sm font-medium">x Multiplier</span>
+                </div>
+                <p className="text-xs text-text-secondary mt-1">You charge: $0.01185/msg</p>
               </div>
+
+              <div className="space-y-2 p-4 border border-border rounded-lg bg-bg-secondary/50">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-semibold">Emails (Mailgun)</label>
+                  <span className="text-xs text-text-secondary">Base: $0.0008/email</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Input type="number" step="0.1" defaultValue="2.0" className="bg-bg-primary" />
+                  </div>
+                  <span className="text-sm font-medium">x Multiplier</span>
+                </div>
+                <p className="text-xs text-text-secondary mt-1">You charge: $0.0016/email</p>
+              </div>
+
+              <div className="space-y-2 p-4 border border-border rounded-lg bg-bg-secondary/50">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-semibold">AI Tokens (OpenAI)</label>
+                  <span className="text-xs text-text-secondary">Base: $0.02/1k tokens</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Input type="number" step="0.1" defaultValue="3.0" className="bg-bg-primary" />
+                  </div>
+                  <span className="text-sm font-medium">x Multiplier</span>
+                </div>
+                <p className="text-xs text-text-secondary mt-1">You charge: $0.06/1k tokens</p>
+              </div>
+
+              <div className="space-y-2 p-4 border border-border rounded-lg bg-bg-secondary/50">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-semibold">Voice Calls</label>
+                  <span className="text-xs text-text-secondary">Base: $0.013/min</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Input type="number" step="0.1" defaultValue="1.5" className="bg-bg-primary" />
+                  </div>
+                  <span className="text-sm font-medium">x Multiplier</span>
+                </div>
+                <p className="text-xs text-text-secondary mt-1">You charge: $0.0195/min</p>
+              </div>
+            </div>
+            
+            <div className="pt-4 flex justify-end">
+              <Button>Save Markup Settings</Button>
             </div>
           </CardContent>
         </Card>

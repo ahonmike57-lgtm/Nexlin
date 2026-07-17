@@ -25,8 +25,11 @@ model Agency {
   platform          Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
   name              String
   subdomain         String   @unique
+  customDomain      String?  @unique
+  whiteLabelName    String?
   logoUrl           String?
   brandColors       String? // JSON string
+  loginBackgroundImage String?
   missedCallEnabled Boolean  @default(false)
   missedCallMessage String?  @default("Hi, this is [Agency Name]. We missed your call, how can we help?")
   createdAt         DateTime @default(now())
@@ -59,6 +62,11 @@ model Agency {
   Form              Form[]
   ExtensionAuditLog ExtensionAuditLog[]
   pipelines         Pipeline[]
+  
+  // Phase 1 Relations
+  snapshots         Snapshot[]
+  rebillingMarkups  RebillingMarkup[]
+  affiliates        Affiliate[]
 }
 
 model SubAgency {
@@ -602,3 +610,111 @@ model ExtensionAuditLog {
   details   String? // JSON string
   createdAt DateTime @default(now())
 }
+
+// --- Phase 1 Enterprise Features (Agency Growth Engine) ---
+
+// 1. Snapshots
+model Snapshot {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  version     String   @default("1.0.0")
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  assets      SnapshotAsset[]
+}
+
+model SnapshotAsset {
+  id         String   @id @default(cuid())
+  snapshotId String
+  snapshot   Snapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  type       String   // "funnel", "workflow", "email_template", "pipeline", "custom_values"
+  sourceId   String   // ID of the original asset
+  data       String   // JSON stringified export of the asset
+  createdAt  DateTime @default(now())
+}
+
+// 2. SaaS Mode & Re-billing
+model BillingWallet {
+  id          String   @id @default(cuid())
+  agencyId    String?
+  subAgencyId String?
+  balance     Float    @default(0.0) // Credits available
+  currency    String   @default("usd")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  usageLogs   UsageLog[]
+  
+  @@unique([agencyId])
+  @@unique([subAgencyId])
+}
+
+model UsageLog {
+  id          String         @id @default(cuid())
+  walletId    String
+  wallet      BillingWallet  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type        String         // "sms", "email", "ai_tokens", "call_minutes"
+  amount      Float          // Raw usage amount (e.g. 1 sms, 150 tokens)
+  cost        Float          // Actual cost
+  markup      Float          // The cost charged to the sub-account (cost * agency markup)
+  description String?
+  createdAt   DateTime       @default(now())
+}
+
+model RebillingMarkup {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  type        String   // "sms", "email", "ai_tokens", "call_minutes"
+  multiplier  Float    @default(1.0) // e.g. 1.5x
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([agencyId, type])
+}
+
+// 3. Affiliate Manager
+model Affiliate {
+  id          String   @id @default(cuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name        String
+  email       String   @unique
+  paypalEmail String?
+  status      String   @default("active") // active, suspended
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  links       AffiliateLink[]
+  payouts     CommissionPayout[]
+}
+
+model AffiliateLink {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  code        String    @unique // e.g. ?ref=XYZ123
+  targetUrl   String
+  clicks      Int       @default(0)
+  conversions Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model CommissionPayout {
+  id          String    @id @default(cuid())
+  affiliateId String
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  amount      Float
+  status      String    @default("pending") // pending, paid, failed
+  paidAt      DateTime?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+

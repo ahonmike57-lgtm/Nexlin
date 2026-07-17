@@ -70,3 +70,113 @@ export async function processMockSubscription(agencyId: string, plan: string) {
     return { success: false, error: "Failed to process subscription" }
   }
 }
+
+// Constants for base cost (e.g. Twilio/Mailgun actual cost to agency)
+const BASE_COSTS = {
+  sms: 0.0079,     // Twilio SMS base cost
+  email: 0.0008,   // Mailgun email base cost
+  ai_tokens: 0.02, // OpenAI 1K tokens base cost
+  call_minutes: 0.013 // Twilio voice base cost
+}
+
+export async function getSaaSConfig(agencyId: string) {
+  try {
+    const markups = await db.rebillingMarkup.findMany({
+      where: { agencyId }
+    })
+    
+    const wallet = await db.billingWallet.findUnique({
+      where: { agencyId }
+    })
+    
+    // Get usage across all sub-accounts under this agency
+    const usageLogs = await db.usageLog.findMany({
+      where: { 
+        wallet: { agencyId } 
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    })
+
+    return { success: true, data: { markups, wallet, usageLogs } }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function updateRebillingMarkup(agencyId: string, type: string, multiplier: number) {
+  try {
+    const markup = await db.rebillingMarkup.upsert({
+      where: {
+        agencyId_type: {
+          agencyId,
+          type
+        }
+      },
+      update: {
+        multiplier
+      },
+      create: {
+        agencyId,
+        type,
+        multiplier
+      }
+    })
+    
+    revalidatePath("/settings/billing")
+    return { success: true, data: markup }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+// Function to log usage and deduct from a sub-account's wallet based on Agency markup
+export async function logUsageAndBill(subAgencyId: string, agencyId: string, type: 'sms' | 'email' | 'ai_tokens' | 'call_minutes', amount: number, description?: string) {
+  try {
+    // 1. Get the base cost
+    const baseCost = BASE_COSTS[type] * amount
+    
+    // 2. Get the agency's markup multiplier for this type
+    const markupRecord = await db.rebillingMarkup.findUnique({
+      where: { agencyId_type: { agencyId, type } }
+    })
+    const multiplier = markupRecord ? markupRecord.multiplier : 1.0 // default 1x
+    
+    // 3. Calculate final charge to the sub-account
+    const finalCharge = baseCost * multiplier
+    
+    // 4. Find or create the sub-account wallet
+    let wallet = await db.billingWallet.findUnique({
+      where: { subAgencyId }
+    })
+    
+    if (!wallet) {
+      wallet = await db.billingWallet.create({
+        data: { subAgencyId, balance: 10.0 } // give $10 starting credit for demo
+      })
+    }
+    
+    // 5. Create usage log
+    const log = await db.usageLog.create({
+      data: {
+        walletId: wallet.id,
+        type,
+        amount,
+        cost: baseCost,
+        markup: finalCharge,
+        description
+      }
+    })
+    
+    // 6. Deduct balance from wallet
+    await db.billingWallet.update({
+      where: { id: wallet.id },
+      data: { balance: wallet.balance - finalCharge }
+    })
+    
+    return { success: true, data: { log, newBalance: wallet.balance - finalCharge } }
+  } catch (error: any) {
+    console.error("Usage billing error:", error)
+    return { success: false, error: error.message }
+  }
+}
