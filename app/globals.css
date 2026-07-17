@@ -33,8 +33,16 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
   
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  
   --color-background: var(--bg-primary);
   --color-surface: var(--bg-secondary);
+  
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
   
   --color-foreground: var(--text-primary);
   --color-muted: var(--text-secondary);
