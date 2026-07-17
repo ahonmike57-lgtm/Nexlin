@@ -57,7 +57,7 @@ export default function CalendarClient({
 
   return (
     <>
-      <div className="bg-bg-primary rounded-xl border border-border shadow-sm flex flex-col flex-1 overflow-hidden animate-in fade-in duration-500">
+      <div className="bg-bg-primary rounded-xl border border-border shadow-sm flex flex-col flex-1 overflow-hidden ">
         
         {/* Toolbar */}
         <div className="p-4 border-b border-border flex items-center justify-between">

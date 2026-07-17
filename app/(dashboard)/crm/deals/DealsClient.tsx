@@ -72,7 +72,7 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
   const totalValue = visibleDeals.reduce((sum: number, deal: any) => sum + (deal.value || 0), 0)
   
   return (
-    <div className="animate-in fade-in duration-500 h-full flex flex-col">
+    <div className="h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Sales Pipeline</h1>

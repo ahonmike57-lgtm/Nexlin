@@ -21,7 +21,7 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
   })
 
   return (
-    <div className="animate-in fade-in duration-500 h-full flex flex-col">
+    <div className="h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>

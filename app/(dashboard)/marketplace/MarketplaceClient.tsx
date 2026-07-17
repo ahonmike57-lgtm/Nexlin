@@ -81,7 +81,7 @@ export default function MarketplaceClient({ initialExtensions, initialInstalls, 
   }
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-8">
+    <div className="space-y-8">
       {/* Hero Header */}
       <div className="bg-gradient-to-r from-primary/10 to-transparent p-8 rounded-2xl border border-primary/20 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>

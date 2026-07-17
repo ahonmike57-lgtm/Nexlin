@@ -6,7 +6,7 @@ import { Link2, Webhook, Zap } from "lucide-react"
 
 export default function IntegrationsSettingsPage() {
   return (
-    <div className="space-y-6 max-w-3xl animate-in fade-in duration-500">
+    <div className="space-y-6 max-w-3xl ">
       <div>
         <h2 className="text-2xl font-semibold mb-1">Integrations</h2>
         <p className="text-text-secondary">Connect external apps and services directly into Nexlin.</p>

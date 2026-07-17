@@ -25,7 +25,7 @@ export default async function DashboardPage() {
   const winRate = deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-6">
+    <div className="space-y-6">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>

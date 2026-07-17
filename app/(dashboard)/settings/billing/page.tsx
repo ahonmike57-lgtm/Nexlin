@@ -71,7 +71,7 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="animate-in fade-in duration-500 max-w-5xl mx-auto space-y-8 pb-12">
+    <div className="max-w-5xl mx-auto space-y-8 pb-12">
       <div>
         <h2 className="text-2xl font-semibold mb-1">Billing & Plans</h2>
         <p className="text-text-secondary">Manage your subscription and payment methods.</p>

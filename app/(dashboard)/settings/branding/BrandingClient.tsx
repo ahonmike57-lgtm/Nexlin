@@ -26,7 +26,7 @@ export default function BrandingClient({ initialBranding, agencyId }: { initialB
   }
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-6 max-w-4xl mx-auto py-8">
+    <div className="space-y-6 max-w-4xl mx-auto py-8">
       <div>
         <h2 className="text-2xl font-semibold mb-1">White-Label Branding</h2>
         <p className="text-text-secondary">Customize the platform to match your agency's brand.</p>

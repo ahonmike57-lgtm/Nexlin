@@ -6,7 +6,7 @@ import { ShieldAlert, KeyRound, Smartphone } from "lucide-react"
 
 export default function SecuritySettingsPage() {
   return (
-    <div className="space-y-6 max-w-3xl animate-in fade-in duration-500">
+    <div className="space-y-6 max-w-3xl ">
       <div>
         <h2 className="text-2xl font-semibold mb-1">Security</h2>
         <p className="text-text-secondary">Manage your password and secure your account.</p>

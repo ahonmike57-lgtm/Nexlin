@@ -84,7 +84,7 @@ export default function ChatClient({ initialConversations }: { initialConversati
   }
 
   return (
-    <div className="h-full flex flex-col bg-bg-secondary rounded-xl border border-border overflow-hidden animate-in fade-in duration-500">
+    <div className="h-full flex flex-col bg-bg-secondary rounded-xl border border-border overflow-hidden ">
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Sidebar - Conversation List */}

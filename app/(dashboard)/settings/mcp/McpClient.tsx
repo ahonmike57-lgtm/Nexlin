@@ -37,7 +37,7 @@ export default function McpClient({ connections, agencyId }: { connections: any[
   }
 
   return (
-    <div className="animate-in fade-in duration-500 max-w-4xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" size="icon" onClick={() => window.location.href = '/settings'}>
           <ArrowLeft className="w-5 h-5" />
