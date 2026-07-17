@@ -2,12 +2,13 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Calendar as CalendarIcon, Share2 } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, Share2, Facebook, Twitter, Instagram, Linkedin, Youtube } from "lucide-react"
 import { createSocialPost } from "@/app/actions/social"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 export default function SocialClient({ initialAccounts, initialPosts, agencyId }: { initialAccounts: any[], initialPosts: any[], agencyId: string }) {
+  const [activeTab, setActiveTab] = useState("list")
   const [posts, setPosts] = useState(initialPosts)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [newPost, setNewPost] = useState({ content: "", accountId: "", scheduledFor: "" })
@@ -41,11 +42,11 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
 
   const getPlatformIcon = (platform: string) => {
     switch (platform?.toLowerCase()) {
-      case "facebook":  return <span className="font-bold text-[#1877F2] text-sm">f</span>
-      case "twitter":   return <span className="font-bold text-[#1DA1F2] text-sm">𝕏</span>
-      case "instagram": return <span className="font-bold text-[#E1306C] text-sm">ig</span>
-      case "linkedin":  return <span className="font-bold text-[#0A66C2] text-sm">in</span>
-      case "youtube":   return <span className="font-bold text-[#FF0000] text-sm">▶</span>
+      case "facebook":  return <Facebook className="h-4 w-4 text-[#1877F2]" />
+      case "twitter":   return <Twitter className="h-4 w-4 text-[#1DA1F2]" />
+      case "instagram": return <Instagram className="h-4 w-4 text-[#E1306C]" />
+      case "linkedin":  return <Linkedin className="h-4 w-4 text-[#0A66C2]" />
+      case "youtube":   return <Youtube className="h-4 w-4 text-[#FF0000]" />
       default:          return <Share2 className="h-4 w-4 text-text-secondary" />
     }
   }
@@ -121,14 +122,33 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
         </Dialog>
       </div>
 
-      <div className="bg-bg-primary border border-border rounded-xl overflow-hidden shadow-soft">
-        {posts.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            <CalendarIcon className="mx-auto h-12 w-12 opacity-20 mb-3" />
-            <p>No posts scheduled yet.</p>
-            <Button variant="link" onClick={() => setIsDialogOpen(true)}>Create your first post</Button>
-          </div>
-        ) : (
+      <div className="flex border-b border-border">
+        <button 
+          className={`px-6 py-3 font-medium border-b-2 transition-colors ${activeTab === 'list' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          onClick={() => setActiveTab('list')}
+        >
+          List View
+        </button>
+        <button 
+          className={`px-6 py-3 font-medium border-b-2 transition-colors ${activeTab === 'calendar' ? 'border-primary text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}
+          onClick={() => setActiveTab('calendar')}
+        >
+          Calendar
+        </button>
+      </div>
+
+      {activeTab === 'list' ? (
+        <div className="bg-bg-primary border border-border rounded-xl overflow-hidden shadow-soft">
+          {posts.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-bg-secondary flex items-center justify-center mb-4 border border-border">
+                <Share2 className="h-8 w-8 text-text-secondary" />
+              </div>
+              <h3 className="text-lg font-medium text-text-primary mb-2">No Posts Scheduled</h3>
+              <p className="max-w-sm mb-4">Start planning your social media content by scheduling your first post across your connected channels.</p>
+              <Button onClick={() => setIsDialogOpen(true)}>Create Post</Button>
+            </div>
+          ) : (
           <div className="divide-y divide-border">
             {posts.map((post: any) => (
               <div key={post.id} className="p-6 flex items-start gap-4 hover:bg-bg-secondary/30 transition-colors">
@@ -154,7 +174,17 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
             ))}
           </div>
         )}
-      </div>
+        </div>
+      ) : (
+        <div className="bg-bg-primary border border-border rounded-xl overflow-hidden shadow-soft min-h-[400px] flex flex-col items-center justify-center p-8">
+          <div className="w-16 h-16 rounded-full bg-bg-secondary flex items-center justify-center mb-4 border border-border">
+            <CalendarIcon className="h-8 w-8 text-text-secondary" />
+          </div>
+          <h3 className="text-lg font-medium text-text-primary mb-2">Social Calendar</h3>
+          <p className="max-w-sm text-center text-muted-foreground mb-4">The drag-and-drop monthly calendar view is being prepared. For now, please use the List View to manage your scheduled content.</p>
+          <Button variant="outline" onClick={() => setActiveTab('list')}>Back to List View</Button>
+        </div>
+      )}
     </div>
   )
 }

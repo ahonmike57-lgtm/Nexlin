@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ArrowLeft, Save, Play, Plus, Zap, Mail, Tag, UserPlus, Clock, Settings2, Trash2, X } from "lucide-react"
-import { addWorkflowTrigger, addWorkflowAction, deleteWorkflowTrigger, deleteWorkflowAction, updateWorkflowStatus, updateWorkflow } from "@/app/actions/automations"
+import { addWorkflowTrigger, addWorkflowAction, deleteWorkflowTrigger, deleteWorkflowAction, updateWorkflowStatus, updateWorkflow, saveWorkflowNodes } from "@/app/actions/automations"
 import { executeWorkflow } from "@/app/actions/workflow-engine"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -164,7 +164,8 @@ function PropertiesPanel({ selectedNode, onUpdate }: { selectedNode: any; onUpda
             <label className="text-xs font-medium text-text-secondary block mb-1">Wait Duration (hours)</label>
             <Input
               type="number"
-              defaultValue={24}
+              value={selectedNode.data.duration || 24}
+              onChange={(e) => onUpdate(selectedNode.id, { duration: parseInt(e.target.value) || 1 })}
               min={1}
               className="h-8 text-sm"
             />
@@ -176,6 +177,8 @@ function PropertiesPanel({ selectedNode, onUpdate }: { selectedNode: any; onUpda
               {selectedNode.data.type === "send_email" ? "Email Subject" : "SMS Message"}
             </label>
             <Input
+              value={selectedNode.data.subject || ""}
+              onChange={(e) => onUpdate(selectedNode.id, { subject: e.target.value })}
               placeholder={selectedNode.data.type === "send_email" ? "e.g., Thanks for signing up!" : "e.g., Hi {{first_name}}, ..."}
               className="h-8 text-sm"
             />
@@ -193,11 +196,26 @@ export default function WorkflowBuilderClient({ workflow }: { workflow: any }) {
   const [isActive, setIsActive] = useState(workflow.status === "active")
   const [modalMode, setModalMode] = useState<"trigger" | "action" | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [nodeLabels, setNodeLabels] = useState<Record<string, any>>({})
-  const router = useRouter()
-
+  
   const triggers = workflow.triggers || []
   const actions = workflow.actions || []
+
+  const [nodeLabels, setNodeLabels] = useState<Record<string, any>>(() => {
+    const initialState: Record<string, any> = {}
+    triggers.forEach((t: any) => {
+      if (t.config) {
+        try { initialState[`trigger-${t.id}`] = JSON.parse(t.config) } catch {}
+      }
+    })
+    actions.forEach((a: any) => {
+      if (a.config) {
+        try { initialState[`action-${a.id}`] = JSON.parse(a.config) } catch {}
+      }
+    })
+    return initialState
+  })
+  
+  const router = useRouter()
 
   // Transform db data to ReactFlow nodes
   const initialNodes: Node[] = []
@@ -288,6 +306,17 @@ export default function WorkflowBuilderClient({ workflow }: { workflow: any }) {
     setIsSaving(true)
     try {
       await updateWorkflow(workflow.id, { name: workflow.name })
+      
+      const nodesToSave = Object.keys(nodeLabels).map(key => {
+        const isTrigger = key.startsWith("trigger-")
+        const id = key.replace("trigger-", "").replace("action-", "")
+        return { id, isTrigger, config: nodeLabels[key] }
+      })
+      
+      if (nodesToSave.length > 0) {
+        await saveWorkflowNodes(workflow.id, nodesToSave)
+      }
+      
       toast.success("Workflow saved successfully!")
     } catch {
       toast.error("Failed to save workflow.")

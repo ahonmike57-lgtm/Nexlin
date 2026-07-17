@@ -44,14 +44,18 @@ export default async function MarketplacePage() {
     await db.extension.createMany({ data: mockExtensions })
     extensions = await db.extension.findMany()
   }
+  
+  const { getOrCreateAgency } = await import("@/app/actions/agency")
+  const agencyId = await getOrCreateAgency()
+  
   const installs = await db.extensionInstall.findMany({
-    where: { agencyId: session.user.id }
+    where: { agencyId: agencyId }
   })
 
   return <MarketplaceClient 
     initialExtensions={extensions} 
     initialInstalls={installs} 
-    agencyId={session.user.id} 
+    agencyId={agencyId} 
   />
 }
 

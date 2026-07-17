@@ -19,6 +19,8 @@ export async function generateAiReply(context: string, prompt: string) {
         response = "Thank you for reaching out! We've received your message and our team will get back to you shortly."
       } else if (context === "marketing") {
         response = "Unlock Your Business Potential! \n\nHey there, \n\nAre you looking to scale your business? We just launched our newest feature designed to double your conversions..."
+      } else if (context === "landing_page") {
+        response = `Here is some high-converting copy based on your prompt:\n\n**Headline:** Transform Your Workflow Today\n**Subheadline:** Discover the tools that top teams use to save hours every week.\n**Call to Action:** Get Started for Free`
       } else {
         response = "Here is some AI generated text based on your prompt."
       }
@@ -30,6 +32,8 @@ export async function generateAiReply(context: string, prompt: string) {
       systemPrompt = "You are an intelligent customer support agent. Generate a concise, friendly reply to the customer's message based on the context. If the prompt contains a conversation ID, imagine you are responding to the user's last message."
     } else if (context === "marketing") {
       systemPrompt = "You are an expert copywriter. Generate a high-converting marketing email."
+    } else if (context === "landing_page") {
+      systemPrompt = "You are an expert landing page copywriter. The user wants to build a web page section. Generate concise, compelling copy (headline + subheadline + CTA text) for the following request. Format it clearly."
     }
 
     let finalPrompt = prompt

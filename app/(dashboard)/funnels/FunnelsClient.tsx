@@ -12,7 +12,12 @@ import { useRouter } from "next/navigation"
 
 export default function FunnelsClient({ initialFunnels, agencyId }: { initialFunnels: any[], agencyId: string }) {
   const [isCreating, setIsCreating] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
   const router = useRouter()
+
+  const filteredFunnels = initialFunnels.filter((f) => 
+    !searchTerm || f.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const handleCreate = async () => {
     setIsCreating(true)
@@ -96,6 +101,8 @@ export default function FunnelsClient({ initialFunnels, agencyId }: { initialFun
           <input 
             type="text" 
             placeholder="Search funnels..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
@@ -103,7 +110,7 @@ export default function FunnelsClient({ initialFunnels, agencyId }: { initialFun
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {initialFunnels.map((funnel) => (
+        {filteredFunnels.map((funnel) => (
           <Link key={funnel.id} href={`/funnels/${funnel.id}`}>
             <Card className="hover:shadow-md transition-shadow group cursor-pointer border border-border">
               <CardContent className="p-6">

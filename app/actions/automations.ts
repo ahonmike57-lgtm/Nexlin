@@ -164,3 +164,33 @@ export async function updateWorkflow(id: string, data: { name?: string; descript
     return { success: false, error: "Failed to update workflow" }
   }
 }
+
+export async function saveWorkflowNodes(workflowId: string, nodes: { id: string, isTrigger: boolean, config: any }[]) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    // Update triggers and actions configs
+    await db.$transaction(
+      nodes.map(node => {
+        if (node.isTrigger) {
+          return db.workflowTrigger.update({
+            where: { id: node.id },
+            data: { config: JSON.stringify(node.config) }
+          })
+        } else {
+          return db.workflowAction.update({
+            where: { id: node.id },
+            data: { config: JSON.stringify(node.config) }
+          })
+        }
+      })
+    )
+    
+    revalidatePath(`/automations/${workflowId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to save nodes:", error)
+    return { success: false, error: "Failed to save workflow nodes" }
+  }
+}

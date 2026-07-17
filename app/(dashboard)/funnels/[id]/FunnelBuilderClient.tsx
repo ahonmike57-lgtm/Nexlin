@@ -151,11 +151,8 @@ const AICopilot = () => {
     setIsGenerating(true)
 
     try {
-      const res = await generateAiReply(
-        "You are a landing page copywriter. The user wants to build a web page section. Generate concise, compelling copy (headline + subheadline + CTA text) for the following request. Format it clearly.",
-        userPrompt
-      )
-      const aiText = (res as any)?.reply || "Here's some copy for your section. Drag elements from the left panel to build it out!"
+      const res = await generateAiReply("landing_page", userPrompt)
+      const aiText = res?.success && res.data ? res.data : "Here's some copy for your section. Drag elements from the left panel to build it out!"
       setHistory(h => [...h, { role: "ai", content: aiText }])
     } catch {
       toast.error("AI generation failed. Please try again.")
