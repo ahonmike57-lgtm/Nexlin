@@ -28,7 +28,7 @@ export default async function PipelinesSettingsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pipeline Settings</h1>
+        <h2 className="text-2xl font-semibold mb-1">Pipeline Settings</h2>
         <p className="text-text-secondary">Manage your sales pipelines and stages.</p>
       </div>
       

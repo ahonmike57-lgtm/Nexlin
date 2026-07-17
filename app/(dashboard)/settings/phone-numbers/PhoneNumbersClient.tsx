@@ -77,7 +77,7 @@ export default function PhoneNumbersClient({
     <div className="animate-in fade-in duration-500 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Phone Numbers</h1>
+          <h2 className="text-2xl font-semibold mb-1">Phone Numbers</h2>
           <p className="text-text-secondary">Manage your active numbers and call porting requests.</p>
         </div>
         <div className="flex gap-2">

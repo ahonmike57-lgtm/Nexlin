@@ -39,6 +39,11 @@ export default function DomainClient({ initialFunnels, agencyId }: { initialFunn
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-semibold mb-1">Custom Domains</h2>
+        <p className="text-text-secondary">Connect custom domains to your funnels and websites.</p>
+      </div>
+
       <div className="bg-bg-primary border border-border rounded-xl p-6 shadow-sm">
         <h2 className="text-lg font-semibold mb-4">Add Custom Domain</h2>
         <form onSubmit={handleAddDomain} className="flex gap-4 items-end">

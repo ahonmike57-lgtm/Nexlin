@@ -29,11 +29,9 @@ export default function TeamClient({ initialTeam, agencyId }: { initialTeam: any
 
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Team Management</h1>
-          <p className="text-text-secondary mt-1">Manage who has access to this agency workspace.</p>
-        </div>
+      <div>
+        <h2 className="text-2xl font-semibold mb-1">Team Management</h2>
+        <p className="text-text-secondary">Manage who has access to this agency workspace.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

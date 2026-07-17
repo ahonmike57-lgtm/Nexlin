@@ -48,7 +48,7 @@ export default function SubAccountsPage({ initialSubAccounts, agencyId }: any) {
           <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sub-Accounts</h1>
+          <h2 className="text-2xl font-semibold mb-1">Sub-Accounts</h2>
           <p className="text-text-secondary">Manage your clients' individual workspaces.</p>
         </div>
       </div>

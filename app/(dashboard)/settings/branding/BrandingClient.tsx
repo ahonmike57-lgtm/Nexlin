@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Save, Upload } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Save, Upload, Mail, ShieldCheck } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { updateAgencyBranding } from "@/app/actions/settings"
 import { useRouter } from "next/navigation"
 
@@ -26,14 +27,9 @@ export default function BrandingClient({ initialBranding, agencyId }: { initialB
 
   return (
     <div className="animate-in fade-in duration-500 space-y-6 max-w-4xl mx-auto py-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">White-Label Branding</h1>
-          <p className="text-text-secondary mt-1">Customize the platform to match your agency's brand.</p>
-        </div>
-        <Button onClick={handleSave} disabled={isSaving}>
-          <Save className="w-4 h-4 mr-2" /> {isSaving ? "Saving..." : "Save Changes"}
-        </Button>
+      <div>
+        <h2 className="text-2xl font-semibold mb-1">White-Label Branding</h2>
+        <p className="text-text-secondary">Customize the platform to match your agency's brand.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
@@ -100,6 +96,30 @@ export default function BrandingClient({ initialBranding, agencyId }: { initialB
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Settings</CardTitle>
+          <CardDescription>Configure the sender details for automated platform emails.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 max-w-lg">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Sender Name</label>
+            <Input defaultValue="Acme Support" />
+          </div>
+          <div className="space-y-2 relative">
+            <label className="text-sm font-medium">Sender Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+              <Input defaultValue="support@acmecorp.com" className="pl-9" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-4 p-3 bg-warning/10 border border-warning/30 rounded-lg text-warning text-sm">
+            <ShieldCheck className="w-5 h-5 flex-shrink-0" />
+            <p>DNS verification is required to send emails from your domain. Check the Domains tab.</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

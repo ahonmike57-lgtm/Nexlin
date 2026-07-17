@@ -43,7 +43,7 @@ export default function McpClient({ connections, agencyId }: { connections: any[
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">MCP Connections</h1>
+          <h2 className="text-2xl font-semibold mb-1">MCP Connections</h2>
           <p className="text-text-secondary">Manage connections to external Model Context Protocol servers.</p>
         </div>
       </div>

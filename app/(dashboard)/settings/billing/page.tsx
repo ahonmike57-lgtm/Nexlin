@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Check, CreditCard, ExternalLink } from "lucide-react"
+import { Check, CreditCard, ExternalLink, ShieldCheck } from "lucide-react"
 import { generateCheckoutSession } from "@/app/actions/billing"
 import { useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
 
 const plans = [
   {
@@ -72,8 +73,8 @@ export default function BillingPage() {
   return (
     <div className="animate-in fade-in duration-500 max-w-5xl mx-auto space-y-8 pb-12">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Billing & Plans</h1>
-        <p className="text-text-secondary mt-1">Manage your subscription and payment methods.</p>
+        <h2 className="text-2xl font-semibold mb-1">Billing & Plans</h2>
+        <p className="text-text-secondary">Manage your subscription and payment methods.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -129,6 +130,82 @@ export default function BillingPage() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="pt-10 space-y-6">
+        <div>
+          <h2 className="text-2xl font-semibold mb-1">Dual Global Payments</h2>
+          <p className="text-text-secondary">Configure your payment gateways for seamless global collection.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-[#635BFF] text-white rounded text-xs flex items-center justify-center font-bold">S</div>
+                Stripe Configuration
+              </CardTitle>
+              <CardDescription>Used for clients in North America, Europe, and supported regions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Publishable Key</label>
+                <Input type="password" defaultValue="pk_test_1234567890abcdef" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Secret Key</label>
+                <Input type="password" defaultValue="sk_test_1234567890abcdef" />
+              </div>
+              <div className="pt-2 flex items-center justify-between">
+                <span className="text-sm text-success flex items-center"><ShieldCheck className="w-4 h-4 mr-1" /> Connected successfully</span>
+                <Button variant="outline" size="sm">Disconnect</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-[#0BA4DB] text-white rounded text-xs flex items-center justify-center font-bold">P</div>
+                Paystack Configuration
+              </CardTitle>
+              <CardDescription>Automatically routed for clients in African markets (Nigeria, Ghana, etc.).</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Public Key</label>
+                <Input type="password" placeholder="pk_test_..." />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Secret Key</label>
+                <Input type="password" placeholder="sk_test_..." />
+              </div>
+              <div className="pt-2">
+                <Button variant="secondary" className="w-full">Connect Paystack</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Billing Settings</CardTitle>
+            <CardDescription>How you charge your clients.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-w-sm">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Default Currency</label>
+                <select className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                  <option>USD ($)</option>
+                  <option>EUR (€)</option>
+                  <option>GBP (£)</option>
+                  <option>NGN (₦)</option>
+                </select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
