@@ -119,7 +119,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar */}
-        <header className="h-16 bg-bg-primary border-b border-border flex items-center justify-between px-6">
+        <header className="h-16 bg-bg-primary border-b border-border flex items-center justify-between px-6 z-[50] relative">
           <div className="flex-1 max-w-md">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />

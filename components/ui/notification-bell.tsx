@@ -113,7 +113,7 @@ export default function NotificationBell({ agencyId }: { agencyId?: string }) {
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative z-[100]" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
         className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center text-text-secondary hover:text-primary transition-colors relative"
@@ -127,7 +127,7 @@ export default function NotificationBell({ agencyId }: { agencyId?: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-80 bg-bg-primary border border-border rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 top-12 w-80 bg-bg-primary border border-border rounded-xl shadow-2xl z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="font-semibold text-sm">Notifications</h3>
