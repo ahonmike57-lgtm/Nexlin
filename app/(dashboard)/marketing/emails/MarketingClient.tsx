@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Mail, Plus, BarChart2, Eye, MousePointerClick,
-  Settings, MoreVertical, Sparkles, TrendingUp
+  Settings, MoreVertical, Sparkles, TrendingUp, Image as ImageIcon
 } from "lucide-react"
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { createCampaign } from "@/app/actions/marketing"
