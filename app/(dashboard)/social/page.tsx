@@ -1,17 +1,15 @@
-﻿export const dynamic = 'force-dynamic';
-import { getSession } from "@/lib/auth"
+export const dynamic = 'force-dynamic';
 import { redirect } from "next/navigation"
-import { getSocialAccounts, getSocialPosts } from "@/app/actions/social"
+import { getSession } from "@/lib/auth"
+import { getOrCreateAgency } from "@/app/actions/agency"
 import SocialClient from "./SocialClient"
+import { getSocialAccounts, getSocialPosts } from "@/app/actions/social"
 
 export default async function SocialPage() {
   const session = await getSession()
-  if (!session?.user?.id) {
-    redirect("/login")
-  }
+  if (!session?.user?.id) redirect("/login")
 
-  const agencyId = "agency-1" // Mock agency ID
-
+  const agencyId = await getOrCreateAgency()
   const accountsRes = await getSocialAccounts(agencyId)
   const postsRes = await getSocialPosts(agencyId)
 
@@ -20,4 +18,3 @@ export default async function SocialPage() {
 
   return <SocialClient initialAccounts={initialAccounts} initialPosts={initialPosts} agencyId={agencyId} />
 }
-

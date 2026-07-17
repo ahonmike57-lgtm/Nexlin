@@ -1,20 +1,25 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Users, DollarSign, TrendingUp, Activity, ArrowUpRight } from "lucide-react"
-import { PrismaClient } from "@prisma/client"
+import { db } from "@/lib/db"
+import { getOrCreateAgency } from "@/app/actions/agency"
+import { getSession } from "@/lib/auth"
+import { redirect } from "next/navigation"
 import RevenueChart from "./revenue-chart"
 
-const prisma = new PrismaClient()
-
 export default async function DashboardPage() {
-  // Fetch real data from Prisma
-  const totalContacts = await prisma.contact.count()
-  
-  // Aggregate Deals
-  const deals = await prisma.deal.findMany()
+  const session = await getSession()
+  if (!session?.user?.id) redirect("/login")
+
+  const agencyId = await getOrCreateAgency()
+
+  // Fetch real data scoped to this agency
+  const totalContacts = await db.contact.count({ where: { agencyId } })
+
+  const deals = await db.deal.findMany({ where: { agencyId } })
   const totalRevenue = deals.reduce((acc, deal) => acc + deal.value, 0)
-  
+
   const wonDeals = deals.filter(d => d.stage.toLowerCase() === "won" || d.stage.toLowerCase() === "closed won")
   const winRate = deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0
 
@@ -46,7 +51,7 @@ export default async function DashboardPage() {
             </p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -93,7 +98,7 @@ export default async function DashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Revenue Overview</CardTitle>
-            <CardDescription>Monthly recurring revenue via Stripe & Paystack</CardDescription>
+            <CardDescription>Monthly recurring revenue via Stripe &amp; Paystack</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px] w-full">
@@ -131,4 +136,3 @@ export default async function DashboardPage() {
     </div>
   )
 }
-
