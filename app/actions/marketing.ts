@@ -55,35 +55,48 @@ export async function sendCampaign(campaignId: string) {
 
     if (!campaign) throw new Error("Campaign not found")
 
+    // Set status to sending
+    await db.campaign.update({ where: { id: campaignId }, data: { status: "sending" } })
+
     if (!process.env.RESEND_API_KEY) {
-      console.warn("No RESEND_API_KEY found, marking as mock sent.")
-      await db.campaign.update({
-        where: { id: campaignId },
-        data: { status: "completed", sentAt: new Date() }
-      })
+      console.warn("No RESEND_API_KEY, marking as mock sent.")
+      await db.campaign.update({ where: { id: campaignId }, data: { status: "completed", sentAt: new Date() } })
       revalidatePath("/marketing/emails")
       return { success: true, mock: true }
     }
 
-    // In a real app, you would fetch all contacts for this agency 
-    // and send in batches. For demo, we just send a single email.
-    
-    await resend.emails.send({
-      from: `${campaign.agency.name} <onboarding@resend.dev>`,
-      to: [session.user.email || "test@example.com"],
-      subject: campaign.subject,
-      html: `<p>${campaign.content}</p>`
+    // Fetch all contacts with valid emails
+    const contacts = await db.contact.findMany({
+      where: { agencyId: campaign.agencyId, email: { not: null } },
+      select: { email: true, firstName: true }
     })
 
-    await db.campaign.update({
-      where: { id: campaignId },
-      data: { status: "completed", sentAt: new Date() }
-    })
+    if (contacts.length === 0) {
+      await db.campaign.update({ where: { id: campaignId }, data: { status: "completed", sentAt: new Date() } })
+      revalidatePath("/marketing/emails")
+      return { success: true, count: 0 }
+    }
 
+    // Send in batches of 50 (Resend batch limit)
+    const BATCH_SIZE = 50
+    for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+      const batch = contacts.slice(i, i + BATCH_SIZE)
+      await resend.batch.send(
+        batch.map((contact) => ({
+          from: `${campaign.agency.name} <onboarding@resend.dev>`,
+          to: [contact.email!],
+          subject: campaign.subject,
+          html: `<p>Hi ${contact.firstName},</p><p>${campaign.content}</p>`,
+        }))
+      )
+    }
+
+    await db.campaign.update({ where: { id: campaignId }, data: { status: "completed", sentAt: new Date() } })
     revalidatePath("/marketing/emails")
-    return { success: true }
+    return { success: true, count: contacts.length }
   } catch (error: any) {
     console.error("Failed to send campaign:", error)
+    await db.campaign.update({ where: { id: campaignId }, data: { status: "draft" } }).catch(() => {})
     return { success: false, error: error?.message || "Failed to send campaign" }
   }
 }

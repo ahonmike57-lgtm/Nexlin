@@ -4,6 +4,15 @@ import { db } from "@/lib/db"
 import { getOrCreateAgency } from "./agency"
 import { revalidatePath } from "next/cache"
 import { getActiveSubAccountId } from "./subaccounts"
+import Pusher from "pusher"
+
+const pusher = new Pusher({
+  appId: process.env.PUSHER_APP_ID || "",
+  key: process.env.NEXT_PUBLIC_PUSHER_KEY || "",
+  secret: process.env.PUSHER_SECRET || "",
+  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "mt1",
+  useTLS: true,
+})
 
 export async function getConversations() {
   try {
@@ -35,7 +44,6 @@ export async function getConversations() {
 
 export async function getMessages(conversationId: string) {
   try {
-    // Basic auth check
     await getOrCreateAgency()
     
     const messages = await db.message.findMany({
@@ -51,7 +59,6 @@ export async function getMessages(conversationId: string) {
 
 export async function sendMessage(conversationId: string, content: string, isOutbound: boolean = true) {
   try {
-    // Basic auth check
     await getOrCreateAgency()
     
     const message = await db.message.create({
@@ -67,6 +74,18 @@ export async function sendMessage(conversationId: string, content: string, isOut
       where: { id: conversationId },
       data: { updatedAt: new Date() }
     })
+
+    // Broadcast real-time event via Pusher (fire-and-forget, don't block on failure)
+    if (process.env.PUSHER_APP_ID) {
+      pusher.trigger(`conversation-${conversationId}`, "new-message", {
+        id: message.id,
+        conversationId: message.conversationId,
+        content: message.content,
+        isOutbound: message.isOutbound,
+        status: message.status,
+        createdAt: message.createdAt,
+      }).catch((err) => console.warn("Pusher trigger failed:", err))
+    }
     
     revalidatePath("/chat")
     return { success: true, data: message }
@@ -81,7 +100,6 @@ export async function createConversation(contactId: string, channel: string = "s
     const agencyId = await getOrCreateAgency()
     const subAgencyId = await getActiveSubAccountId()
     
-    // Check if open conversation already exists
     const whereClause: any = { agencyId, contactId, status: "open", channel }
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId

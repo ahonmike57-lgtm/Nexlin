@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import SubAccountSwitcher from "@/components/SubAccountSwitcher"
+import NotificationBell from "@/components/ui/notification-bell"
 import {
   LayoutDashboard,
   Users,
@@ -134,10 +135,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <button className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center text-text-secondary hover:text-primary transition-colors">
               <Mic className="w-5 h-5" />
             </button>
-            <button className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center text-text-secondary hover:text-primary transition-colors relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
-            </button>
+            <NotificationBell />
           </div>
         </header>
 

@@ -7,6 +7,7 @@ import { getOrCreateAgency } from "@/app/actions/agency"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import RevenueChart from "./revenue-chart"
+import DashboardAICoach from "./DashboardAICoach"
 
 export default async function DashboardPage() {
   const session = await getSession()
@@ -82,13 +83,9 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-primary text-white border-none">
-          <CardContent className="p-6">
-            <h3 className="text-sm font-medium text-primary-100 mb-2">AI Business Coach</h3>
-            <p className="text-sm mb-4">Your sales follow-up rate dropped by 15% yesterday. Want me to draft a reminder email for the team?</p>
-            <button className="bg-white text-primary text-xs font-semibold px-4 py-2 rounded-lg w-full">
-              Generate Email
-            </button>
+        <Card className="border-none p-0 overflow-hidden">
+          <CardContent className="p-0">
+            <DashboardAICoach agencyId={agencyId} />
           </CardContent>
         </Card>
       </div>
