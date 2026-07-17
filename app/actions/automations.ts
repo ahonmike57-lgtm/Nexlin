@@ -145,3 +145,22 @@ export async function updateWorkflowStatus(id: string, status: "draft" | "active
     return { success: false, error: "Failed to update status" }
   }
 }
+
+export async function updateWorkflow(id: string, data: { name?: string; description?: string }) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const workflow = await db.workflow.update({
+      where: { id },
+      data,
+    })
+
+    revalidatePath(`/automations/${id}`)
+    revalidatePath("/automations")
+    return { success: true, data: workflow }
+  } catch (error) {
+    console.error("Failed to update workflow:", error)
+    return { success: false, error: "Failed to update workflow" }
+  }
+}

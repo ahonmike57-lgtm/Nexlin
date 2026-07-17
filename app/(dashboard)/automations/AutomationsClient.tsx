@@ -11,7 +11,12 @@ import { createWorkflow } from "@/app/actions/automations"
 
 export default function AutomationsClient({ initialWorkflows, agencyId }: { initialWorkflows: any[], agencyId: string }) {
   const [isCreating, setIsCreating] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
   const router = useRouter()
+
+  const filtered = initialWorkflows.filter(w =>
+    !searchTerm || w.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const handleCreate = async () => {
     setIsCreating(true)
@@ -43,13 +48,15 @@ export default function AutomationsClient({ initialWorkflows, agencyId }: { init
           <input 
             type="text" 
             placeholder="Search workflows..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-bg-secondary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {initialWorkflows.map((workflow) => (
+        {filtered.map((workflow) => (
           <Link key={workflow.id} href={`/automations/${workflow.id}`}>
             <Card className="hover:shadow-md transition-shadow group cursor-pointer border border-border">
               <CardContent className="p-6">

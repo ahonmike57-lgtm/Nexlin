@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getKnowledgeArticles } from "@/app/actions/knowledge"
@@ -10,7 +10,7 @@ export default async function KnowledgeBasePage() {
     redirect("/login")
   }
 
-  const agencyId = "agency-1" // Mock agency ID
+  const agencyId = session.user.id
 
   const res = await getKnowledgeArticles(agencyId)
   const initialArticles = res.success && res.articles ? res.articles : []

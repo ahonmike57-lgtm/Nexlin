@@ -10,6 +10,16 @@ import AddContactModal from "./AddContactModal"
 export default function ContactsClient({ initialContacts }: { initialContacts: any[] }) {
   const [searchTerm, setSearchTerm] = useState("")
 
+  const filtered = initialContacts.filter((c) => {
+    if (!searchTerm) return true
+    const q = searchTerm.toLowerCase()
+    return (
+      (c.firstName + " " + c.lastName).toLowerCase().includes(q) ||
+      (c.email || "").toLowerCase().includes(q) ||
+      (c.company || "").toLowerCase().includes(q)
+    )
+  })
+
   return (
     <div className="animate-in fade-in duration-500 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -58,14 +68,14 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {initialContacts.length === 0 && (
+              {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-text-secondary">
-                    No contacts found. Click "Add Contact" to create one.
+                    {searchTerm ? `No contacts match "${searchTerm}".` : 'No contacts found. Click "Add Contact" to create one.'}
                   </td>
                 </tr>
               )}
-              {initialContacts.map((contact) => (
+              {filtered.map((contact) => (
                 <tr key={contact.id} className="hover:bg-bg-secondary/50 transition-colors cursor-pointer group">
                   <td className="px-6 py-4">
                     <input type="checkbox" className="rounded border-border" />
@@ -108,14 +118,11 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
         
         {/* Pagination */}
         <div className="p-4 border-t border-border flex items-center justify-between text-sm text-text-secondary bg-bg-secondary/50">
-          <div>Showing 1 to 4 of 1,248 entries</div>
+          <div>Showing {filtered.length} of {initialContacts.length} contacts{searchTerm ? ` matching "${searchTerm}"` : ""}</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="bg-primary text-white border-primary">1</Button>
-            <Button variant="outline" size="sm">2</Button>
-            <Button variant="outline" size="sm">3</Button>
-            <span className="px-2 self-center">...</span>
-            <Button variant="outline" size="sm">Next</Button>
+            <Button variant="outline" size="sm" disabled>Next</Button>
           </div>
         </div>
       </div>

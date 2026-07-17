@@ -4,9 +4,11 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Save, Sparkles, Type, Square, Image as ImageIcon, Video, MousePointerClick, Send, Loader2 } from "lucide-react"
+import { ArrowLeft, Save, Sparkles, Type, Square, Image as ImageIcon, MousePointerClick, Send, Loader2, Copy, Check } from "lucide-react"
 import { Editor, Frame, Element, useNode, useEditor } from "@craftjs/core"
 import { updateFunnelStepContent } from "@/app/actions/funnels"
+import { generateAiReply } from "@/app/actions/ai"
+import { toast } from "sonner"
 
 /* --- CRAFT.JS COMPONENTS --- */
 
@@ -135,26 +137,39 @@ const Toolbox = () => {
 const AICopilot = () => {
   const [prompt, setPrompt] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [history, setHistory] = useState<Array<{ role: "user" | "ai"; content: string }>>(
+    [{ role: "ai", content: "👋 I'm your AI Web Copilot. Describe a section you want me to build, and I'll generate content for it!" }]
+  )
+  const [copied, setCopied] = useState(false)
   const { actions, query } = useEditor()
 
   const handleGenerate = async () => {
-    if (!prompt) return
-    setIsGenerating(true)
-    
-    // Simulate AI generation delay
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    // For the demo, we'll inject a pre-made hero section based on the prompt
-    // In a real app, the LLM would return a JSON representation of a Craft.js Node tree
-    const rootNodeId = query.getEvent('selected').first() || "ROOT"
-    
-    // Simulate adding a newly generated container with text and a button
-    // This requires complex Craft.js node creation, but for UI demonstration
-    // we'll just show the loading state and pretend it worked by logging.
-    console.log("AI Generated Layout for:", prompt, "Injecting into", rootNodeId)
-    
-    setIsGenerating(false)
+    if (!prompt || isGenerating) return
+    const userPrompt = prompt
     setPrompt("")
+    setHistory(h => [...h, { role: "user", content: userPrompt }])
+    setIsGenerating(true)
+
+    try {
+      const res = await generateAiReply(
+        "You are a landing page copywriter. The user wants to build a web page section. Generate concise, compelling copy (headline + subheadline + CTA text) for the following request. Format it clearly.",
+        userPrompt
+      )
+      const aiText = (res as any)?.reply || "Here's some copy for your section. Drag elements from the left panel to build it out!"
+      setHistory(h => [...h, { role: "ai", content: aiText }])
+    } catch {
+      toast.error("AI generation failed. Please try again.")
+      setHistory(h => [...h, { role: "ai", content: "Sorry, I couldn't generate content right now. Please try again." }])
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+    toast.success("Copied to clipboard!")
   }
 
   return (
@@ -164,35 +179,47 @@ const AICopilot = () => {
           <Sparkles className="w-4 h-4" /> AI Copilot
         </h3>
       </div>
-      
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="bg-bg-secondary p-4 rounded-lg border border-border text-sm text-text-secondary mb-4">
-          👋 I'm your AI Web Copilot. Describe a section you want me to build, and I'll generate the layout automatically!
-        </div>
-        
-        {/* Mock history */}
-        <div className="space-y-4 mb-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-primary ml-auto bg-primary/10 px-2 py-1 rounded-md">Generate a hero section for a local gym</span>
-            <div className="text-xs bg-bg-secondary p-2 rounded-md border border-border mt-1 w-[90%]">
-              ✅ Generated "Gym Hero Section" and injected it into the canvas.
+
+      <div className="flex-1 p-4 overflow-y-auto space-y-3">
+        {history.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            {msg.role === "ai" ? (
+              <div className="relative group bg-bg-secondary p-3 rounded-lg border border-border text-sm text-text-secondary w-[90%]">
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <button
+                  onClick={() => handleCopy(msg.content)}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-border"
+                >
+                  {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 text-text-secondary" />}
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs font-semibold text-primary bg-primary/10 px-3 py-2 rounded-md max-w-[85%]">{msg.content}</span>
+            )}
+          </div>
+        ))}
+        {isGenerating && (
+          <div className="flex justify-start">
+            <div className="bg-bg-secondary p-3 rounded-lg border border-border text-sm text-text-secondary">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="p-4 border-t border-border bg-bg-secondary">
         <div className="relative">
-          <Input 
+          <Input
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="E.g., A pricing table with 3 tiers..." 
+            placeholder="E.g., A pricing table with 3 tiers..."
             className="pr-10"
-            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleGenerate()}
+            disabled={isGenerating}
           />
-          <Button 
-            size="icon" 
-            variant="ghost" 
+          <Button
+            size="icon"
+            variant="ghost"
             className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 text-primary"
             onClick={handleGenerate}
             disabled={isGenerating || !prompt}

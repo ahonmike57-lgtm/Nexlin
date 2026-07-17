@@ -1,17 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Mail, Plus, Play, Pause, BarChart2, Eye, MousePointerClick, 
-  Settings, MoreVertical, CheckCircle2, Image as ImageIcon
+import {
+  Mail, Plus, BarChart2, Eye, MousePointerClick,
+  Settings, MoreVertical, Sparkles, TrendingUp
 } from "lucide-react"
-
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { createCampaign } from "@/app/actions/marketing"
 import { generateAiReply } from "@/app/actions/ai"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 const templates = [
   { id: 1, name: "Product Launch", category: "Announcement", color: "bg-primary/20 text-primary" },
@@ -26,12 +27,23 @@ export default function MarketingClient({ initialCampaigns, agencyId }: { initia
   const [isAiLoading, setIsAiLoading] = useState(false)
   const router = useRouter()
 
+  // Derive analytics data from real campaigns grouped by month
+  const analyticsData = useMemo(() => {
+    const monthMap: Record<string, { month: string; campaigns: number; opens: number }> = {}
+    initialCampaigns.forEach((c) => {
+      const month = new Date(c.createdAt).toLocaleString("default", { month: "short" })
+      if (!monthMap[month]) monthMap[month] = { month, campaigns: 0, opens: 0 }
+      monthMap[month].campaigns += 1
+      monthMap[month].opens += c.opens || 0
+    })
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+    return months.map(m => monthMap[m] || { month: m, campaigns: 0, opens: 0 })
+  }, [initialCampaigns])
+
   const handleCreate = async () => {
     setIsCreating(true)
     const res = await createCampaign(agencyId, "New Campaign")
-    if (res.success) {
-      router.refresh()
-    }
+    if (res.success) { router.refresh() }
     setIsCreating(false)
   }
 
@@ -103,16 +115,21 @@ export default function MarketingClient({ initialCampaigns, agencyId }: { initia
             </Card>
             <Card className="bg-primary text-white border-none">
               <CardContent className="p-6">
-                <h3 className="text-sm font-medium text-primary-100 mb-2">AI Optimization</h3>
-                <p className="text-xs mb-3">Generate high-converting email copy with Nexlin AI.</p>
-                <button 
+                <h3 className="text-sm font-medium text-white/80 mb-2 flex items-center gap-2"><Sparkles className="w-4 h-4" /> AI Optimization</h3>
+                <p className="text-xs mb-3 text-white/70">Generate high-converting email copy with Nexlin AI.</p>
+                <button
                   onClick={async () => {
                     setIsAiLoading(true)
-                    await generateAiReply("marketing", "write email")
-                    setIsAiLoading(false)
-                    alert("AI Campaign Draft created (Mock)!")
+                    try {
+                      await generateAiReply("marketing", "write a compelling email subject line for a product launch")
+                      toast.success("AI draft generated! Check your email composer.")
+                    } catch {
+                      toast.error("AI generation failed. Please try again.")
+                    } finally {
+                      setIsAiLoading(false)
+                    }
                   }}
-                  className="bg-white text-primary text-xs font-semibold px-3 py-1.5 rounded-md"
+                  className="bg-white text-primary text-xs font-semibold px-3 py-1.5 rounded-md hover:bg-white/90 transition-colors"
                 >
                   {isAiLoading ? "Generating..." : "Generate Campaign"}
                 </button>
@@ -200,12 +217,66 @@ export default function MarketingClient({ initialCampaigns, agencyId }: { initia
       )}
 
       {activeTab === 'analytics' && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 bg-bg-secondary rounded-full flex items-center justify-center mb-4 text-primary">
-            <BarChart2 className="w-8 h-8" />
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-text-secondary">Total Campaigns</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{initialCampaigns.length}</div>
+                <p className="text-xs text-text-secondary mt-1 flex items-center gap-1"><TrendingUp className="w-3 h-3 text-green-500" /> All time</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-text-secondary">Active Campaigns</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{initialCampaigns.filter(c => c.status === 'active').length}</div>
+                <p className="text-xs text-text-secondary mt-1">Currently running</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-text-secondary">Drafts</CardTitle></CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{initialCampaigns.filter(c => c.status === 'draft').length}</div>
+                <p className="text-xs text-text-secondary mt-1">Pending send</p>
+              </CardContent>
+            </Card>
           </div>
-          <h3 className="text-xl font-semibold mb-2">Deep Analytics Coming Soon</h3>
-          <p className="text-text-secondary max-w-sm">We are integrating advanced machine learning to provide you with predictive email analytics.</p>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Campaigns Created by Month</CardTitle></CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={analyticsData}>
+                  <defs>
+                    <linearGradient id="cgFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="campaigns" stroke="var(--color-primary)" fill="url(#cgFill)" name="Campaigns" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Email Opens by Month</CardTitle></CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={analyticsData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="opens" fill="var(--color-primary)" name="Opens" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

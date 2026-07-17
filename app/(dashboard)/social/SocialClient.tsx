@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Calendar as CalendarIcon, Share2, Globe } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, Share2 } from "lucide-react"
 import { createSocialPost } from "@/app/actions/social"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -40,15 +40,32 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
   }
 
   const getPlatformIcon = (platform: string) => {
-    return <Share2 className="h-4 w-4" />
+    switch (platform?.toLowerCase()) {
+      case "facebook":  return <span className="font-bold text-[#1877F2] text-sm">f</span>
+      case "twitter":   return <span className="font-bold text-[#1DA1F2] text-sm">𝕏</span>
+      case "instagram": return <span className="font-bold text-[#E1306C] text-sm">ig</span>
+      case "linkedin":  return <span className="font-bold text-[#0A66C2] text-sm">in</span>
+      case "youtube":   return <span className="font-bold text-[#FF0000] text-sm">▶</span>
+      default:          return <Share2 className="h-4 w-4 text-text-secondary" />
+    }
+  }
+
+  const getPlatformColor = (platform: string) => {
+    switch (platform?.toLowerCase()) {
+      case "facebook":  return "bg-blue-50 border-blue-200"
+      case "twitter":   return "bg-sky-50 border-sky-200"
+      case "instagram": return "bg-pink-50 border-pink-200"
+      case "linkedin":  return "bg-sky-50 border-sky-200"
+      default:          return "bg-bg-secondary border-border"
+    }
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="animate-in fade-in duration-500 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Social Planner</h1>
-          <p className="text-muted-foreground mt-1">Schedule and manage your social media content.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Social Planner</h1>
+          <p className="text-text-secondary mt-1">Schedule and manage your social media content.</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -104,7 +121,7 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
         </Dialog>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-bg-primary border border-border rounded-xl overflow-hidden shadow-soft">
         {posts.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             <CalendarIcon className="mx-auto h-12 w-12 opacity-20 mb-3" />
@@ -112,11 +129,11 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
             <Button variant="link" onClick={() => setIsDialogOpen(true)}>Create your first post</Button>
           </div>
         ) : (
-          <div className="divide-y">
+          <div className="divide-y divide-border">
             {posts.map((post: any) => (
-              <div key={post.id} className="p-6 flex items-start gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="mt-1">
-                  {getPlatformIcon(post.account?.platform || "facebook")}
+              <div key={post.id} className="p-6 flex items-start gap-4 hover:bg-bg-secondary/30 transition-colors">
+                <div className={`mt-1 w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${getPlatformColor(post.account?.platform)}`}>
+                  {getPlatformIcon(post.account?.platform || "")}
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between">
