@@ -7,15 +7,12 @@ export async function getTickets(agencyId: string) {
   try {
     const tickets = await db.ticket.findMany({
       where: { agencyId },
-      orderBy: { updatedAt: "desc" },
-      include: {
-        contact: true
-      }
+      include: { contact: true },
+      orderBy: { createdAt: "desc" }
     })
     return { success: true, tickets }
-  } catch (error) {
-    console.error("Error fetching tickets:", error)
-    return { success: false, error: "Failed to fetch tickets" }
+  } catch (error: any) {
+    return { success: false, error: error.message }
   }
 }
 
@@ -23,32 +20,53 @@ export async function createTicket(agencyId: string, data: any) {
   try {
     const ticket = await db.ticket.create({
       data: {
+        ...data,
         agencyId,
-        title: data.title,
-        description: data.description,
-        status: data.status || "open",
-        priority: data.priority || "normal",
-        contactId: data.contactId || null,
       }
     })
     revalidatePath("/support")
     return { success: true, ticket }
-  } catch (error) {
-    console.error("Error creating ticket:", error)
-    return { success: false, error: "Failed to create ticket" }
+  } catch (error: any) {
+    return { success: false, error: error.message }
   }
 }
 
-export async function updateTicketStatus(ticketId: string, status: string) {
+export async function updateTicketStatus(id: string, status: string) {
   try {
     const ticket = await db.ticket.update({
-      where: { id: ticketId },
+      where: { id },
       data: { status }
     })
     revalidatePath("/support")
     return { success: true, ticket }
-  } catch (error) {
-    console.error("Error updating ticket:", error)
-    return { success: false, error: "Failed to update ticket" }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function getArticles(agencyId: string) {
+  try {
+    const articles = await db.knowledgeArticle.findMany({
+      where: { agencyId },
+      orderBy: { createdAt: "desc" }
+    })
+    return { success: true, articles }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function createArticle(agencyId: string, data: any) {
+  try {
+    const article = await db.knowledgeArticle.create({
+      data: {
+        ...data,
+        agencyId,
+      }
+    })
+    revalidatePath("/support")
+    return { success: true, article }
+  } catch (error: any) {
+    return { success: false, error: error.message }
   }
 }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Download, Trash2, ShieldCheck, CheckCircle2, Store, Sparkles, CreditCard, MessageSquare, Megaphone } from "lucide-react"
-import { installExtension, uninstallExtension } from "@/app/actions/extensions"
+import { installExtension, uninstallExtension } from "@/app/actions/marketplace"
 
 const MOCK_CATEGORIES = [
   { id: "ai", name: "AI & Voice", icon: Sparkles },

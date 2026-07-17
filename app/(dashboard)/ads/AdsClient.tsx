@@ -1,14 +1,42 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BarChart3, TrendingUp, DollarSign, MousePointerClick, Eye } from "lucide-react"
+import { BarChart3, TrendingUp, DollarSign, MousePointerClick, Eye, Plus } from "lucide-react"
+import { createAdCampaign } from "@/app/actions/ads"
+import { toast } from "sonner"
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
 
 export default function AdsClient({ initialCampaigns, agencyId }: { initialCampaigns: any[], agencyId: string }) {
+  const [campaigns, setCampaigns] = useState(initialCampaigns)
+  const [isCreating, setIsCreating] = useState(false)
   
-  const totalSpend = initialCampaigns.reduce((acc, curr) => acc + curr.spend, 0)
-  const totalBudget = initialCampaigns.reduce((acc, curr) => acc + curr.budget, 0)
-  const totalImpressions = initialCampaigns.reduce((acc, curr) => acc + curr.impressions, 0)
-  const totalClicks = initialCampaigns.reduce((acc, curr) => acc + curr.clicks, 0)
+  const handleCreateMock = async () => {
+    setIsCreating(true)
+    const mockCampaign = {
+      name: `Q3 Promo ${Math.floor(Math.random() * 1000)}`,
+      platform: ["google", "facebook", "tiktok"][Math.floor(Math.random() * 3)],
+      status: "active",
+      budget: Math.floor(Math.random() * 5000) + 1000,
+      spend: Math.floor(Math.random() * 1000),
+      impressions: Math.floor(Math.random() * 50000),
+      clicks: Math.floor(Math.random() * 5000),
+      conversions: Math.floor(Math.random() * 50)
+    }
+    const res = await createAdCampaign(agencyId, mockCampaign)
+    if (res.success && res.campaign) {
+      toast.success("Mock campaign created")
+      setCampaigns([res.campaign, ...campaigns])
+    } else {
+      toast.error("Failed to create campaign")
+    }
+    setIsCreating(false)
+  }
+
+  const totalSpend = campaigns.reduce((acc, curr) => acc + curr.spend, 0)
+  const totalBudget = campaigns.reduce((acc, curr) => acc + curr.budget, 0)
+  const totalImpressions = campaigns.reduce((acc, curr) => acc + curr.impressions, 0)
+  const totalClicks = campaigns.reduce((acc, curr) => acc + curr.clicks, 0)
   const avgCpc = totalClicks > 0 ? (totalSpend / totalClicks).toFixed(2) : "0.00"
 
   const getPlatformColor = (platform: string) => {
@@ -27,6 +55,9 @@ export default function AdsClient({ initialCampaigns, agencyId }: { initialCampa
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Ads Manager</h1>
           <p className="text-muted-foreground mt-1">Monitor your multi-channel ad campaigns in real-time.</p>
         </div>
+        <Button onClick={handleCreateMock} disabled={isCreating}>
+          <Plus className="w-4 h-4 mr-2" /> {isCreating ? "Adding..." : "Add Mock Campaign"}
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -96,7 +127,7 @@ export default function AdsClient({ initialCampaigns, agencyId }: { initialCampa
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {initialCampaigns.map((campaign) => (
+              {campaigns.map((campaign) => (
                 <tr key={campaign.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">
                     {campaign.name}
