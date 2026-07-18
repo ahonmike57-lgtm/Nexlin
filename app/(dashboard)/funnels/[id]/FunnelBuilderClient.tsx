@@ -165,11 +165,16 @@ const AICopilot = ({ aiSettings }: { aiSettings: any[] }) => {
 
     try {
       const res = await generateAiReply("landing_page", userPrompt, selectedModel)
-      const aiText = res?.success && res.data ? res.data : "Here's some copy for your section. Drag elements from the left panel to build it out!"
-      setHistory(h => [...h, { role: "ai", content: aiText }])
-    } catch {
-      toast.error("AI generation failed. Please try again.")
-      setHistory(h => [...h, { role: "ai", content: "Sorry, I couldn't generate content right now. Please try again." }])
+      if (res?.success && res.data) {
+        setHistory(h => [...h, { role: "ai", content: res.data }])
+      } else {
+        const errorMsg = res?.error || "Unknown AI Error"
+        toast.error(`AI Error: ${errorMsg}`)
+        setHistory(h => [...h, { role: "ai", content: `Sorry, I couldn't generate content right now. Error: ${errorMsg}` }])
+      }
+    } catch (err: any) {
+      toast.error("Network or internal error. Please try again.")
+      setHistory(h => [...h, { role: "ai", content: "Sorry, a network error occurred while connecting to the AI service." }])
     } finally {
       setIsGenerating(false)
     }
