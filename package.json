@@ -10,7 +10,9 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.16",
     "@ai-sdk/google": "^4.0.14",
+    "@ai-sdk/openai": "^4.0.16",
     "@auth/prisma-adapter": "^2.11.2",
     "@craftjs/core": "^0.2.12",
     "@craftjs/layers": "^0.2.7",

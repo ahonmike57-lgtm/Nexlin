@@ -62,6 +62,7 @@ model Agency {
   Form              Form[]
   ExtensionAuditLog ExtensionAuditLog[]
   pipelines         Pipeline[]
+  aiSettings        AiSettings[]
   
   // Phase 1 Relations
   snapshots         Snapshot[]
@@ -718,3 +719,16 @@ model CommissionPayout {
   updatedAt   DateTime  @updatedAt
 }
 
+model AiSettings {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  provider  String   // "google", "openai", "anthropic"
+  apiKey    String   // Encrypted or plain text key
+  modelName String   // "gpt-4o", "gemini-1.5-pro", etc.
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agencyId, provider])
+}

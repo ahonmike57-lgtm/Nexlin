@@ -3,26 +3,59 @@
 import { getSession } from "@/lib/auth"
 import { generateText } from "ai"
 import { google } from "@ai-sdk/google"
+import { createOpenAI } from "@ai-sdk/openai"
+import { createAnthropic } from "@ai-sdk/anthropic"
 import { db } from "@/lib/db"
+import { getOrCreateAgency } from "./agency"
 
-export async function generateAiReply(context: string, prompt: string) {
+export async function generateAiReply(context: string, prompt: string, requestedProviderAndModel?: string) {
   try {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
-    // If no API key is provided, gracefully fallback to mock
-    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
-      console.warn("No GOOGLE_GENERATIVE_AI_API_KEY found, falling back to mock response.")
+    const agencyId = await getOrCreateAgency()
+
+    // Default to Google Gemini 1.5 Flash if nothing specified
+    let provider = "google"
+    let modelName = "gemini-1.5-flash"
+    let apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""
+
+    // Check if the agency has custom AI Settings
+    const aiSettings = await db.aiSettings.findMany({
+      where: { agencyId, isActive: true }
+    })
+
+    if (requestedProviderAndModel) {
+      const [reqProvider, reqModel] = requestedProviderAndModel.split(":")
+      const customSetting = aiSettings.find(s => s.provider === reqProvider)
+      if (customSetting) {
+        provider = customSetting.provider
+        modelName = reqModel || customSetting.modelName
+        apiKey = customSetting.apiKey
+      } else {
+        // Fallback to env vars if requested but no custom settings found
+        provider = reqProvider
+        modelName = reqModel
+        if (provider === "openai") apiKey = process.env.OPENAI_API_KEY || ""
+        if (provider === "anthropic") apiKey = process.env.ANTHROPIC_API_KEY || ""
+      }
+    } else if (aiSettings.length > 0) {
+      // Use their first active setting
+      provider = aiSettings[0].provider
+      modelName = aiSettings[0].modelName
+      apiKey = aiSettings[0].apiKey
+    }
+
+    if (!apiKey) {
+      console.warn(`No API key found for ${provider}, falling back to mock response.`)
       await new Promise(resolve => setTimeout(resolve, 1500))
-      let response = ""
+      let response = "Here is some AI generated text based on your prompt."
       if (context === "chat") {
         response = "Thank you for reaching out! We've received your message and our team will get back to you shortly."
       } else if (context === "marketing") {
         response = "Unlock Your Business Potential! \n\nHey there, \n\nAre you looking to scale your business? We just launched our newest feature designed to double your conversions..."
       } else if (context === "landing_page") {
         response = `Here is some high-converting copy based on your prompt:\n\n**Headline:** Transform Your Workflow Today\n**Subheadline:** Discover the tools that top teams use to save hours every week.\n**Call to Action:** Get Started for Free`
-      } else {
-        response = "Here is some AI generated text based on your prompt."
       }
       return { success: true, data: response }
     }
@@ -44,44 +77,31 @@ export async function generateAiReply(context: string, prompt: string) {
         take: 10
       })
       if (messages.length > 0) {
-        // Format previous messages
         finalPrompt = "Here are the recent messages in this conversation (newest first):\n" + 
           messages.map(m => `${m.isOutbound ? 'Agent' : 'Customer'}: ${m.content}`).join("\n") +
           "\n\nWrite a helpful, natural response to the customer."
       }
     }
 
-    // Dynamically fetch available models to prevent versioning/deprecation errors
-    const modelsRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`)
-    const modelsData = await modelsRes.json()
-    
-    let selectedModel = "gemini-pro"
-    
-    if (modelsData && modelsData.models) {
-      // Find all models that support text generation
-      let availableModels = modelsData.models.filter((m: any) => 
-        m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")
-      )
-      
-      // Filter out any models we know throw quota/deprecation errors for this user
-      availableModels = availableModels.filter((m: any) => 
-        !m.name.includes("gemini-2.5-flash") && !m.name.includes("gemini-2.5-pro")
-      )
-
-      // Sort by version number descending (e.g. 3.0 > 2.5 > 2.0 > 1.5)
-      availableModels.sort((a: any, b: any) => {
-        const vA = parseFloat(a.name.match(/\d+\.\d+/)?.[0] || "0")
-        const vB = parseFloat(b.name.match(/\d+\.\d+/)?.[0] || "0")
-        return vB - vA
-      })
-
-      if (availableModels.length > 0) {
-        selectedModel = availableModels[0].name.replace("models/", "")
-      }
+    let selectedModel;
+    if (provider === "openai") {
+      const openai = createOpenAI({ apiKey })
+      selectedModel = openai(modelName)
+    } else if (provider === "anthropic") {
+      const anthropic = createAnthropic({ apiKey })
+      selectedModel = anthropic(modelName)
+    } else {
+      // Create a specific google instance so we can pass the API key explicitly
+      // rather than relying purely on process.env
+      // @ai-sdk/google allows passing api key to createGoogleGenerativeAI (wait, we can just set process.env locally or use standard google())
+      // Actually @ai-sdk/google has createGoogleGenerativeAI from v4
+      const { createGoogleGenerativeAI } = await import("@ai-sdk/google")
+      const googleAI = createGoogleGenerativeAI({ apiKey })
+      selectedModel = googleAI(modelName)
     }
 
     const { text } = await generateText({
-      model: google(selectedModel),
+      model: selectedModel,
       system: systemPrompt,
       prompt: finalPrompt
     })
@@ -92,7 +112,7 @@ export async function generateAiReply(context: string, prompt: string) {
     
     let errorMsg = error?.message || "Failed to generate AI content"
     if (errorMsg.includes("API call error") || errorMsg.includes("fetch failed")) {
-      errorMsg = "Your API Key is invalid or restricted! Please double check your Vercel Environment Variables and ensure there are no spaces in the key."
+      errorMsg = "Your API Key is invalid or restricted! Please double check your Settings."
     }
     
     return { success: false, error: errorMsg }

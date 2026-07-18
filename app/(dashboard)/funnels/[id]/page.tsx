@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { redirect, notFound } from "next/navigation"
 import FunnelBuilderClient from "./FunnelBuilderClient"
 import { getFunnel } from "@/app/actions/funnels"
+import { getAiSettings } from "@/app/actions/aiSettings"
 
 export default async function FunnelBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getSession()
@@ -18,5 +19,8 @@ export default async function FunnelBuilderPage({ params }: { params: Promise<{ 
     notFound()
   }
 
-  return <FunnelBuilderClient funnel={funnelResponse.data} />
+  const aiRes = await getAiSettings()
+  const aiSettings = aiRes.success ? aiRes.settings : []
+
+  return <FunnelBuilderClient funnel={funnelResponse.data} aiSettings={aiSettings} />
 }
