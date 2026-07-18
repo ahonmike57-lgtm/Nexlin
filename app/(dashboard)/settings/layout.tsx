@@ -4,11 +4,12 @@ import { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Palette, Globe, CreditCard, Link as LinkIcon, Building, ShieldCheck, Save, Users, Phone, Cpu, GitBranch, Settings } from "lucide-react"
+import { Palette, Globe, CreditCard, Link as LinkIcon, Building, ShieldCheck, Save, Users, Phone, Cpu, GitBranch, Settings, Sparkles } from "lucide-react"
 
 const tabs = [
   { id: "general", href: "/settings", label: "General", icon: Settings, exact: true },
   { id: "snapshots", href: "/settings/snapshots", label: "Snapshots", icon: GitBranch }, // New Snapshots tab
+  { id: "ai", href: "/settings/ai", label: "AI & Models", icon: Sparkles },
   { id: "sub-accounts", href: "/settings/sub-accounts", label: "Sub-Accounts", icon: Building },
   { id: "team", href: "/settings/team", label: "Team", icon: Users },
   { id: "billing", href: "/settings/billing", label: "Billing", icon: CreditCard },
