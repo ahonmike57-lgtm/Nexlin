@@ -11,7 +11,7 @@ export default async function AiSettingsPage() {
 
   const agencyId = await getOrCreateAgency()
   const res = await getAiSettings()
-  const initialSettings = res.success ? res.settings : []
+  const initialSettings = res.settings || []
 
   return <AiSettingsClient initialSettings={initialSettings} agencyId={agencyId} />
 }
