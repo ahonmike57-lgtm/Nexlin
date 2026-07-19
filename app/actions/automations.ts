@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/auth"
 import { getActiveSubAccountId } from "./subaccounts"
+import { generateAiReply } from "./ai"
 
 export async function getWorkflows(agencyId: string) {
   try {
@@ -192,5 +193,58 @@ export async function saveWorkflowNodes(workflowId: string, nodes: { id: string,
   } catch (error) {
     console.error("Failed to save nodes:", error)
     return { success: false, error: "Failed to save workflow nodes" }
+  }
+}
+
+export async function generateWorkflowFromPrompt(agencyId: string, prompt: string) {
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const aiRes = await generateAiReply("workflow_generator", prompt)
+    if (!aiRes.success || !aiRes.data) {
+      throw new Error(aiRes.error || "Failed to generate workflow via AI")
+    }
+
+    let parsed
+    try {
+      const rawJson = aiRes.data.replace(/```json/gi, '').replace(/```/g, '').trim()
+      parsed = JSON.parse(rawJson)
+    } catch (e) {
+      console.error("Failed to parse workflow JSON:", aiRes.data)
+      throw new Error("AI returned invalid workflow structure")
+    }
+
+    const subAgencyId = await getActiveSubAccountId()
+
+    const triggerType = parsed.trigger || "contact_created"
+    const actionsList = Array.isArray(parsed.actions) ? parsed.actions : [{ type: "send_email" }]
+    
+    // Map actions to match the prisma schema expected by create
+    const mappedActions = actionsList.map((a: any, index: number) => ({
+      type: a.type || "wait",
+      order: index
+    }))
+
+    const workflow = await db.workflow.create({
+      data: {
+        agencyId,
+        subAgencyId,
+        name: parsed.name || "AI Generated Workflow",
+        status: "draft",
+        triggers: {
+          create: [{ type: triggerType }]
+        },
+        actions: {
+          create: mappedActions
+        }
+      }
+    })
+
+    revalidatePath("/automations")
+    return { success: true, data: workflow }
+  } catch (error: any) {
+    console.error("Failed to generate workflow:", error)
+    return { success: false, error: error.message || "Failed to generate workflow" }
   }
 }

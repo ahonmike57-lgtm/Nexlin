@@ -6,12 +6,16 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, MoreVertical, Settings, Play, Pause } from "lucide-react"
-import { createWorkflow } from "@/app/actions/automations"
+import { Search, Plus, MoreVertical, Settings, Play, Pause, Sparkles, Wand2 } from "lucide-react"
+import { createWorkflow, generateWorkflowFromPrompt } from "@/app/actions/automations"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 export default function AutomationsClient({ initialWorkflows, agencyId }: { initialWorkflows: any[], agencyId: string }) {
   const [isCreating, setIsCreating] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [aiModalOpen, setAiModalOpen] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
   const router = useRouter()
 
   const filtered = initialWorkflows.filter(w =>
@@ -36,6 +40,9 @@ export default function AutomationsClient({ initialWorkflows, agencyId }: { init
           <p className="text-text-secondary">Build automated sequences to save time and convert leads.</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" className="bg-primary/5 text-primary border-primary/20 hover:bg-primary/10 hover:text-primary" onClick={() => setAiModalOpen(true)}>
+            <Sparkles className="w-4 h-4 mr-2" /> Generate with AI
+          </Button>
           <Button onClick={handleCreate} disabled={isCreating}>
             <Plus className="w-4 h-4 mr-2" /> {isCreating ? "Creating..." : "Create Workflow"}
           </Button>
@@ -93,6 +100,48 @@ export default function AutomationsClient({ initialWorkflows, agencyId }: { init
           <h3 className="font-semibold text-text-primary group-hover:text-primary transition-colors">Create New Workflow</h3>
         </div>
       </div>
+
+      {/* AI Generator Modal */}
+      <Dialog open={aiModalOpen} onOpenChange={setAiModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              AI Workflow Generator
+            </DialogTitle>
+            <DialogDescription>
+              Describe the automation you want to build, and our AI will configure the triggers and actions for you instantly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <textarea
+              className="w-full min-h-[120px] p-3 text-sm rounded-md border border-border bg-bg-secondary focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="e.g. When a deal is won, wait 1 hour, send a welcome SMS, and add a 'VIP' tag."
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiModalOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={async () => {
+                if (!aiPrompt.trim()) return;
+                setIsGenerating(true);
+                const res = await generateWorkflowFromPrompt(agencyId, aiPrompt);
+                if (res.success && res.data) {
+                  router.push(`/automations/${res.data.id}`);
+                } else {
+                  alert(res.error || "Failed to generate workflow");
+                  setIsGenerating(false);
+                }
+              }}
+              disabled={isGenerating || !aiPrompt.trim()}
+            >
+              {isGenerating ? "Building..." : "Generate Sequence"} <Wand2 className="w-4 h-4 ml-2" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

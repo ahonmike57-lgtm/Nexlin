@@ -67,7 +67,7 @@ export async function generateAiReply(context: string, prompt: string, requested
 
     // Task-Based Routing Hierarchy
     let found = false
-    if (context === "landing_page" || context === "deal_insights") {
+    if (context === "landing_page" || context === "deal_insights" || context === "workflow_generator") {
       found = trySetProvider(["anthropic", "openai", "google"])
     } else if (context === "marketing") {
       found = trySetProvider(["openai", "anthropic", "google"])
@@ -106,6 +106,22 @@ export async function generateAiReply(context: string, prompt: string, requested
       systemPrompt = "You are an expert landing page copywriter. The user wants to build a web page section. Generate concise, compelling copy (headline + subheadline + CTA text) for the following request. Format it clearly."
     } else if (context === "deal_insights") {
       systemPrompt = "You are an expert CRM sales manager AI. Analyze the provided deal and conversation history. Return ONLY a raw JSON object with the following structure: {\"winProbability\": number (0-100), \"summary\": \"string summarizing the relationship\", \"nextAction\": \"string describing the best next action to close the deal\"}. Do not wrap the JSON in markdown code blocks."
+    } else if (context === "workflow_generator") {
+      systemPrompt = `You are an expert Automation Architect. The user will describe a workflow they want. 
+You must translate their prompt into a strict JSON object with this exact structure:
+{
+  "name": "A short, descriptive name for the workflow",
+  "trigger": "one of: contact_created, tag_added, deal_won, form_submitted",
+  "actions": [
+    { "type": "one of: send_email, add_tag, wait, send_sms, create_task" },
+    ...
+  ]
+}
+RULES:
+1. ONLY return the raw JSON object. NO markdown, NO backticks.
+2. You MUST pick exactly ONE trigger. If they don't specify one, default to "contact_created".
+3. You can have multiple actions.
+4. ONLY use the exact trigger and action string literals provided above. Do not invent new types.`
     }
 
     let finalPrompt = prompt
