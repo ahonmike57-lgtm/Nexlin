@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { 
   Search, Filter, MoreVertical, Paperclip, Smile, Send, 
-  Mail, MessageSquare, Phone, User, Clock, Check, CheckCheck 
+  Mail, MessageSquare, Phone, User, Clock, Check, CheckCheck, Sparkles 
 } from "lucide-react"
 
-import { getMessages, sendMessage } from "@/app/actions/chat"
+import { getMessages, sendMessage, toggleAiAutoReply } from "@/app/actions/chat"
 import { generateAiReply } from "@/app/actions/ai"
 
 export default function ChatClient({ initialConversations }: { initialConversations: any[] }) {
@@ -203,7 +203,24 @@ export default function ChatClient({ initialConversations }: { initialConversati
           </div>
 
           {/* Chat Composer */}
-          <div className="p-4 bg-bg-primary border-t border-border">
+          <div className="p-4 bg-bg-primary border-t border-border flex flex-col gap-2">
+            <div className="flex justify-between items-center px-1">
+              <span className="text-xs text-text-secondary">Type a message or use AI</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-6 text-[10px] bg-bg-secondary"
+                onClick={async () => {
+                  if (!activeConversation) return;
+                  const msg = window.prompt("Enter a mock message from the customer:");
+                  if (msg) {
+                    await sendMessage(activeConversation.id, msg, false);
+                  }
+                }}
+              >
+                Simulate Customer Reply
+              </Button>
+            </div>
             <div className="bg-bg-secondary rounded-xl p-2">
               <textarea 
                 className="w-full bg-transparent border-none resize-none focus:ring-0 text-sm p-2 outline-none"
@@ -276,6 +293,30 @@ export default function ChatClient({ initialConversations }: { initialConversati
                 <Badge variant="outline">Q3 Pipeline</Badge>
                 <Badge variant="outline" className="border-dashed"><Plus className="w-3 h-3 mr-1" /> Add Tag</Badge>
               </div>
+            </div>
+
+            {/* AI Auto-Responder Toggle */}
+            <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <div>
+                  <h3 className="text-sm font-semibold text-text-primary leading-none">AI Auto-Reply</h3>
+                  <p className="text-[10px] text-text-secondary mt-1">Let AI reply to this lead.</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={activeConversation.aiAutoReply || false} 
+                  onChange={async (e) => {
+                    const enabled = e.target.checked;
+                    setActiveConversation({...activeConversation, aiAutoReply: enabled});
+                    await toggleAiAutoReply(activeConversation.id, enabled);
+                  }} 
+                />
+                <div className="w-9 h-5 bg-border rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+              </label>
             </div>
           </div>
           </>

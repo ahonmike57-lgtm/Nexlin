@@ -304,6 +304,7 @@ model Conversation {
   subAgencyId String?
   subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
   status      String     @default("open") // open, closed
+  aiAutoReply Boolean    @default(false)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 

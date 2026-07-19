@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { getOrCreateAgency } from "./agency"
 import { revalidatePath } from "next/cache"
 import { getActiveSubAccountId } from "./subaccounts"
+import { generateAiReply } from "./ai"
 import Pusher from "pusher"
 
 const pusher = new Pusher({
@@ -88,6 +89,21 @@ export async function sendMessage(conversationId: string, content: string, isOut
     }
     
     revalidatePath("/chat")
+
+    // --- AI AUTO-RESPONDER LOGIC ---
+    if (!isOutbound) {
+      const conv = await db.conversation.findUnique({ where: { id: conversationId } })
+      if (conv?.aiAutoReply) {
+        // Run AI reply asynchronously without blocking the user's incoming message
+        generateAiReply("chat", conversationId).then(async (aiRes) => {
+          if (aiRes.success && aiRes.data) {
+            // We successfully generated a reply, now send it!
+            await sendMessage(conversationId, aiRes.data, true)
+          }
+        }).catch(err => console.error("AI AutoReply Error:", err))
+      }
+    }
+    
     return { success: true, data: message }
   } catch (error: any) {
     console.error("Failed to send message:", error)
@@ -127,5 +143,22 @@ export async function createConversation(contactId: string, channel: string = "s
   } catch (error: any) {
     console.error("Failed to create conversation:", error)
     return { success: false, error: error.message || "Failed to create conversation" }
+  }
+}
+
+export async function toggleAiAutoReply(conversationId: string, enabled: boolean) {
+  try {
+    await getOrCreateAgency()
+    
+    const updated = await db.conversation.update({
+      where: { id: conversationId },
+      data: { aiAutoReply: enabled }
+    })
+    
+    revalidatePath("/chat")
+    return { success: true, data: updated }
+  } catch (error: any) {
+    console.error("Failed to toggle AI Auto Reply:", error)
+    return { success: false, error: error.message || "Failed to toggle AI Auto Reply" }
   }
 }
