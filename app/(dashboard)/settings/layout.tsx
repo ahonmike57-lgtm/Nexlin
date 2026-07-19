@@ -13,6 +13,7 @@ const tabs = [
   { id: "sub-accounts", href: "/settings/sub-accounts", label: "Sub-Accounts", icon: Building },
   { id: "team", href: "/settings/team", label: "Team", icon: Users },
   { id: "billing", href: "/settings/billing", label: "Billing", icon: CreditCard },
+  { id: "saas", href: "/settings/saas", label: "SaaS Configurator", icon: Building },
   { id: "branding", href: "/settings/branding", label: "Branding", icon: Palette },
   { id: "integrations", href: "/settings/integrations", label: "Integrations", icon: LinkIcon },
   { id: "domains", href: "/settings/domains", label: "Domains", icon: Globe },

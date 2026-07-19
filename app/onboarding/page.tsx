@@ -6,6 +6,9 @@ import { Input } from "@/components/ui/input"
 import { motion, AnimatePresence } from "framer-motion"
 import { Building2, Users, Link as LinkIcon, Palette, CheckCircle2 } from "lucide-react"
 
+import { completeOnboarding } from "@/app/actions/onboarding"
+import { toast } from "sonner"
+
 const steps = [
   { id: "business", title: "Business Info", icon: Building2 },
   { id: "team", title: "Team Setup", icon: Users },
@@ -16,14 +19,33 @@ const steps = [
 export default function OnboardingWizard() {
   const [currentStep, setCurrentStep] = useState(0)
   const [isCompleted, setIsCompleted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Form State
+  const [businessName, setBusinessName] = useState("")
+  const [industry, setIndustry] = useState("Digital Agency")
+  const [timezone, setTimezone] = useState("UTC")
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // Validate Step 1
+    if (currentStep === 0 && !businessName) {
+      toast.error("Please enter a business name")
+      return
+    }
+
     if (currentStep < steps.length - 1) {
       setCurrentStep(curr => curr + 1)
     } else {
-      setIsCompleted(true)
-      // Redirect to dashboard in real implementation
-      setTimeout(() => window.location.href = "/dashboard", 2000)
+      setIsSubmitting(true)
+      const res = await completeOnboarding({ businessName, industry, timezone })
+      
+      if (res.success) {
+        setIsCompleted(true)
+        setTimeout(() => window.location.href = "/dashboard", 2000)
+      } else {
+        toast.error(res.error || "Failed to complete onboarding")
+        setIsSubmitting(false)
+      }
     }
   }
 
@@ -104,17 +126,44 @@ export default function OnboardingWizard() {
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Business Name</label>
-                      <Input placeholder="Acme Corp" />
+                      <label className="text-sm font-medium">Business Name <span className="text-destructive">*</span></label>
+                      <Input 
+                        placeholder="Acme Corp" 
+                        value={businessName}
+                        onChange={(e) => setBusinessName(e.target.value)}
+                        autoFocus
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Industry</label>
-                      <select className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                        <option>Digital Agency</option>
-                        <option>E-Commerce</option>
-                        <option>Real Estate</option>
-                        <option>SaaS</option>
-                        <option>Other</option>
+                      <select 
+                        className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        value={industry}
+                        onChange={(e) => setIndustry(e.target.value)}
+                      >
+                        <option value="Digital Agency">Digital Agency</option>
+                        <option value="E-Commerce">E-Commerce</option>
+                        <option value="Real Estate">Real Estate</option>
+                        <option value="SaaS">SaaS</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Timezone</label>
+                      <select 
+                        className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        value={timezone}
+                        onChange={(e) => setTimezone(e.target.value)}
+                      >
+                        <option value="UTC">UTC (GMT+0)</option>
+                        <option value="EST">Eastern Time (EST/EDT)</option>
+                        <option value="CST">Central Time (CST/CDT)</option>
+                        <option value="MST">Mountain Time (MST/MDT)</option>
+                        <option value="PST">Pacific Time (PST/PDT)</option>
+                        <option value="GMT">Greenwich Mean Time (GMT)</option>
+                        <option value="CET">Central European Time (CET)</option>
+                        <option value="IST">Indian Standard Time (IST)</option>
+                        <option value="AEST">Australian Eastern Standard Time (AEST)</option>
                       </select>
                     </div>
                   </div>
@@ -207,8 +256,8 @@ export default function OnboardingWizard() {
             >
               Back
             </Button>
-            <Button onClick={handleNext}>
-              {currentStep === steps.length - 1 ? "Complete Setup" : "Continue"}
+            <Button onClick={handleNext} disabled={isSubmitting}>
+              {currentStep === steps.length - 1 ? (isSubmitting ? "Setting up..." : "Complete Setup") : "Continue"}
             </Button>
           </div>
         </div>

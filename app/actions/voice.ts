@@ -27,7 +27,10 @@ export async function saveVoiceAgent(agencyId: string, data: any) {
           systemPrompt: data.systemPrompt,
           voiceId: data.voiceId,
           greeting: data.greeting,
-          isActive: data.isActive
+          isActive: data.isActive,
+          missedCallEnabled: data.missedCallEnabled,
+          missedCallMessage: data.missedCallMessage,
+          missedCallAIFollowUp: data.missedCallAIFollowUp
         }
       })
     } else {
@@ -38,7 +41,10 @@ export async function saveVoiceAgent(agencyId: string, data: any) {
           systemPrompt: data.systemPrompt,
           voiceId: data.voiceId,
           greeting: data.greeting,
-          isActive: data.isActive
+          isActive: data.isActive,
+          missedCallEnabled: data.missedCallEnabled,
+          missedCallMessage: data.missedCallMessage,
+          missedCallAIFollowUp: data.missedCallAIFollowUp
         }
       })
     }

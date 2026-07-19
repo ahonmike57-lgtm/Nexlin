@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
 import { Bell, X, Zap, UserPlus, FileText, Star, Mail } from "lucide-react"
 import PusherClient from "pusher-js"
+import { toast } from "sonner"
 
 type Notification = {
   id: string
@@ -122,6 +123,12 @@ export default function NotificationBell({ agencyId }: { agencyId?: string }) {
     const channel = pusher.subscribe(`agency-${agencyId}`)
     channel.bind("notification", (data: Omit<Notification, "read">) => {
       setNotifications(prev => [{ ...data, read: false }, ...prev].slice(0, 20))
+      
+      // Also show a toast notification!
+      toast(data.title, {
+        description: data.body,
+        duration: 5000,
+      })
     })
     return () => { pusher.unsubscribe(`agency-${agencyId}`) }
   }, [agencyId])

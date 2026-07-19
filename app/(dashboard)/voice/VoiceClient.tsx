@@ -15,7 +15,10 @@ export default function VoiceClient({ initialAgents, agencyId }: { initialAgents
     systemPrompt: "You are a helpful front desk assistant for our agency. You can answer common questions and route calls. Always be polite.",
     voiceId: "eleven_monolingual_v1_rachel",
     greeting: "Hello! Thank you for calling. How can I help you today?",
-    isActive: false
+    isActive: false,
+    missedCallEnabled: false,
+    missedCallMessage: "Hi, sorry we missed your call. How can we help you today?",
+    missedCallAIFollowUp: false
   }
 
   const [form, setForm] = useState(defaultAgent)
@@ -48,8 +51,27 @@ export default function VoiceClient({ initialAgents, agencyId }: { initialAgents
           <p className="text-text-secondary">Configure an AI assistant to handle incoming calls 24/7.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => toast.info("Call simulation coming soon!")}>
-            <PhoneCall className="w-4 h-4 mr-2" /> Test Call
+          <Button variant="outline" onClick={async () => {
+            setIsSaving(true)
+            toast.loading("Simulating missed call...", { id: "sim" })
+            try {
+              const res = await fetch("/api/twilio/incoming-call", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ agencyId, from: "+15551234567" })
+              })
+              const data = await res.json()
+              if (data.success) {
+                toast.success("Missed call simulated! Check your inbox.", { id: "sim" })
+              } else {
+                toast.error(data.error || "Simulation failed", { id: "sim" })
+              }
+            } catch (e) {
+              toast.error("Network error", { id: "sim" })
+            }
+            setIsSaving(false)
+          }} disabled={isSaving}>
+            <PhoneCall className="w-4 h-4 mr-2" /> Test Missed Call
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
             <Save className="w-4 h-4 mr-2" /> {isSaving ? "Saving..." : "Save Agent"}
@@ -91,6 +113,53 @@ export default function VoiceClient({ initialAgents, agencyId }: { initialAgents
                   placeholder="Tell the AI how to behave, what it knows, and how to handle specific situations..."
                 />
               </div>
+            </div>
+          </div>
+          
+          <div className="bg-bg-secondary border border-border rounded-xl p-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+              <PhoneCall className="w-5 h-5 text-primary" /> Missed Call Text-Back
+            </h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-border pb-4">
+                <div>
+                  <span className="font-medium block">Enable Auto-Reply</span>
+                  <span className="text-xs text-text-secondary">Send an SMS instantly when a call is missed</span>
+                </div>
+                <button 
+                  onClick={() => setForm({...form, missedCallEnabled: !form.missedCallEnabled})}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.missedCallEnabled ? 'bg-primary' : 'bg-text-secondary/30'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.missedCallEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {form.missedCallEnabled && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Initial SMS Message</label>
+                    <textarea 
+                      className="w-full min-h-[80px] flex rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      value={form.missedCallMessage || ""}
+                      onChange={e => setForm({...form, missedCallMessage: e.target.value})}
+                      placeholder="Hi, sorry we missed your call. How can we help you?"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      <span className="font-medium block text-sm">AI Conversation Follow-Up</span>
+                      <span className="text-xs text-text-secondary">Allow this agent to reply to their texts and book appointments</span>
+                    </div>
+                    <button 
+                      onClick={() => setForm({...form, missedCallAIFollowUp: !form.missedCallAIFollowUp})}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.missedCallAIFollowUp ? 'bg-primary' : 'bg-text-secondary/30'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.missedCallAIFollowUp ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

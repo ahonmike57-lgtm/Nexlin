@@ -32,7 +32,7 @@ export default function FormsClient({ initialForms, agencyId }: { initialForms: 
 
     if (res.success) {
       toast.success("Form created successfully")
-      setForms([res.form, ...forms])
+      setForms([res.data, ...forms])
       setIsOpen(false)
       setNewFormName("")
     } else {

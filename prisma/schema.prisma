@@ -445,8 +445,11 @@ model VoiceAgent {
   voiceId      String? // e.g. elevenlabs voice id
   greeting     String?
   isActive     Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  missedCallEnabled    Boolean  @default(false)
+  missedCallMessage    String?  @default("Hi, sorry we missed your call. How can we help you today?")
+  missedCallAIFollowUp Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model SocialAccount {
