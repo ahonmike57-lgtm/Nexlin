@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { triggerPusherEvent } from "@/lib/pusher"
+import { pusherServer } from "@/lib/pusher"
 import { generateAiReply } from "@/app/actions/ai"
 
 export async function POST(req: Request) {
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
         }
       })
       // Trigger new contact notification
-      await triggerPusherEvent(`agency-${agencyId}`, "notification", {
+      await pusherServer.trigger(`agency-${agencyId}`, "notification", {
         id: Math.random().toString(),
         title: "New Lead (Missed Call)",
         body: `A new contact called from ${from}.`,
@@ -78,11 +78,11 @@ export async function POST(req: Request) {
     })
 
     // Trigger UI update for the inbox
-    await triggerPusherEvent(`agency-${agencyId}`, "chat_update", {
+    await pusherServer.trigger(`agency-${agencyId}`, "chat_update", {
       conversationId: conversation.id
     })
 
-    await triggerPusherEvent(`agency-${agencyId}`, "notification", {
+    await pusherServer.trigger(`agency-${agencyId}`, "notification", {
       id: Math.random().toString(),
       title: "Missed Call Auto-Reply Sent",
       body: `Sent to ${contact.firstName} (${from})`,

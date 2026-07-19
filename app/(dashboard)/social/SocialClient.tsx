@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Calendar as CalendarIcon, Share2, Sparkles, ChevronLeft, ChevronRight, Facebook, Twitter, Instagram, Linkedin, Link as LinkIcon, Trash2 } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, Share2, Sparkles, ChevronLeft, ChevronRight, Link as LinkIcon, Trash2, Globe, AtSign, BookOpen, Briefcase } from "lucide-react"
 import { createSocialPost, connectSocialAccount, disconnectSocialAccount } from "@/app/actions/social"
 import { generateAiReply } from "@/app/actions/ai"
 import { toast } from "sonner"
@@ -87,10 +87,10 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
 
   const getPlatformIcon = (platform: string, className = "h-4 w-4") => {
     switch (platform?.toLowerCase()) {
-      case "facebook":  return <Facebook className={`${className} text-[#1877F2]`} />
-      case "twitter":   return <Twitter className={`${className} text-[#1DA1F2]`} />
-      case "instagram": return <Instagram className={`${className} text-[#E1306C]`} />
-      case "linkedin":  return <Linkedin className={`${className} text-[#0A66C2]`} />
+      case "facebook":  return <div className={`${className} rounded-sm bg-[#1877F2] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>f</div>
+      case "twitter":   return <div className={`${className} rounded-sm bg-[#000000] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>𝕏</div>
+      case "instagram": return <div className={`${className} rounded-sm bg-gradient-to-br from-[#f09433] via-[#e6683c] to-[#bc1888] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>ig</div>
+      case "linkedin":  return <div className={`${className} rounded-sm bg-[#0A66C2] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>in</div>
       default:          return <Share2 className={`${className} text-text-secondary`} />
     }
   }
