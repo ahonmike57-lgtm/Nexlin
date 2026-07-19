@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Plus, Calendar as CalendarIcon, Share2, Sparkles, ChevronLeft, ChevronRight, Link as LinkIcon, Trash2, Globe, AtSign, BookOpen, Briefcase } from "lucide-react"
 import { createSocialPost, connectSocialAccount, disconnectSocialAccount } from "@/app/actions/social"
 import { generateAiReply } from "@/app/actions/ai"
