@@ -56,7 +56,7 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
     const prompt = `Write an engaging social media post about: ${aiPrompt}. Keep it professional, use emojis, and include relevant hashtags. Do not include quotes around the post.`
     const res = await generateAiReply(agencyId, prompt)
     if (res.success) {
-      setNewPost(prev => ({ ...prev, content: res.data }))
+      setNewPost(prev => ({ ...prev, content: res.data || "" }))
       setAiPrompt("")
     } else {
       toast.error("AI Generation failed")
