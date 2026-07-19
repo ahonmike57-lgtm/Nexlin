@@ -8,6 +8,7 @@ import { updateDealStage } from "@/app/actions/deals"
 import AddDealModal from "./AddDealModal"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import DealDetailsSheet from "./DealDetailsSheet"
 
 const DEFAULT_STAGES = [
   { id: "lead", name: "New Lead", amount: "$12,500", color: "bg-primary/20 text-primary border-primary/30" },
@@ -20,6 +21,7 @@ const DEFAULT_STAGES = [
 export default function DealsClient({ initialDeals, contacts = [], pipelines = [] }: { initialDeals: any[], contacts?: any[], pipelines?: any[] }) {
   const [deals, setDeals] = useState(initialDeals)
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>(pipelines[0]?.id || "default")
+  const [selectedDeal, setSelectedDeal] = useState<any>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -142,11 +144,14 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
                 {stageDeals.map((deal: any) => (
                   <div 
                     key={deal.id}
-                    className="bg-bg-primary p-4 rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group"
+                    className="bg-bg-primary p-4 rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group relative"
                     draggable
                     onDragStart={(e) => handleDragStart(e, deal.id)}
+                    onClick={() => setSelectedDeal(deal)}
                   >
-                    <div className="flex justify-between items-start mb-2">
+                    {/* Make cursor a pointer on the whole card, but keep drag active */}
+                    <div className="absolute inset-0 cursor-pointer z-0"></div>
+                    <div className="relative z-10 flex justify-between items-start mb-2">
                       <h4 className="font-semibold text-sm text-text-primary group-hover:text-primary transition-colors">{deal.title}</h4>
                       <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity -mr-2 -mt-2">
                         <MoreHorizontal className="w-4 h-4" />
@@ -172,6 +177,13 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
           )
         })}
       </div>
+
+      {selectedDeal && (
+        <DealDetailsSheet 
+          deal={selectedDeal} 
+          onClose={() => setSelectedDeal(null)} 
+        />
+      )}
     </div>
   )
 }

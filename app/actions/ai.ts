@@ -67,7 +67,7 @@ export async function generateAiReply(context: string, prompt: string, requested
 
     // Task-Based Routing Hierarchy
     let found = false
-    if (context === "landing_page") {
+    if (context === "landing_page" || context === "deal_insights") {
       found = trySetProvider(["anthropic", "openai", "google"])
     } else if (context === "marketing") {
       found = trySetProvider(["openai", "anthropic", "google"])
@@ -104,6 +104,8 @@ export async function generateAiReply(context: string, prompt: string, requested
       systemPrompt = "You are an expert copywriter. Generate a high-converting marketing email."
     } else if (context === "landing_page") {
       systemPrompt = "You are an expert landing page copywriter. The user wants to build a web page section. Generate concise, compelling copy (headline + subheadline + CTA text) for the following request. Format it clearly."
+    } else if (context === "deal_insights") {
+      systemPrompt = "You are an expert CRM sales manager AI. Analyze the provided deal and conversation history. Return ONLY a raw JSON object with the following structure: {\"winProbability\": number (0-100), \"summary\": \"string summarizing the relationship\", \"nextAction\": \"string describing the best next action to close the deal\"}. Do not wrap the JSON in markdown code blocks."
     }
 
     let finalPrompt = prompt
