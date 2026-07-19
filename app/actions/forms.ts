@@ -27,8 +27,7 @@ export async function createForm(agencyId: string, name: string) {
       data: {
         agencyId,
         name,
-        fields: "[]",
-        status: "draft"
+        fields: "[]"
       }
     })
 
