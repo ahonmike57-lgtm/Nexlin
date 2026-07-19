@@ -57,7 +57,7 @@ export async function generateAiReply(context: string, prompt: string, requested
           provider = p
           if (p === "openai") modelName = "gpt-4o"
           if (p === "anthropic") modelName = "claude-5-sonnet"
-          if (p === "google") modelName = "gemini-1.5-flash"
+          if (p === "google") modelName = "gemini-3.5-flash"
           apiKey = envKey
           return true
         }
@@ -79,7 +79,7 @@ export async function generateAiReply(context: string, prompt: string, requested
     // Ultimate fallback if absolutely nothing is found
     if (!found) {
       provider = "google"
-      modelName = "gemini-1.5-flash"
+      modelName = "gemini-3.5-flash"
       apiKey = ""
     }
 

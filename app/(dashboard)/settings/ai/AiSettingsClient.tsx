@@ -13,7 +13,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
 
   // Local form states
   const [googleKey, setGoogleKey] = useState(settings.find(s => s.provider === "google")?.apiKey || "")
-  const [googleModel, setGoogleModel] = useState(settings.find(s => s.provider === "google")?.modelName || "gemini-1.5-flash")
+  const [googleModel, setGoogleModel] = useState(settings.find(s => s.provider === "google")?.modelName || "gemini-3.5-flash")
 
   const [openAiKey, setOpenAiKey] = useState(settings.find(s => s.provider === "openai")?.apiKey || "")
   const [openAiModel, setOpenAiModel] = useState(settings.find(s => s.provider === "openai")?.modelName || "gpt-4o")
@@ -172,7 +172,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle>Google (Gemini)</CardTitle>
-                <CardDescription>Use models like Gemini 1.5 Pro and Flash.</CardDescription>
+                <CardDescription>Use models like Gemini 3.1 Pro and 3.5 Flash.</CardDescription>
               </div>
               {activeProvider === 'google' && <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">Active Default</span>}
             </div>
@@ -194,9 +194,8 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
                 value={googleModel}
                 onChange={(e) => setGoogleModel(e.target.value)}
               >
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                <option value="gemini-1.0-pro">Gemini 1.0 Pro</option>
+                <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
+                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
               </select>
             </div>
             <div className="flex gap-3 pt-2">
