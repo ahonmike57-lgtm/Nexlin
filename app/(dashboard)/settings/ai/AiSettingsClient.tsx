@@ -121,7 +121,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle>Anthropic (Claude)</CardTitle>
-                <CardDescription>Use models like Claude 5 Sonnet and 4.5 Haiku.</CardDescription>
+                <CardDescription>Use models like Claude 5 Opus, 5 Sonnet, and 4.5 Haiku.</CardDescription>
               </div>
               {activeProvider === 'anthropic' && <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">Active Default</span>}
             </div>
@@ -143,6 +143,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
                 value={anthropicModel}
                 onChange={(e) => setAnthropicModel(e.target.value)}
               >
+                <option value="claude-5-opus">Claude 5 Opus</option>
                 <option value="claude-5-sonnet">Claude 5 Sonnet</option>
                 <option value="claude-4-5-haiku">Claude 4.5 Haiku</option>
               </select>
