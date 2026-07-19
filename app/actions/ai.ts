@@ -56,7 +56,7 @@ export async function generateAiReply(context: string, prompt: string, requested
         if (envKey) {
           provider = p
           if (p === "openai") modelName = "gpt-4o"
-          if (p === "anthropic") modelName = "claude-3-5-sonnet-20240620"
+          if (p === "anthropic") modelName = "claude-5-sonnet"
           if (p === "google") modelName = "gemini-1.5-flash"
           apiKey = envKey
           return true

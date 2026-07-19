@@ -19,7 +19,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
   const [openAiModel, setOpenAiModel] = useState(settings.find(s => s.provider === "openai")?.modelName || "gpt-4o")
 
   const [anthropicKey, setAnthropicKey] = useState(settings.find(s => s.provider === "anthropic")?.apiKey || "")
-  const [anthropicModel, setAnthropicModel] = useState(settings.find(s => s.provider === "anthropic")?.modelName || "claude-3-5-sonnet-20240620")
+  const [anthropicModel, setAnthropicModel] = useState(settings.find(s => s.provider === "anthropic")?.modelName || "claude-5-sonnet")
 
   const activeProvider = settings.find(s => s.isActive)?.provider || "google"
 
@@ -121,7 +121,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle>Anthropic (Claude)</CardTitle>
-                <CardDescription>Use models like Claude 3.5 Sonnet.</CardDescription>
+                <CardDescription>Use models like Claude 5 Sonnet and 4.5 Haiku.</CardDescription>
               </div>
               {activeProvider === 'anthropic' && <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">Active Default</span>}
             </div>
@@ -143,9 +143,8 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
                 value={anthropicModel}
                 onChange={(e) => setAnthropicModel(e.target.value)}
               >
-                <option value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet</option>
-                <option value="claude-3-opus-20240229">Claude 3 Opus</option>
-                <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                <option value="claude-5-sonnet">Claude 5 Sonnet</option>
+                <option value="claude-4-5-haiku">Claude 4.5 Haiku</option>
               </select>
             </div>
             <div className="flex gap-3 pt-2">
