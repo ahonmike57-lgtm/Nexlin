@@ -67,7 +67,7 @@ export async function generateAiReply(context: string, prompt: string, requested
 
     // Task-Based Routing Hierarchy
     let found = false
-    if (context === "landing_page" || context === "deal_insights" || context === "workflow_generator") {
+    if (context === "landing_page" || context === "deal_insights" || context === "workflow_generator" || context === "form_generator" || context === "field_optimizer") {
       found = trySetProvider(["anthropic", "openai", "google"])
     } else if (context === "marketing") {
       found = trySetProvider(["openai", "anthropic", "google"])
@@ -122,6 +122,22 @@ RULES:
 2. You MUST pick exactly ONE trigger. If they don't specify one, default to "contact_created".
 3. You can have multiple actions.
 4. ONLY use the exact trigger and action string literals provided above. Do not invent new types.`
+    } else if (context === "form_generator") {
+      systemPrompt = `You are an expert Lead Generation Consultant. The user will describe their business and the goal of their form.
+You must generate a sequence of form fields to perfectly capture this lead. 
+Return a strict JSON array of objects with this structure:
+[
+  { "type": "text", "label": "Full Name", "required": true },
+  { "type": "email", "label": "Best Email Address", "required": true },
+  ...
+]
+Allowed field types: "text", "email", "tel", "textarea".
+RULES:
+1. ONLY return the raw JSON array. NO markdown, NO backticks.
+2. Keep the form to 3-6 highly relevant fields to maximize conversion.
+3. Make the labels conversational and engaging.`
+    } else if (context === "field_optimizer") {
+      systemPrompt = "You are a conversion-rate optimization expert. The user will give you a standard form field label (e.g., 'Email Address'). You must rewrite it to be a high-converting, conversational question (e.g., 'Where should we send your free quote?'). Return ONLY the rewritten string, nothing else. No quotes."
     }
 
     let finalPrompt = prompt
