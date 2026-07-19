@@ -134,27 +134,14 @@ const Toolbox = () => {
   )
 }
 
-const AICopilot = ({ aiSettings }: { aiSettings: any[] }) => {
+const AICopilot = () => {
   const [prompt, setPrompt] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
-  const [selectedModel, setSelectedModel] = useState<string>("")
   const [history, setHistory] = useState<Array<{ role: "user" | "ai"; content: string }>>(
     [{ role: "ai", content: "👋 I'm your AI Web Copilot. Describe a section you want me to build, and I'll generate content for it!" }]
   )
   const [copied, setCopied] = useState(false)
   const { actions, query } = useEditor()
-
-  // Generate a list of available models for the dropdown based on what the user has configured
-  const availableModels = []
-  
-  // Always offer a default Google one as fallback, but prefer configured ones
-  if (aiSettings?.length === 0) {
-    availableModels.push({ value: "", label: "Default AI Model" })
-  } else {
-    aiSettings.forEach(s => {
-      availableModels.push({ value: `${s.provider}:${s.modelName}`, label: `${s.provider.toUpperCase()} (${s.modelName})` })
-    })
-  }
 
   const handleGenerate = async () => {
     if (!prompt || isGenerating) return
@@ -164,7 +151,7 @@ const AICopilot = ({ aiSettings }: { aiSettings: any[] }) => {
     setIsGenerating(true)
 
     try {
-      const res = await generateAiReply("landing_page", userPrompt, selectedModel)
+      const res = await generateAiReply("landing_page", userPrompt)
       if (res?.success && res.data) {
         setHistory(h => [...h, { role: "ai", content: res.data }])
       } else {
@@ -190,23 +177,9 @@ const AICopilot = ({ aiSettings }: { aiSettings: any[] }) => {
   return (
     <div className="w-80 bg-bg-primary border-l border-border flex flex-col h-full shrink-0">
       <div className="p-4 border-b border-border bg-gradient-to-r from-primary/10 to-transparent">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="font-semibold text-sm flex items-center gap-2 text-primary">
-            <Sparkles className="w-4 h-4" /> AI Copilot
-          </h3>
-        </div>
-        {availableModels.length > 0 && (
-          <select 
-            className="w-full text-xs p-1 mt-1 border rounded bg-white text-text-secondary outline-none"
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-          >
-            <option value="">Default AI Model</option>
-            {availableModels.map(m => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-        )}
+        <h3 className="font-semibold text-sm flex items-center gap-2 text-primary">
+          <Sparkles className="w-4 h-4" /> AI Copilot
+        </h3>
       </div>
 
       <div className="flex-1 p-4 overflow-y-auto space-y-3">
@@ -294,7 +267,7 @@ const Topbar = ({ funnel, isSaving, setIsSaving }: any) => {
   )
 }
 
-export default function FunnelBuilderClient({ funnel, aiSettings = [] }: { funnel: any, aiSettings?: any[] }) {
+export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
   const [isSaving, setIsSaving] = useState(false)
   
   const step = funnel.steps?.[0]
@@ -343,7 +316,7 @@ export default function FunnelBuilderClient({ funnel, aiSettings = [] }: { funne
         </div>
 
         {/* Right AI Copilot Panel */}
-        <AICopilot aiSettings={aiSettings} />
+        <AICopilot />
       </div>
       </Editor>
     </div>

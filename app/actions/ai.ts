@@ -15,35 +15,72 @@ export async function generateAiReply(context: string, prompt: string, requested
 
     const agencyId = await getOrCreateAgency()
 
-    // Default to Google Gemini 1.5 Flash if nothing specified
-    let provider = "google"
-    let modelName = "gemini-1.5-flash"
-    let apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || ""
-
     // Check if the agency has custom AI Settings
     const aiSettings = await db.aiSettings.findMany({
       where: { agencyId, isActive: true }
     })
 
-    if (requestedProviderAndModel) {
-      const [reqProvider, reqModel] = requestedProviderAndModel.split(":")
-      const customSetting = aiSettings.find(s => s.provider === reqProvider)
-      if (customSetting) {
-        provider = customSetting.provider
-        modelName = reqModel || customSetting.modelName
-        apiKey = customSetting.apiKey
-      } else {
-        // Fallback to env vars if requested but no custom settings found
-        provider = reqProvider
-        modelName = reqModel
-        if (provider === "openai") apiKey = process.env.OPENAI_API_KEY || ""
-        if (provider === "anthropic") apiKey = process.env.ANTHROPIC_API_KEY || ""
+    // Map agency configurations
+    const agencyKeys = {
+      google: aiSettings.find(s => s.provider === "google"),
+      openai: aiSettings.find(s => s.provider === "openai"),
+      anthropic: aiSettings.find(s => s.provider === "anthropic")
+    }
+
+    // Default top-level env variables
+    const envKeys = {
+      google: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+      openai: process.env.OPENAI_API_KEY || "",
+      anthropic: process.env.ANTHROPIC_API_KEY || ""
+    }
+
+    let provider = ""
+    let modelName = ""
+    let apiKey = ""
+
+    // Helper to try setting the provider based on priority list
+    const trySetProvider = (priorityList: string[]) => {
+      for (const p of priorityList) {
+        const agencyConf = agencyKeys[p as keyof typeof agencyKeys]
+        if (agencyConf?.apiKey) {
+          provider = p
+          modelName = agencyConf.modelName
+          apiKey = agencyConf.apiKey
+          return true
+        }
       }
-    } else if (aiSettings.length > 0) {
-      // Use their first active setting
-      provider = aiSettings[0].provider
-      modelName = aiSettings[0].modelName
-      apiKey = aiSettings[0].apiKey
+      
+      // If agency has no valid keys for these, try env vars
+      for (const p of priorityList) {
+        const envKey = envKeys[p as keyof typeof envKeys]
+        if (envKey) {
+          provider = p
+          if (p === "openai") modelName = "gpt-4o"
+          if (p === "anthropic") modelName = "claude-3-5-sonnet-20240620"
+          if (p === "google") modelName = "gemini-1.5-flash"
+          apiKey = envKey
+          return true
+        }
+      }
+      return false
+    }
+
+    // Task-Based Routing Hierarchy
+    let found = false
+    if (context === "landing_page") {
+      found = trySetProvider(["anthropic", "openai", "google"])
+    } else if (context === "marketing") {
+      found = trySetProvider(["openai", "anthropic", "google"])
+    } else {
+      // Chat or default
+      found = trySetProvider(["google", "openai", "anthropic"])
+    }
+
+    // Ultimate fallback if absolutely nothing is found
+    if (!found) {
+      provider = "google"
+      modelName = "gemini-1.5-flash"
+      apiKey = ""
     }
 
     if (!apiKey) {
