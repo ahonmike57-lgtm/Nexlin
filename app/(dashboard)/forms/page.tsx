@@ -13,7 +13,7 @@ export default async function FormsPage() {
   const agencyId = await getOrCreateAgency()
 
   const res = await getForms(agencyId)
-  let initialForms = res.success && res.forms ? res.forms : []
+  let initialForms = res.success && res.data ? res.data : []
 
   // Mock some data if empty
   if (initialForms.length === 0) {
