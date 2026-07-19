@@ -28,7 +28,7 @@ export default async function SaasSettingsPage() {
   return (
     <SaasClient 
       agencyId={user.agencyId} 
-      initialMarkups={markupsRes.success ? markupsRes.markups : []}
+      initialMarkups={markupsRes.success && markupsRes.markups ? markupsRes.markups : []}
       initialWallet={walletRes.success ? walletRes.wallet : null}
     />
   )
