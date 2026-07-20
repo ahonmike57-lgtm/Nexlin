@@ -38,7 +38,7 @@ export async function completeOnboarding(data: {
       data: {
         agencyId: agency.id,
         name: `${data.businessName} (Main Workspace)`,
-        email: session.user.email,
+        email: session.user.email || "",
       }
     })
 
