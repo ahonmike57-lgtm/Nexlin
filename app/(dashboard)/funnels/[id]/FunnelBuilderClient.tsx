@@ -241,7 +241,8 @@ const Topbar = ({ funnel, isSaving, setIsSaving }: any) => {
     if (!funnel.steps?.[0]) return
     setIsSaving(true)
     const json = query.serialize()
-    await updateFunnelStepContent(funnel.steps[0].id, json)
+    const contentToSave = typeof json === 'string' ? json : JSON.stringify(json)
+    await updateFunnelStepContent(funnel.steps[0].id, contentToSave)
     setIsSaving(false)
   }
 
@@ -303,11 +304,11 @@ export default function FunnelBuilderClient({ funnel }: { funnel: any }) {
               ) : (
                 <Frame>
                   <Element is={ContainerComponent} padding={40} background="#ffffff" canvas>
-                    <TextComponent text="Start Building Your AI Website" fontSize={36} textAlign="center" />
-                    <TextComponent text="Drag elements from the left, or use the AI Copilot on the right to generate entire sections instantly." fontSize={18} textAlign="center" color="#666666" />
-                    <div className="flex justify-center mt-8">
-                      <ButtonComponent text="Get Started" variant="default" />
-                    </div>
+                    <Element is={TextComponent} text="Start Building Your AI Website" fontSize={36} textAlign="center" />
+                    <Element is={TextComponent} text="Drag elements from the left, or use the AI Copilot on the right to generate entire sections instantly." fontSize={18} textAlign="center" color="#666666" />
+                    <Element is={ContainerComponent} padding={20} background="transparent" canvas>
+                      <Element is={ButtonComponent} text="Get Started" variant="default" />
+                    </Element>
                   </Element>
                 </Frame>
               )}
