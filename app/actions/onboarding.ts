@@ -16,12 +16,20 @@ export async function completeOnboarding(data: {
 
     const userId = session.user.id
 
+    let platform = await db.platform.findFirst()
+    if (!platform) {
+      platform = await db.platform.create({
+        data: { name: "NEXLIN GHL" }
+      })
+    }
+
     // 1. Create the new Agency
     const agency = await db.agency.create({
       data: {
+        platformId: platform.id,
         name: data.businessName,
         whiteLabelName: data.businessName,
-        whiteLabelDomain: `${data.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}.nexlin.com`,
+        subdomain: `${data.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
       }
     })
 
