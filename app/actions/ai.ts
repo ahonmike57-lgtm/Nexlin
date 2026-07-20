@@ -27,11 +27,17 @@ export async function generateAiReply(context: string, prompt: string, requested
       anthropic: aiSettings.find(s => s.provider === "anthropic")
     }
 
+    const cleanKey = (k: string | undefined) => {
+      if (!k) return ""
+      if (k === "1234567890" || k.includes("your-") || k.includes("YOUR_") || k === "placeholder") return ""
+      return k
+    }
+
     // Default top-level env variables
     const envKeys = {
-      google: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
-      openai: process.env.OPENAI_API_KEY || "",
-      anthropic: process.env.ANTHROPIC_API_KEY || ""
+      google: cleanKey(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+      openai: cleanKey(process.env.OPENAI_API_KEY),
+      anthropic: cleanKey(process.env.ANTHROPIC_API_KEY)
     }
 
     let provider = ""
