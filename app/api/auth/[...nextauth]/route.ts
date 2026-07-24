@@ -46,7 +46,7 @@ export const authOptions: NextAuthOptions = {
             
             return { 
               id: admin.id, 
-              name: admin.name, 
+              name: admin.name || "Platform Admin", 
               email: admin.email, 
               role: admin.role, 
               isPlatformAdmin: true
@@ -63,9 +63,10 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const isValid = credentials.password === user.passwordHash
+        const bcryptMatchUser = await bcrypt.compare(credentials.password, user.passwordHash).catch(() => false)
+        const isValidUser = bcryptMatchUser || credentials.password === user.passwordHash
 
-        if (isValid) {
+        if (isValidUser) {
           return { 
             id: user.id, 
             name: user.name, 

@@ -5,11 +5,12 @@ const prisma = new PrismaClient();
 async function main() {
   const admin = await prisma.platformAdmin.upsert({
     where: { email: 'admin@nexlin.com' },
-    update: { passwordHash: 'Admin123!' },
+    update: { passwordHash: 'Admin123!', status: 'active' },
     create: {
       email: 'admin@nexlin.com',
       name: 'Super Admin',
       role: 'owner',
+      status: 'active',
       passwordHash: 'Admin123!',
     },
   });
