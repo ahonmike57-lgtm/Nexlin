@@ -106,6 +106,12 @@ export async function getSaaSConfig(agencyId: string) {
 
 export async function updateRebillingMarkup(agencyId: string, type: string, multiplier: number) {
   try {
+    const { checkPermission } = await import("@/lib/permissions")
+    const isAllowed = await checkPermission(agencyId, "Agency Admin")
+    if (!isAllowed) {
+      return { success: false, error: "Insufficient permissions to update billing settings" }
+    }
+
     const markup = await db.rebillingMarkup.upsert({
       where: {
         agencyId_type: {

@@ -3,12 +3,12 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
-export async function installExtension(agencyId: string, extensionId: string, config?: any) {
+export async function installApp(agencyId: string, appId: string, config?: any) {
   try {
-    const install = await db.extensionInstall.create({
+    const install = await db.tenantApp.create({
       data: {
         agencyId,
-        extensionId,
+        appId,
         config: config ? JSON.stringify(config) : undefined
       }
     })
@@ -19,12 +19,12 @@ export async function installExtension(agencyId: string, extensionId: string, co
   }
 }
 
-export async function uninstallExtension(agencyId: string, extensionId: string) {
+export async function uninstallApp(agencyId: string, appId: string) {
   try {
-    await db.extensionInstall.deleteMany({
+    await db.tenantApp.deleteMany({
       where: {
         agencyId,
-        extensionId
+        appId
       }
     })
     revalidatePath("/marketplace")

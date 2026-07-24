@@ -50,3 +50,27 @@ export async function createContact(data: { firstName: string, lastName?: string
     return { success: false, error: error.message || "Failed to create contact" }
   }
 }
+
+export async function deleteContact(id: string) {
+  try {
+    const agencyId = await getOrCreateAgency()
+    const { checkPermission } = await import("@/lib/permissions")
+    
+    // Require Agency Admin or higher to delete contacts
+    const isAllowed = await checkPermission(agencyId, "Agency Admin")
+    if (!isAllowed) {
+      return { success: false, error: "Insufficient permissions to delete contacts" }
+    }
+
+    await db.contact.delete({
+      where: { id }
+    })
+    
+    revalidatePath("/crm/contacts")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Failed to delete contact:", error)
+    return { success: false, error: error.message || "Failed to delete contact" }
+  }
+}
+

@@ -4,8 +4,15 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download, MoreHorizontal, Mail, Phone } from "lucide-react"
+import { Search, Filter, Download, MoreHorizontal, Mail, Phone, Flame } from "lucide-react"
 import AddContactModal from "./AddContactModal"
+
+const getScoreColor = (score: number) => {
+  if (score >= 80) return "text-red-500 bg-red-500/10 border-red-500/20";
+  if (score >= 50) return "text-orange-500 bg-orange-500/10 border-orange-500/20";
+  if (score >= 20) return "text-yellow-500 bg-yellow-500/10 border-yellow-500/20";
+  return "text-blue-500 bg-blue-500/10 border-blue-500/20";
+};
 
 export default function ContactsClient({ initialContacts }: { initialContacts: any[] }) {
   const [searchTerm, setSearchTerm] = useState("")
@@ -13,8 +20,9 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
   const filtered = initialContacts.filter((c) => {
     if (!searchTerm) return true
     const q = searchTerm.toLowerCase()
+    const fullName = `${c.firstName || ""} ${c.lastName || ""}`.trim()
     return (
-      (c.firstName + " " + c.lastName).toLowerCase().includes(q) ||
+      fullName.toLowerCase().includes(q) ||
       (c.email || "").toLowerCase().includes(q) ||
       (c.company || "").toLowerCase().includes(q)
     )
@@ -62,7 +70,7 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
                 <th className="px-6 py-3 font-semibold">Name</th>
                 <th className="px-6 py-3 font-semibold">Contact Info</th>
                 <th className="px-6 py-3 font-semibold">Company</th>
-                <th className="px-6 py-3 font-semibold">Tags</th>
+                <th className="px-6 py-3 font-semibold">Lead Score</th>
                 <th className="px-6 py-3 font-semibold">Last Active</th>
                 <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
@@ -96,10 +104,17 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
                   </td>
                   <td className="px-6 py-4 text-text-secondary">{contact.company || "-"}</td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                       <Badge variant="secondary" className="bg-secondary/10 text-secondary hover:bg-secondary/20 font-medium">
-                         Lead
+                    <div className="flex items-center gap-2">
+                       <Badge variant="outline" className={`font-medium ${getScoreColor(contact.leadScore || 0)}`}>
+                         <Flame className="w-3 h-3 mr-1" />
+                         {contact.leadScore || 0}
                        </Badge>
+                       <div className="w-16 h-1.5 bg-bg-secondary rounded-full overflow-hidden">
+                         <div 
+                           className={`h-full ${contact.leadScore >= 80 ? 'bg-red-500' : contact.leadScore >= 50 ? 'bg-orange-500' : contact.leadScore >= 20 ? 'bg-yellow-500' : 'bg-blue-500'}`} 
+                           style={{ width: `${Math.min(contact.leadScore || 0, 100)}%` }}
+                         />
+                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-text-secondary whitespace-nowrap">

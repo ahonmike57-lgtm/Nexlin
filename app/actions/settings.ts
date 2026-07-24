@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getSession } from "@/lib/auth"
 import { getActiveSubAccountId } from "./subaccounts"
+import { checkPermission } from "@/lib/permissions"
 
 export async function getAgencyBranding(agencyId: string) {
   try {
@@ -28,8 +29,7 @@ export async function getAgencyBranding(agencyId: string) {
 
 export async function updateAgencyBranding(agencyId: string, branding: any) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    await checkPermission(agencyId, "Agency Admin")
 
     const updated = await db.agency.update({
       where: { id: agencyId },
@@ -44,9 +44,9 @@ export async function updateAgencyBranding(agencyId: string, branding: any) {
 
     revalidatePath("/settings/branding")
     return { success: true, data: updated }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to update branding:", error)
-    return { success: false, error: "Failed to update branding" }
+    return { success: false, error: error.message || "Failed to update branding" }
   }
 }
 
@@ -77,8 +77,7 @@ export async function getTeamMembers(agencyId: string) {
 
 export async function inviteTeamMember(agencyId: string, email: string, role: string) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    await checkPermission(agencyId, "Agency Admin")
 
     const subAgencyId = await getActiveSubAccountId()
 
@@ -96,9 +95,9 @@ export async function inviteTeamMember(agencyId: string, email: string, role: st
 
     revalidatePath("/settings/team")
     return { success: true, data: user }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to invite member:", error)
-    return { success: false, error: "Failed to invite member" }
+    return { success: false, error: error.message || "Failed to invite member" }
   }
 }
 

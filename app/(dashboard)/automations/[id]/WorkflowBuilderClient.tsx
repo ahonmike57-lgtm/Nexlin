@@ -46,33 +46,34 @@ const WorkflowNode = ({ data }: any) => {
   }
 
   return (
-    <div className={`w-72 bg-bg-primary border ${isTrigger ? 'border-primary shadow-primary/20' : 'border-border'} shadow-md rounded-xl p-4 relative`}>
-      {!isTrigger && <Handle type="target" position={Position.Top} className="w-3 h-3 bg-border" />}
+    <div className={`w-72 bg-bg-primary/80 backdrop-blur-md border ${isTrigger ? 'border-primary/50 shadow-[0_8px_30px_rgb(0,0,0,0.12)]' : 'border-border hover:border-primary/30'} shadow-soft rounded-2xl p-4 relative transition-all duration-300 hover:shadow-lg`}>
+      {!isTrigger && <Handle type="target" position={Position.Top} className="w-4 h-4 bg-bg-primary border-2 border-border !-mt-2 rounded-full z-10" />}
       {isTrigger && (
-        <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+        <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 shadow-sm backdrop-blur-sm">
           <Zap className="w-4 h-4 text-primary" />
         </div>
       )}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-md ${isTrigger ? 'bg-primary/10' : 'bg-bg-secondary'} border border-border flex items-center justify-center shadow-sm`}>
+          <div className={`w-12 h-12 rounded-xl ${isTrigger ? 'bg-primary/10' : 'bg-bg-secondary'} border border-border/50 flex items-center justify-center shadow-sm`}>
             {getIcon(data.type)}
           </div>
           <div>
-            <p className="text-sm font-semibold">{data.label}</p>
-            <p className="text-xs text-text-secondary truncate w-40">{data.description || "Click to configure"}</p>
+            <p className="text-sm font-bold text-text-primary">{data.label}</p>
+            <p className="text-xs text-text-secondary truncate w-36 mt-0.5">{data.description || "Click to configure"}</p>
           </div>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-destructive hover:bg-destructive/10 -mr-2 -mt-2"
+          className="h-8 w-8 text-text-secondary hover:text-error hover:bg-error/10 -mr-2 -mt-2 opacity-0 transition-opacity duration-200"
+          style={{ opacity: 1 }} // Remove hover opacity trick or adjust it
           onClick={(e) => { e.stopPropagation(); data.onDelete() }}
         >
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
-      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-border" />
+      <Handle type="source" position={Position.Bottom} className="w-4 h-4 bg-bg-primary border-2 border-border !-mb-2 rounded-full z-10" />
     </div>
   )
 }
@@ -427,22 +428,21 @@ export default function WorkflowBuilderClient({ workflow }: { workflow: any }) {
         </div>
 
         {/* Right Sidebar - Properties */}
-        <div className="w-80 border-l border-border bg-bg-primary flex flex-col shrink-0 shadow-lg z-10">
-          <div className="p-4 border-b border-border flex items-center justify-between">
-            <h3 className="font-semibold text-sm">Properties</h3>
+        <div className="w-80 border-l border-border bg-bg-primary/90 backdrop-blur-xl flex flex-col shrink-0 shadow-2xl z-10 transition-all">
+          <div className="p-5 border-b border-border flex items-center justify-between bg-gradient-to-b from-bg-primary to-transparent">
+            <h3 className="font-bold text-sm text-text-primary tracking-wide uppercase">Properties</h3>
             <Settings2 className="w-4 h-4 text-text-secondary" />
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
             <PropertiesPanel selectedNode={selectedNode} onUpdate={handleUpdateNodeData} />
           </div>
-          <div className="p-4 border-t border-border space-y-2">
+          <div className="p-5 border-t border-border bg-bg-primary/50 backdrop-blur-sm">
             <Button
-              variant="outline"
-              className="w-full"
+              className="w-full shadow-md hover:shadow-lg transition-all"
               onClick={() => setModalMode(triggers.length === 0 ? "trigger" : "action")}
             >
               <Plus className="w-4 h-4 mr-2" />
-              {triggers.length === 0 ? "Add Trigger" : "Add Action"}
+              {triggers.length === 0 ? "Add First Trigger" : "Add Next Action"}
             </Button>
           </div>
         </div>

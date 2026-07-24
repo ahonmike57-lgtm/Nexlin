@@ -153,10 +153,30 @@ RULES:
         orderBy: { createdAt: 'desc' },
         take: 10
       })
+      
+      const conv = await db.conversation.findUnique({
+        where: { id: prompt },
+        include: { contact: true, agency: true }
+      })
+
+      const knowledgeArticles = await db.knowledgeArticle.findMany({
+        where: { agencyId: conv?.agencyId }
+      })
+
+      let kbContext = ""
+      if (knowledgeArticles.length > 0) {
+        kbContext = "Agency Knowledge Base:\n" + knowledgeArticles.map((k: any) => `Q: ${k.title}\nA: ${k.content}`).join("\n\n") + "\n\n"
+      }
+
+      let crmContext = ""
+      if (conv?.contact) {
+        crmContext = `Customer Context:\nName: ${conv.contact.firstName} ${conv.contact.lastName || ""}\nEmail: ${conv.contact.email || "N/A"}\nLead Score: ${conv.contact.leadScore || 0}\n\n`
+      }
+
       if (messages.length > 0) {
-        finalPrompt = "Here are the recent messages in this conversation (newest first):\n" + 
-          messages.map(m => `${m.isOutbound ? 'Agent' : 'Customer'}: ${m.content}`).join("\n") +
-          "\n\nWrite a helpful, natural response to the customer."
+        finalPrompt = `Goal: You are the autonomous AI Sales SDR. Answer questions using the Knowledge Base. Try to move the conversation forward towards booking an appointment. Keep responses brief, conversational, and SMS-friendly (under 160 chars if possible).\n\n${crmContext}${kbContext}Recent Conversation History (newest first):\n` + 
+          messages.map((m: any) => `${m.isOutbound ? 'AI SDR' : 'Customer'}: ${m.content}`).join("\n") +
+          "\n\nWrite a helpful, natural response to the Customer as the AI SDR."
       }
     }
 
@@ -177,11 +197,17 @@ RULES:
       selectedModel = googleAI(modelName)
     }
 
-    const { text } = await generateText({
+    const { text, usage } = await generateText({
       model: selectedModel,
       system: systemPrompt,
       prompt: finalPrompt
     })
+
+    // Deduct AI Token Usage
+    if (usage && usage.totalTokens) {
+      const { deductUsage } = await import("./saas")
+      await deductUsage(agencyId, (session.user as any).subAgencyId || null, "ai_tokens", usage.totalTokens)
+    }
 
     return { success: true, data: text }
   } catch (error: any) {

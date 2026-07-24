@@ -1,4 +1,4 @@
-﻿'use server'
+'use server'
 
 import { db } from '@/lib/db'
 import { encrypt } from '@/lib/crypto'
@@ -34,13 +34,19 @@ export async function addMcpConnection(agencyId: string, data: { name: string, s
     });
     
     // Audit log
-    await db.extensionAuditLog.create({
-      data: {
-        agencyId,
-        action: 'MCP_ADD_CONNECTION',
-        details: JSON.stringify({ name: data.name, serverUrl: data.serverUrl }),
-      }
-    });
+    const { getSession } = await import('@/lib/auth')
+    const session = await getSession()
+    if (session?.user?.id) {
+      await db.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: 'MCP_ADD_CONNECTION',
+          entity: 'McpConnection',
+          entityId: connection.id,
+          details: JSON.stringify({ name: data.name, serverUrl: data.serverUrl }),
+        }
+      });
+    }
 
     revalidatePath('/settings/mcp');
     return { success: true };
@@ -63,13 +69,19 @@ export async function deleteMcpConnection(connectionId: string, agencyId: string
       where: { id: connectionId }
     });
     
-    await db.extensionAuditLog.create({
-      data: {
-        agencyId,
-        action: 'MCP_DELETE_CONNECTION',
-        details: JSON.stringify({ connectionId }),
-      }
-    });
+    const { getSession } = await import('@/lib/auth')
+    const session = await getSession()
+    if (session?.user?.id) {
+      await db.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: 'MCP_DELETE_CONNECTION',
+          entity: 'McpConnection',
+          entityId: connectionId,
+          details: JSON.stringify({ connectionId }),
+        }
+      });
+    }
 
     revalidatePath('/settings/mcp');
     return { success: true };

@@ -2,11 +2,16 @@
 
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import { redirect } from "next/navigation"
 
 export async function getOrCreateAgency() {
   const session = await getSession()
   if (!session?.user?.id) {
     throw new Error("Unauthorized")
+  }
+
+  if ((session.user as any).isPlatformAdmin) {
+    redirect("/platform")
   }
 
   const userId = session.user.id

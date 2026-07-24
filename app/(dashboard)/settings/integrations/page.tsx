@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Link2, Webhook, Zap } from "lucide-react"
+import Link from "next/link"
 
 export default function IntegrationsSettingsPage() {
   return (
@@ -29,7 +30,11 @@ export default function IntegrationsSettingsPage() {
             <CardDescription>Send data securely to any endpoint.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button variant="secondary" className="w-full">Manage Webhooks</Button>
+            <Link href="/settings/integrations/webhooks">
+              <Button variant="secondary" className="w-full">
+                Manage Webhooks
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>

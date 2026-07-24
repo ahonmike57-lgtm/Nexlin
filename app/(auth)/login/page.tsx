@@ -31,7 +31,15 @@ export default function LoginPage() {
       setError("Invalid email or password.")
       setLoading(false)
     } else {
-      router.push("/dashboard")
+      const res = await fetch("/api/auth/session")
+      const session = await res.json()
+      
+      if (session?.user?.isPlatformAdmin) {
+        router.push("/platform")
+      } else {
+        router.push("/dashboard")
+      }
+      
       router.refresh()
     }
   }

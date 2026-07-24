@@ -32,6 +32,11 @@ model Agency {
   loginBackgroundImage String?
   missedCallEnabled Boolean  @default(false)
   missedCallMessage String?  @default("Hi, this is [Agency Name]. We missed your call, how can we help?")
+  
+  planTier          String   @default("basic")
+  status            String   @default("active") // trialing, active, past_due, suspended, churned
+  stripeCustomerId  String?
+  
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -52,7 +57,7 @@ model Agency {
   agents            VoiceAgent[]
   socialAccounts    SocialAccount[]
   mcpConnections    McpConnection[]
-  extensionInstalls ExtensionInstall[]
+  tenantApps        TenantApp[]
   formSubmissions   FormSubmission[]
   mediaFiles        MediaFile[]
   SocialPost        SocialPost[]
@@ -60,9 +65,9 @@ model Agency {
   Review            Review[]
   ReviewRequest     ReviewRequest[]
   Form              Form[]
-  ExtensionAuditLog ExtensionAuditLog[]
   pipelines         Pipeline[]
   aiSettings        AiSettings[]
+  webhooks          Webhook[]
   
   // Phase 1 Relations
   snapshots         Snapshot[]
@@ -109,6 +114,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   auditLogs     AuditLog[]
+  installedApps TenantApp[]
 }
 
 model Contact {
@@ -122,6 +128,7 @@ model Contact {
   company     String?
   subAgencyId String?
   subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
+  leadScore   Int        @default(0)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -564,7 +571,21 @@ model MediaFile {
   updatedAt DateTime @updatedAt
 }
 
-// --- MCP & Extensions Models ---
+// --- Native Integrations & Webhooks ---
+
+model Webhook {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  event     String   // e.g., "contact.created", "deal.won", "form.submitted"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- MCP & Apps Models ---
 
 model McpConnection {
   id                   String   @id @default(cuid())
@@ -578,42 +599,38 @@ model McpConnection {
   updatedAt            DateTime @updatedAt
 }
 
-model Extension {
+model App {
+  id           String   @id // e.g. slug (google-business)
+  name         String
+  category     String
+  tagline      String?
+  description  String?
+  icon         String?
+  installType  String   // "oauth", "apikey", "webhook", "config", "number"
+  configSchema String?  // JSON string
+  badge        String?
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  installs     TenantApp[]
+}
+
+model TenantApp {
   id          String   @id @default(cuid())
-  agencyId    String? // null means it's a globally available extension
-  name        String
-  description String?
-  manifest    String // JSON string defining triggers, actions, etc.
-  version     String   @default("1.0.0")
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  appId       String
+  app         App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  status      String   @default("active") // active, error, disabled
+  config      String?  // JSON string, encrypted
+  installedBy String?
+  user        User?    @relation(fields: [installedBy], references: [id], onDelete: SetNull)
+  installedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  installs ExtensionInstall[]
-}
-
-model ExtensionInstall {
-  id          String    @id @default(cuid())
-  agencyId    String
-  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  extensionId String
-  extension   Extension @relation(fields: [extensionId], references: [id], onDelete: Cascade)
-  config      String? // JSON string holding agency-specific config
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@unique([agencyId, extensionId])
-}
-
-model ExtensionAuditLog {
-  id        String   @id @default(cuid())
-  agencyId  String
-  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  userId    String?
-  action    String // e.g. MCP_INVOKE, EXTENSION_WEBHOOK
-  details   String? // JSON string
-  createdAt DateTime @default(now())
+  @@unique([agencyId, appId])
 }
 
 // --- Phase 1 Enterprise Features (Agency Growth Engine) ---
@@ -735,4 +752,14 @@ model AiSettings {
   updatedAt DateTime @updatedAt
 
   @@unique([agencyId, provider])
+}
+
+model PlatformAdmin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  role         String    @default("owner") // owner, developer, support
+  passwordHash String?
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
 }

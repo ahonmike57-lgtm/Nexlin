@@ -2,22 +2,12 @@
 
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts"
 
-const data = [
-  { name: "Jan", revenue: 4000 },
-  { name: "Feb", revenue: 3000 },
-  { name: "Mar", revenue: 2000 },
-  { name: "Apr", revenue: 2780 },
-  { name: "May", revenue: 1890 },
-  { name: "Jun", revenue: 2390 },
-  { name: "Jul", revenue: 3490 },
-  { name: "Aug", revenue: 4000 },
-  { name: "Sep", revenue: 3500 },
-  { name: "Oct", revenue: 4100 },
-  { name: "Nov", revenue: 4500 },
-  { name: "Dec", revenue: 5200 },
-]
+interface RevenueData {
+  name: string
+  revenue: number
+}
 
-export default function RevenueChart() {
+export default function RevenueChart({ data }: { data: RevenueData[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart

@@ -88,10 +88,10 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
 
   const getPlatformIcon = (platform: string, className = "h-4 w-4") => {
     switch (platform?.toLowerCase()) {
-      case "facebook":  return <div className={`${className} rounded-sm bg-[#1877F2] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>f</div>
-      case "twitter":   return <div className={`${className} rounded-sm bg-[#000000] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>𝕏</div>
-      case "instagram": return <div className={`${className} rounded-sm bg-gradient-to-br from-[#f09433] via-[#e6683c] to-[#bc1888] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>ig</div>
-      case "linkedin":  return <div className={`${className} rounded-sm bg-[#0A66C2] text-white flex items-center justify-center text-[10px] font-bold shrink-0`}>in</div>
+      case "facebook":  return <Share2 className={`${className} text-[#1877F2]`} />
+      case "twitter":   return <Share2 className={`${className} text-[#1DA1F2]`} />
+      case "instagram": return <Share2 className={`${className} text-[#E1306C]`} />
+      case "linkedin":  return <Share2 className={`${className} text-[#0077B5]`} />
       default:          return <Share2 className={`${className} text-text-secondary`} />
     }
   }
@@ -126,7 +126,9 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
                     key={plat} 
                     variant="outline" 
                     className="h-20 flex flex-col justify-center items-center gap-2"
-                    onClick={() => handleConnectAccount(plat, `@agency_${plat.toLowerCase()}`)}
+                    onClick={() => {
+                      window.location.href = `/api/oauth/connect?platform=${plat.toLowerCase()}&agencyId=${agencyId}`
+                    }}
                   >
                     {getPlatformIcon(plat, "h-6 w-6")}
                     <span>{plat}</span>

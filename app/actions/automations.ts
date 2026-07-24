@@ -133,6 +133,14 @@ export async function updateWorkflowStatus(id: string, status: "draft" | "active
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
+    const existing = await db.workflow.findUnique({ where: { id } })
+    if (!existing) throw new Error("Not found")
+
+    const { checkPermission } = await import("@/lib/permissions")
+    if (!(await checkPermission(existing.agencyId, "Agency Admin"))) {
+      return { success: false, error: "Insufficient permissions" }
+    }
+
     const workflow = await db.workflow.update({
       where: { id },
       data: { status }
@@ -152,6 +160,14 @@ export async function updateWorkflow(id: string, data: { name?: string; descript
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
+    const existing = await db.workflow.findUnique({ where: { id } })
+    if (!existing) throw new Error("Not found")
+
+    const { checkPermission } = await import("@/lib/permissions")
+    if (!(await checkPermission(existing.agencyId, "Agency Admin"))) {
+      return { success: false, error: "Insufficient permissions" }
+    }
+
     const workflow = await db.workflow.update({
       where: { id },
       data,
@@ -170,6 +186,14 @@ export async function saveWorkflowNodes(workflowId: string, nodes: { id: string,
   try {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const existing = await db.workflow.findUnique({ where: { id: workflowId } })
+    if (!existing) throw new Error("Not found")
+
+    const { checkPermission } = await import("@/lib/permissions")
+    if (!(await checkPermission(existing.agencyId, "Agency Admin"))) {
+      return { success: false, error: "Insufficient permissions" }
+    }
 
     // Update triggers and actions configs
     await db.$transaction(

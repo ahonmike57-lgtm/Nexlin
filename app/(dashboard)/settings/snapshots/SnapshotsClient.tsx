@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Package, Plus, Play, DownloadCloud, Clock } from "lucide-react"
-import { createSnapshot, getSnapshots, deploySnapshot } from "@/app/actions/snapshots"
+import { Package, Plus, Play, DownloadCloud, Clock, Sparkles } from "lucide-react"
+import { createSnapshot, getSnapshots, deploySnapshot, generateDynamicSnapshot } from "@/app/actions/snapshots"
 
 export default function SnapshotsClient({ 
   agencyId, 
@@ -23,6 +23,11 @@ export default function SnapshotsClient({
   const [newName, setNewName] = useState("")
   const [newDesc, setNewDesc] = useState("")
   const [showCreate, setShowCreate] = useState(false)
+
+  // State for AI Snapshot Generation
+  const [showAiGenerate, setShowAiGenerate] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
 
   // State for deploying snapshot
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null)
@@ -69,6 +74,21 @@ export default function SnapshotsClient({
     setDeployingId(null)
   }
 
+  const handleGenerateAi = async () => {
+    if (!aiPrompt) return
+    setIsGenerating(true)
+    const res = await generateDynamicSnapshot(aiPrompt)
+    if (res.success) {
+      alert("AI successfully generated a Pipeline, Funnel, and Workflow tailored to your prompt!")
+      setAiPrompt("")
+      setShowAiGenerate(false)
+      // Since it creates live assets rather than a packaged snapshot, we just alert
+    } else {
+      alert("Failed to generate AI snapshot: " + res.error)
+    }
+    setIsGenerating(false)
+  }
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex justify-between items-center">
@@ -76,10 +96,41 @@ export default function SnapshotsClient({
           <h2 className="text-2xl font-semibold mb-1">Account Snapshots</h2>
           <p className="text-text-secondary">Package your funnels, workflows, and pipelines to instantly deploy to new clients.</p>
         </div>
-        <Button onClick={() => setShowCreate(!showCreate)}>
-          <Plus className="w-4 h-4 mr-2" /> Create Snapshot
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="bg-primary/5 text-primary border-primary/20 hover:bg-primary/10" onClick={() => setShowAiGenerate(!showAiGenerate)}>
+            <Sparkles className="w-4 h-4 mr-2" /> Generate AI Snapshot
+          </Button>
+          <Button onClick={() => setShowCreate(!showCreate)}>
+            <Plus className="w-4 h-4 mr-2" /> Create Snapshot
+          </Button>
+        </div>
       </div>
+
+      {showAiGenerate && (
+        <Card className="border-primary/50 shadow-sm bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Sparkles className="w-5 h-5 text-primary" /> AI Snapshot Generator</CardTitle>
+            <CardDescription>Describe a niche or business type. The AI will instantly generate a tailored Pipeline, Funnel, and Workflow sequence directly into your account.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Business Prompt</label>
+              <input 
+                value={aiPrompt}
+                onChange={e => setAiPrompt(e.target.value)}
+                placeholder="e.g. 'High-end Medical Spa specializing in Botox'"
+                className="w-full px-3 py-2 bg-bg-primary border border-border rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setShowAiGenerate(false)}>Cancel</Button>
+              <Button onClick={handleGenerateAi} disabled={isGenerating || !aiPrompt}>
+                {isGenerating ? "Generating Magic..." : "Generate Assets"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {showCreate && (
         <Card className="border-primary/50 shadow-sm">

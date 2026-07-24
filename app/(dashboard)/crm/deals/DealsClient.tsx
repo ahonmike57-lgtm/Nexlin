@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Settings2, Search, Filter, MoreHorizontal, Clock, DollarSign, Grip } from "lucide-react"
+import { Plus, Settings2, Search, Filter, MoreHorizontal, Clock, DollarSign, Grip, Flame } from "lucide-react"
 import { useState, useEffect } from "react"
 import { updateDealStage } from "@/app/actions/deals"
 import AddDealModal from "./AddDealModal"
@@ -158,7 +158,19 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
                       </Button>
                     </div>
                     
-                    <p className="text-xs text-text-secondary mb-4">{deal.contact?.company || deal.contact?.firstName || "No Contact"}</p>
+                    <p className="text-xs text-text-secondary mb-3">{deal.contact?.company || deal.contact?.firstName || "No Contact"}</p>
+                    
+                    {deal.contact && (
+                      <div className="flex items-center gap-1 mb-4">
+                        <Flame className={`w-3 h-3 ${deal.contact.leadScore >= 80 ? 'text-red-500' : deal.contact.leadScore >= 50 ? 'text-orange-500' : 'text-blue-500'}`} />
+                        <div className="w-full h-1 bg-bg-secondary rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full ${deal.contact.leadScore >= 80 ? 'bg-red-500' : deal.contact.leadScore >= 50 ? 'bg-orange-500' : 'bg-blue-500'}`} 
+                            style={{ width: `${Math.min(deal.contact.leadScore || 0, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="flex items-center justify-between pt-3 border-t border-border">
                       <div className="flex items-center text-xs font-medium text-text-primary">

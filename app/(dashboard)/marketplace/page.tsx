@@ -11,49 +11,57 @@ export default async function MarketplacePage() {
     redirect("/login")
   }
 
-  // Fetch extensions and installs
-  let extensions = await db.extension.findMany()
+  // Fetch apps and tenant installs
+  let apps = await db.app.findMany()
   
-  if (extensions.length === 0) {
-    const mockExtensions = [
+  if (apps.length === 0) {
+    const mockApps = [
       {
+        id: "stripe-sync",
         name: "Stripe Sync",
+        category: "Payments",
         description: "Deeply integrate Stripe payments and subscriptions into Nexlin CRM.",
-        manifest: "{}",
-        version: "2.1.0"
+        installType: "oauth",
+        configSchema: "{}",
       },
       {
+        id: "elevenlabs-voice",
         name: "ElevenLabs Voice Agents",
+        category: "AI",
         description: "Deploy ultra-realistic AI voice agents for inbound and outbound calling.",
-        manifest: "{}",
-        version: "1.0.5"
+        installType: "apikey",
+        configSchema: "{}",
       },
       {
+        id: "twilio-connect",
         name: "Twilio Connect",
+        category: "Communication",
         description: "Send automated SMS and handle A2P 10DLC compliance automatically.",
-        manifest: "{}",
-        version: "3.4.1"
+        installType: "apikey",
+        configSchema: "{}",
       },
       {
+        id: "openai-copilot",
         name: "OpenAI Workflow Copilot",
+        category: "AI",
         description: "Bring GPT-4 directly into your pipeline automations and chat inbox.",
-        manifest: "{}",
-        version: "1.2.0"
+        installType: "apikey",
+        configSchema: "{}",
       }
     ]
-    await db.extension.createMany({ data: mockExtensions })
-    extensions = await db.extension.findMany()
+    await db.app.createMany({ data: mockApps })
+    apps = await db.app.findMany()
   }
   
   const { getOrCreateAgency } = await import("@/app/actions/agency")
   const agencyId = await getOrCreateAgency()
   
-  const installs = await db.extensionInstall.findMany({
+  const installs = await db.tenantApp.findMany({
     where: { agencyId: agencyId }
   })
 
   return <MarketplaceClient 
-    initialExtensions={extensions} 
+    initialApps={apps} 
     initialInstalls={installs} 
     agencyId={agencyId} 
   />

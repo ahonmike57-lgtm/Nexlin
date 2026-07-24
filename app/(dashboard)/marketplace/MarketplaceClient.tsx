@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Download, Trash2, ShieldCheck, CheckCircle2, Store, Sparkles, CreditCard, MessageSquare, Megaphone } from "lucide-react"
-import { installExtension, uninstallExtension } from "@/app/actions/marketplace"
+import { installApp, uninstallApp } from "@/app/actions/marketplace"
 
 const MOCK_CATEGORIES = [
   { id: "ai", name: "AI & Voice", icon: Sparkles },
@@ -54,26 +54,26 @@ const BEST_IN_CLASS_APPS = [
   }
 ]
 
-export default function MarketplaceClient({ initialExtensions, initialInstalls, agencyId }: { initialExtensions: any[], initialInstalls: any[], agencyId: string }) {
-  const [extensions] = useState(initialExtensions)
+export default function MarketplaceClient({ initialApps, initialInstalls, agencyId }: { initialApps: any[], initialInstalls: any[], agencyId: string }) {
+  const [apps] = useState(initialApps)
   const [installs, setInstalls] = useState(initialInstalls)
   const [activeCategory, setActiveCategory] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [processingId, setProcessingId] = useState<string | null>(null)
 
-  const handleInstall = async (extensionId: string) => {
-    setProcessingId(extensionId)
+  const handleInstall = async (appId: string) => {
+    setProcessingId(appId)
     // Here we would normally collect config in a modal
-    const res = await installExtension(agencyId, extensionId, { token: "demo-token" })
+    const res = await installApp(agencyId, appId, { token: "demo-token" })
     if (res.success && res.install) {
       setInstalls([...installs, res.install])
     }
     setProcessingId(null)
   }
 
-  const handleUninstall = async (installId: string, extensionId: string) => {
-    setProcessingId(extensionId)
-    const res = await uninstallExtension(agencyId, extensionId)
+  const handleUninstall = async (installId: string, appId: string) => {
+    setProcessingId(appId)
+    const res = await uninstallApp(agencyId, appId)
     if (res.success) {
       setInstalls(installs.filter(i => i.id !== installId))
     }
@@ -132,16 +132,15 @@ export default function MarketplaceClient({ initialExtensions, initialInstalls, 
         <div className="flex-1">
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {BEST_IN_CLASS_APPS.filter(app => activeCategory === "all" || app.category === activeCategory).map((app) => {
-              // Map mock UI apps to DB extensions if they exist, else treat as UI only
-              const dbExt = extensions.find(e => e.name === app.name)
-              const install = dbExt ? installs.find(i => i.extensionId === dbExt.id) : null
+              // Map mock UI apps to DB apps if they exist, else treat as UI only
+              const dbApp = apps.find(e => e.name === app.name)
+              const install = dbApp ? installs.find(i => i.appId === dbApp.id) : null
               const isInstalled = !!install
 
               return (
                 <Card key={app.id} className="border border-border hover:border-primary/30 transition-colors flex flex-col group">
                   <CardHeader className="flex flex-row items-start gap-4 pb-4">
                     <div className="w-16 h-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden p-2 shrink-0 group-hover:scale-105 transition-transform">
-                      {/* Using regular img for external urls to bypass Next/Image domain strictness for this demo */}
                       <img src={app.icon} alt={app.name} className="w-full h-full object-contain" />
                     </div>
                     <div className="flex-1">
@@ -163,26 +162,26 @@ export default function MarketplaceClient({ initialExtensions, initialInstalls, 
                     <div className="flex items-center text-xs text-text-secondary">
                       <ShieldCheck className="w-4 h-4 mr-1 text-success" /> Verified Partner
                     </div>
-                    {dbExt ? (
+                    {dbApp ? (
                       isInstalled ? (
                         <Button 
                           variant="danger" 
                           size="sm"
-                          onClick={() => handleUninstall(install.id, dbExt.id)}
-                          disabled={processingId === dbExt.id}
+                          onClick={() => handleUninstall(install.id, dbApp.id)}
+                          disabled={processingId === dbApp.id}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          {processingId === dbExt.id ? "Uninstalling..." : "Uninstall"}
+                          {processingId === dbApp.id ? "Uninstalling..." : "Uninstall"}
                         </Button>
                       ) : (
                         <Button 
                           variant="default" 
                           size="sm"
-                          onClick={() => handleInstall(dbExt.id)}
-                          disabled={processingId === dbExt.id}
+                          onClick={() => handleInstall(dbApp.id)}
+                          disabled={processingId === dbApp.id}
                         >
                           <Download className="w-4 h-4 mr-2" />
-                          {processingId === dbExt.id ? "Installing..." : "Install App"}
+                          {processingId === dbApp.id ? "Installing..." : "Install App"}
                         </Button>
                       )
                     ) : (

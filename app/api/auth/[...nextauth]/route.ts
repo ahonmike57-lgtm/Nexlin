@@ -27,6 +27,27 @@ export const authOptions: NextAuthOptions = {
           return null
         }
         
+        // 1. Check PlatformAdmin
+        const admin = await db.platformAdmin.findUnique({
+          where: { email: credentials.email }
+        })
+        
+        if (admin && admin.passwordHash === credentials.password) {
+          await db.platformAdmin.update({
+            where: { id: admin.id },
+            data: { lastLoginAt: new Date() }
+          })
+          
+          return { 
+            id: admin.id, 
+            name: admin.name, 
+            email: admin.email, 
+            role: admin.role, 
+            isPlatformAdmin: true
+          } as any
+        }
+        
+        // 2. Check User (Tenant)
         const user = await db.user.findUnique({
           where: { email: credentials.email }
         })
@@ -35,11 +56,17 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        // Mock verification for now (In real life use bcrypt)
         const isValid = credentials.password === user.passwordHash
 
         if (isValid) {
-          return { id: user.id, name: user.name, email: user.email, role: user.role, isAfricaUser: user.isAfricaUser }
+          return { 
+            id: user.id, 
+            name: user.name, 
+            email: user.email, 
+            role: user.role, 
+            isAfricaUser: user.isAfricaUser,
+            agencyId: user.agencyId
+          } as any
         }
 
         return null
@@ -50,11 +77,22 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.role = (user as any).role
         token.isAfricaUser = (user as any).isAfricaUser
+        token.isPlatformAdmin = (user as any).isPlatformAdmin
+        token.agencyId = (user as any).agencyId
       }
+      
+      // Impersonation Support
+      if (trigger === "update" && session?.impersonateAgencyId) {
+        if (token.isPlatformAdmin) {
+          token.agencyId = session.impersonateAgencyId
+          token.isImpersonating = true
+        }
+      }
+      
       return token
     },
     async session({ session, token }) {
@@ -62,6 +100,9 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.sub;
         (session.user as any).role = token.role;
         (session.user as any).isAfricaUser = token.isAfricaUser;
+        (session.user as any).isPlatformAdmin = token.isPlatformAdmin;
+        (session.user as any).agencyId = token.agencyId;
+        (session.user as any).isImpersonating = token.isImpersonating;
       }
       return session
     }

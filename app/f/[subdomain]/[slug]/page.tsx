@@ -5,7 +5,7 @@ import LiveFunnelClient from "./LiveFunnelClient"
 export default async function LiveFunnelPage({
   params
 }: {
-  params: { subdomain: string; slug: string }
+  params: Promise<{ subdomain: string; slug: string }>
 }) {
   const { subdomain, slug } = await params
   

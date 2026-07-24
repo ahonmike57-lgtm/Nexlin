@@ -8,10 +8,15 @@ import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import RevenueChart from "./revenue-chart"
 import DashboardAICoach from "./DashboardAICoach"
+import { format } from "date-fns"
 
 export default async function DashboardPage() {
   const session = await getSession()
   if (!session?.user?.id) redirect("/login")
+
+  if ((session.user as any).isPlatformAdmin) {
+    redirect("/platform")
+  }
 
   const agencyId = await getOrCreateAgency()
 
@@ -23,6 +28,52 @@ export default async function DashboardPage() {
 
   const wonDeals = deals.filter(d => d.stage.toLowerCase() === "won" || d.stage.toLowerCase() === "closed won")
   const winRate = deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0
+
+  // Calculate Revenue Chart Data
+  const monthlyRevenue: Record<string, number> = {}
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  months.forEach(m => monthlyRevenue[m] = 0)
+
+  wonDeals.forEach(deal => {
+    const month = format(new Date(deal.updatedAt), "MMM")
+    if (monthlyRevenue[month] !== undefined) {
+      monthlyRevenue[month] += deal.value
+    }
+  })
+
+  const chartData = months.map(name => ({
+    name,
+    revenue: monthlyRevenue[name]
+  }))
+
+  // Calculate Recent Activity
+  const recentContacts = await db.contact.findMany({ where: { agencyId }, orderBy: { updatedAt: 'desc' }, take: 4 })
+  const recentDealsQuery = await db.deal.findMany({ where: { agencyId }, orderBy: { updatedAt: 'desc' }, take: 4 })
+
+  const activities = [
+    ...recentContacts.map(c => ({
+      text: `New contact created: ${c.firstName} ${c.lastName}`,
+      time: c.updatedAt,
+      color: "bg-primary"
+    })),
+    ...recentDealsQuery.map(d => ({
+      text: `Deal updated: ${d.title} (${d.stage})`,
+      time: d.updatedAt,
+      color: d.stage.toLowerCase().includes("won") ? "bg-success" : "bg-warning"
+    }))
+  ]
+    .sort((a, b) => b.time.getTime() - a.time.getTime())
+    .slice(0, 4)
+    .map(a => ({
+      text: a.text,
+      time: format(new Date(a.time), "MMM d, h:mm a"),
+      color: a.color
+    }))
+
+  // Fallback if no activity
+  if (activities.length === 0) {
+    activities.push({ text: "Welcome to your new workspace!", time: "Just now", color: "bg-success" })
+  }
 
   return (
     <div className="space-y-6">
@@ -99,7 +150,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="h-[300px] w-full">
-               <RevenueChart />
+               <RevenueChart data={chartData} />
             </div>
           </CardContent>
         </Card>
@@ -110,16 +161,11 @@ export default async function DashboardPage() {
             <CardDescription>What&apos;s happening right now</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {[
-              { text: "Sarah won the 'Enterprise Plan' deal", time: "2m ago", color: "bg-success" },
-              { text: "New ticket from Acme Corp", time: "15m ago", color: "bg-warning" },
-              { text: "Stripe payout processed", time: "1h ago", color: "bg-primary" },
-              { text: "New lead from website chat", time: "3h ago", color: "bg-secondary" },
-            ].map((activity, i) => (
+            {activities.map((activity, i) => (
               <div key={i} className="flex gap-4">
                 <div className="mt-1 relative flex-shrink-0">
                   <div className={`w-2 h-2 rounded-full ${activity.color}`}></div>
-                  {i !== 3 && <div className="absolute top-3 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-border"></div>}
+                  {i !== activities.length - 1 && <div className="absolute top-3 left-1/2 -translate-x-1/2 w-0.5 h-8 bg-border"></div>}
                 </div>
                 <div>
                   <p className="text-sm font-medium">{activity.text}</p>
