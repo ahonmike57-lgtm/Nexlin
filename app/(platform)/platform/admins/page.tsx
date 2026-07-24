@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { format } from "date-fns"
+import { InviteAdminDialog } from "@/components/platform/InviteAdminDialog"
 
 export default async function PlatformAdminsPage() {
   const session = await getSession()
@@ -19,11 +20,7 @@ export default async function PlatformAdminsPage() {
             Manage users with God-mode access to the entire platform.
           </p>
         </div>
-        {isOwner && (
-          <button className="inline-flex items-center justify-center rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary bg-primary text-white shadow-sm hover:bg-primary/90 h-10 px-4 py-2">
-            Invite Admin
-          </button>
-        )}
+        <InviteAdminDialog isOwner={isOwner} />
       </div>
 
       <div className="rounded-xl border border-border bg-bg-primary shadow-sm">
