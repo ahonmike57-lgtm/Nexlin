@@ -55,7 +55,16 @@ const sidebarLinks = [
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
-export default function DashboardLayoutClient({ children, agency }: { children: ReactNode, agency?: any }) {
+const LINK_FEATURE_MAP: Record<string, string> = {
+  "/affiliates": "affiliate_manager",
+  "/social": "social_planner",
+  "/ads": "ads_manager",
+  "/reputation": "reputation",
+  "/marketplace": "mcp_integrations",
+  "/voice": "voice_ai",
+}
+
+export default function DashboardLayoutClient({ children, agency, featureFlags = [] }: { children: ReactNode, agency?: any, featureFlags?: any[] }) {
   const pathname = usePathname()
   const { data: session } = useSession()
 
@@ -65,6 +74,8 @@ export default function DashboardLayoutClient({ children, agency }: { children: 
   const platformName = agency?.whiteLabelName || agency?.name || "NEXLIN GHL"
   const platformLogo = agency?.logoUrl
   const brandInitial = platformName.substring(0, 1).toUpperCase()
+
+  const agencyTier = (agency?.planTier || "basic").toLowerCase()
 
   return (
     <div className="flex h-screen bg-bg-secondary overflow-hidden text-text-primary">
@@ -89,6 +100,18 @@ export default function DashboardLayoutClient({ children, agency }: { children: 
         
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {sidebarLinks.map((link) => {
+            const featureKey = LINK_FEATURE_MAP[link.href]
+            const flag = featureFlags.find((f: any) => f.key === featureKey)
+
+            // 1. If feature is disabled globally by platform admin, hide it
+            if (flag && !flag.isEnabledGlobal) {
+              return null
+            }
+
+            // 2. Check tier restriction
+            const allowedTiers = flag?.enabledTiers ? flag.enabledTiers.split(",").map((t: string) => t.trim().toLowerCase()) : []
+            const isTierLocked = flag && allowedTiers.length > 0 && !allowedTiers.includes(agencyTier)
+
             const isActive = pathname.startsWith(link.href)
             const Icon = link.icon
             
@@ -96,10 +119,17 @@ export default function DashboardLayoutClient({ children, agency }: { children: 
               <Link 
                 key={link.href} 
                 href={link.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-bg-secondary hover:text-text-primary'}`}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-primary/10 text-primary' : 'text-text-secondary hover:bg-bg-secondary hover:text-text-primary'}`}
               >
-                <Icon className="w-5 h-5" />
-                {link.label}
+                <div className="flex items-center gap-3">
+                  <Icon className="w-5 h-5" />
+                  <span>{link.label}</span>
+                </div>
+                {isTierLocked && (
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                    Pro
+                  </span>
+                )}
               </Link>
             )
           })}

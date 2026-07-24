@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Building, AppWindow, ShieldAlert, LogOut } from "lucide-react";
+import { LayoutDashboard, Building, AppWindow, ShieldAlert, Sliders, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 const routes = [
@@ -21,6 +21,11 @@ const routes = [
     label: "Marketplace Apps",
     icon: AppWindow,
     href: "/platform/apps",
+  },
+  {
+    label: "Feature Flags",
+    icon: Sliders,
+    href: "/platform/features",
   },
   {
     label: "Administrators",

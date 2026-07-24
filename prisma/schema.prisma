@@ -763,3 +763,15 @@ model PlatformAdmin {
   createdAt    DateTime  @default(now())
   lastLoginAt  DateTime?
 }
+
+model FeatureFlag {
+  id              String   @id @default(cuid())
+  key             String   @unique // e.g. "voice_ai", "affiliate_manager", "snapshots", "social_planner", "ads_manager"
+  name            String
+  description     String?
+  enabledTiers    String   @default("basic,pro,enterprise") // Comma-separated list of tiers
+  isEnabledGlobal Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+

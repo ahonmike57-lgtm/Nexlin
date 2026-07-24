@@ -1,6 +1,8 @@
 import { headers } from "next/headers"
 import { db } from "@/lib/db"
 import DashboardLayoutClient from "./DashboardLayoutClient"
+import { getFeatureFlags } from "@/app/actions/feature-flags"
+import { getOrCreateAgency } from "@/app/actions/agency"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const requestHeaders = await headers()
@@ -32,6 +34,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
     }
   }
 
+  // Fallback to active agency if not resolved by domain
+  if (!agency) {
+    const agencyId = await getOrCreateAgency()
+    agency = await db.agency.findUnique({ where: { id: agencyId } })
+  }
+
+  const { flags } = await getFeatureFlags()
+
   return (
     <div 
       className="w-full h-full"
@@ -41,7 +51,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         ...(colors?.textPrimary ? { '--color-text-primary': colors.textPrimary } : {})
       } as React.CSSProperties}
     >
-      <DashboardLayoutClient agency={agency}>
+      <DashboardLayoutClient agency={agency} featureFlags={flags || []}>
         {children}
       </DashboardLayoutClient>
     </div>
