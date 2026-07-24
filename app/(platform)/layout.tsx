@@ -16,12 +16,18 @@ export default async function PlatformLayout({
     }
 
     return (
-      <div className="h-full relative flex dark:bg-slate-900">
-        <div className="hidden h-full md:flex md:w-72 md:flex-col md:fixed md:inset-y-0 z-[80] bg-gray-900">
+      <div className="flex h-screen overflow-hidden bg-[#050505] text-zinc-100 selection:bg-primary/30">
+        {/* Subtle background glow/mesh */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[120px]" />
+          <div className="absolute top-[60%] -right-[10%] w-[40%] h-[60%] rounded-full bg-blue-500/5 blur-[120px]" />
+        </div>
+
+        <div className="w-64 hidden md:block z-10 border-r border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl">
           <PlatformSidebar />
         </div>
-        <main className="md:pl-72 w-full flex-1 overflow-y-auto">
-          <div className="p-8">
+        <main className="flex-1 overflow-y-auto p-10 z-10 relative">
+          <div className="max-w-7xl mx-auto">
             {children}
           </div>
         </main>
