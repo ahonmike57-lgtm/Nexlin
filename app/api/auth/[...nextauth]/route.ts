@@ -4,6 +4,7 @@ import GithubProvider from "next-auth/providers/github"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { db } from "@/lib/db"
+import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db) as any,
@@ -32,19 +33,25 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email }
         })
         
-        if (admin && admin.passwordHash === credentials.password) {
-          await db.platformAdmin.update({
-            where: { id: admin.id },
-            data: { lastLoginAt: new Date() }
-          })
-          
-          return { 
-            id: admin.id, 
-            name: admin.name, 
-            email: admin.email, 
-            role: admin.role, 
-            isPlatformAdmin: true
-          } as any
+        if (admin && admin.passwordHash) {
+          const bcryptMatch = await bcrypt.compare(credentials.password, admin.passwordHash).catch(() => false)
+          const isValid = bcryptMatch || admin.passwordHash === credentials.password
+          const isActive = !admin.status || admin.status === "active"
+
+          if (isValid && isActive) {
+            await db.platformAdmin.update({
+              where: { id: admin.id },
+              data: { lastLoginAt: new Date() }
+            })
+            
+            return { 
+              id: admin.id, 
+              name: admin.name, 
+              email: admin.email, 
+              role: admin.role, 
+              isPlatformAdmin: true
+            } as any
+          }
         }
         
         // 2. Check User (Tenant)

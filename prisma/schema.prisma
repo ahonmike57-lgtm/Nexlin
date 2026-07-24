@@ -755,13 +755,16 @@ model AiSettings {
 }
 
 model PlatformAdmin {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String?
-  role         String    @default("owner") // owner, developer, support
-  passwordHash String?
-  createdAt    DateTime  @default(now())
-  lastLoginAt  DateTime?
+  id               String    @id @default(cuid())
+  email            String    @unique
+  name             String?
+  role             String    @default("owner") // owner, developer, support
+  status           String    @default("pending") // pending, active, suspended
+  inviteCode       String?   // 6-digit OTP verification code
+  codeExpiresAt    DateTime?
+  passwordHash     String?
+  createdAt        DateTime  @default(now())
+  lastLoginAt      DateTime?
 }
 
 model FeatureFlag {
