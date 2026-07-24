@@ -5,9 +5,8 @@ import { Building, AppWindow, ShieldAlert, TrendingUp } from "lucide-react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { CustomEase } from "gsap/CustomEase";
 
-gsap.registerPlugin(useGSAP, ScrollTrigger, CustomEase);
+gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 interface AnimatedOverviewProps {
   data: {
@@ -53,23 +52,18 @@ export function AnimatedOverview({ data }: AnimatedOverviewProps) {
   ];
 
   useGSAP(() => {
-    // Elegant stagger entry
-    CustomEase.create('premium', 'M0,0 C0.05,0.85 0.15,1 1,1');
-
     gsap.from(".header-element", {
       y: 20,
-      opacity: 0,
       duration: 0.6,
       stagger: 0.1,
-      ease: "premium"
+      ease: "power3.out"
     });
 
     gsap.from(".kpi-card", {
       y: 40,
-      opacity: 0,
       duration: 0.8,
       stagger: 0.1,
-      ease: "premium",
+      ease: "power3.out",
       delay: 0.2
     });
 
