@@ -1,56 +1,150 @@
-import { getCurrentUser } from "./auth"
-import { db } from "./db"
+import { getSession } from "@/lib/auth"
+import { db } from "@/lib/db"
 
-export type Role = "Super Admin" | "Agency Owner" | "Agency Admin" | "Business Owner" | "Team Member" | "Read Only"
+export type PlatformRole = "owner" | "developer" | "support"
+export type TenantRole = "admin" | "user"
 
-export const ROLE_HIERARCHY: Record<Role, number> = {
-  "Super Admin": 100,
-  "Agency Owner": 50,
-  "Agency Admin": 40,
-  "Business Owner": 30, // Default sub-account owner
-  "Team Member": 20,
-  "Read Only": 10
+export interface AuthContext {
+  userId: string
+  email: string
+  role: string
+  isPlatformAdmin: boolean
+  isImpersonating?: boolean
+  agencyId?: string | null
 }
 
-export async function checkPermission(agencyId: string, minRole: Role) {
-  const user = await getCurrentUser()
-  if (!user || !user.email) {
-    throw new Error("Unauthorized")
+/**
+ * Server-side authorization check for Platform Admins.
+ * 
+ * Enforcement Rules:
+ * 1. Must be authenticated as a Platform Admin.
+ * 2. Impersonated sessions CANNOT perform platform-admin actions (no privilege escalation / nested impersonation).
+ * 3. Performs a fresh database lookup against `db.platformAdmin` to verify the account is active and holds the allowed role.
+ * 4. Fails with generic 403 error on unauthorized requests.
+ */
+export async function requirePlatformAuth(allowedRoles?: PlatformRole[]) {
+  const session = await getSession()
+  
+  if (!session || !session.user || !(session.user as any).isPlatformAdmin) {
+    return { authorized: false as const, error: "Forbidden", status: 403 }
   }
 
-  // Fetch full user to get role
-  const dbUser = await db.user.findUnique({
-    where: { email: user.email }
+  const user = session.user as any
+
+  // Rule: Sessions created via impersonation CANNOT execute platform admin actions
+  if (user.isImpersonating) {
+    return { authorized: false as const, error: "Forbidden", status: 403 }
+  }
+
+  // Fresh real-time DB check: re-verify status and role directly from PostgreSQL
+  const admin = await db.platformAdmin.findUnique({
+    where: { id: user.id }
   })
 
-  if (!dbUser) {
-    throw new Error("User not found")
+  if (!admin || admin.status !== "active") {
+    return { authorized: false as const, error: "Forbidden", status: 403 }
   }
 
-  // If user is super admin, always allow
-  if (dbUser.role === "Super Admin") return true
-
-  // If user's agency doesn't match the requested agency (unless Super Admin)
-  if (dbUser.agencyId !== agencyId && dbUser.subAgencyId !== agencyId) {
-    // For now, allow loosely if not strictly scoped, but normally this blocks
-    // throw new Error("Unauthorized for this agency")
+  if (allowedRoles && allowedRoles.length > 0) {
+    if (!allowedRoles.includes(admin.role as PlatformRole)) {
+      return { authorized: false as const, error: "Forbidden", status: 403 }
+    }
   }
 
-  const userRoleValue = ROLE_HIERARCHY[dbUser.role as Role] || 0
-  const requiredRoleValue = ROLE_HIERARCHY[minRole] || 0
-
-  if (userRoleValue < requiredRoleValue) {
-    throw new Error(`Insufficient permissions. Requires at least ${minRole}.`)
+  return { 
+    authorized: true as const, 
+    admin, 
+    session,
+    role: admin.role as PlatformRole
   }
-
-  return true
 }
 
-export async function hasPermission(agencyId: string, minRole: Role) {
+/**
+ * Server-side authorization check for Tenant Users (Agency Level).
+ * 
+ * Enforcement Rules:
+ * 1. Resolves `agencyId` strictly from the authenticated session (or active impersonation token). Never trusts client-supplied tenantId.
+ * 2. Prevents IDOR (Insecure Direct Object Reference) by ensuring queries are locked to session.agencyId.
+ * 3. Enforces tenant role requirements ('admin' vs 'user').
+ */
+export async function requireTenantAuth(requiredRole: TenantRole = "user") {
+  const session = await getSession()
+
+  if (!session || !session.user) {
+    return { authorized: false as const, error: "Forbidden", status: 403 }
+  }
+
+  const user = session.user as any
+  const agencyId = user.agencyId as string | undefined
+
+  if (!agencyId) {
+    return { authorized: false as const, error: "Forbidden", status: 403 }
+  }
+
+  // Evaluate tenant role level
+  // Roles: "Agency Owner", "Business Owner", "Super Admin" count as Tenant Admin
+  // "Team Member" / "User" count as Tenant User
+  const roleString = (user.role || "").toLowerCase()
+  const isTenantAdmin = 
+    roleString.includes("owner") || 
+    roleString.includes("admin") || 
+    user.isPlatformAdmin // Platform admins operating within tenant scope
+
+  if (requiredRole === "admin" && !isTenantAdmin) {
+    return { authorized: false as const, error: "Forbidden", status: 403 }
+  }
+
+  return {
+    authorized: true as const,
+    agencyId,
+    userId: user.id as string,
+    userRole: user.role as string,
+    isTenantAdmin,
+    isImpersonating: !!user.isImpersonating,
+    session
+  }
+}
+
+/**
+ * Log an impersonation start event to the audit trail
+ */
+export async function logImpersonationStart(data: {
+  adminId: string
+  adminEmail: string
+  adminRole: string
+  agencyId: string
+  reason?: string
+  ipAddress?: string
+}) {
   try {
-    await checkPermission(agencyId, minRole)
-    return true
-  } catch {
-    return false
+    const log = await db.impersonationLog.create({
+      data: {
+        adminId: data.adminId,
+        adminEmail: data.adminEmail,
+        adminRole: data.adminRole,
+        agencyId: data.agencyId,
+        reason: data.reason || "Support impersonation session",
+        ipAddress: data.ipAddress || null,
+        startedAt: new Date()
+      }
+    })
+    return log
+  } catch (error) {
+    console.error("Failed to log impersonation start:", error)
+    return null
+  }
+}
+
+/**
+ * Log an impersonation end event to the audit trail
+ */
+export async function logImpersonationEnd(logId: string) {
+  try {
+    await db.impersonationLog.update({
+      where: { id: logId },
+      data: { endedAt: new Date() }
+    })
+  } catch (error) {
+    console.error("Failed to log impersonation end:", error)
   }
 }

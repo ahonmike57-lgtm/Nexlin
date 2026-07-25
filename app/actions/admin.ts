@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { requirePlatformAuth } from "@/lib/permissions"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
 
@@ -11,14 +11,9 @@ export async function invitePlatformAdmin(data: {
   role: string
 }) {
   try {
-    const session = await getSession()
-    if (!session || !session.user || !(session.user as any).isPlatformAdmin) {
-      return { success: false, error: "Unauthorized. Platform admin access required." }
-    }
-
-    const currentRole = (session.user as any).role
-    if (currentRole !== "owner") {
-      return { success: false, error: "Only platform owners can invite new admins." }
+    const auth = await requirePlatformAuth(["owner"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error }
     }
 
     const email = data.email.trim().toLowerCase()
@@ -182,18 +177,12 @@ export async function completeAdminSignup(data: {
 
 export async function deletePlatformAdmin(adminId: string) {
   try {
-    const session = await getSession()
-    if (!session || !session.user || !(session.user as any).isPlatformAdmin) {
-      return { success: false, error: "Unauthorized. Platform admin access required." }
+    const auth = await requirePlatformAuth(["owner"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error }
     }
 
-    const currentRole = (session.user as any).role
-    if (currentRole !== "owner") {
-      return { success: false, error: "Only platform owners can delete admin accounts." }
-    }
-
-    const currentAdminId = (session.user as any).id
-    if (currentAdminId && currentAdminId === adminId) {
+    if (auth.admin.id === adminId) {
       return { success: false, error: "You cannot delete your own admin account." }
     }
 

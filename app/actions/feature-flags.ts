@@ -1,8 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
-import { revalidatePath } from "next/cache"
+import { requirePlatformAuth } from "@/lib/permissions"
 
 const DEFAULT_FLAGS = [
   {
@@ -77,9 +76,9 @@ export async function updateFeatureFlag(data: {
   enabledTiers?: string
 }) {
   try {
-    const session = await getSession()
-    if (!session || !session.user || !(session.user as any).isPlatformAdmin) {
-      return { success: false, error: "Unauthorized. Platform admin access required." }
+    const auth = await requirePlatformAuth(["owner"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error }
     }
 
     const flag = await db.featureFlag.update({
