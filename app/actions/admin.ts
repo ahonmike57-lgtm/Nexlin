@@ -76,7 +76,7 @@ export async function invitePlatformAdmin(data: {
         email: admin.email,
         role: admin.role,
         inviteCode,
-        acceptUrl: `/platform/accept-invite?email=${encodeURIComponent(email)}&code=${inviteCode}`
+        acceptUrl: `/accept-invite?email=${encodeURIComponent(email)}&code=${inviteCode}`
       }
     }
   } catch (error: any) {
