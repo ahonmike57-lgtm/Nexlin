@@ -5,7 +5,7 @@ import { requireTenantAuth } from "@/lib/permissions"
 import crypto from "crypto"
 
 export async function createApiKey(data: { name: string; scopes: string[] }) {
-  const auth = await requireTenantAuth("tenant_admin")
+  const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }
@@ -44,7 +44,7 @@ export async function createApiKey(data: { name: string; scopes: string[] }) {
 }
 
 export async function getApiKeys() {
-  const auth = await requireTenantAuth("tenant_user")
+  const auth = await requireTenantAuth("user")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }
@@ -69,7 +69,7 @@ export async function getApiKeys() {
 }
 
 export async function revokeApiKey(id: string) {
-  const auth = await requireTenantAuth("tenant_admin")
+  const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }

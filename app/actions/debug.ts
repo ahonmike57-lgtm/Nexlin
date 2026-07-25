@@ -105,9 +105,9 @@ export async function exportAuditLogs(logType: "impersonation" | "usage") {
         take: 200
       })
 
-      const csvHeader = "ID,Category,Units,Base Cost,Billed Cost,Timestamp\n"
+      const csvHeader = "ID,Type,Amount,Base Cost,Markup,Description,Timestamp\n"
       const csvRows = logs.map(l => 
-        `"${l.id}","${l.category}","${l.units}","${l.baseCost}","${l.billedCost}","${l.createdAt.toISOString()}"`
+        `"${l.id}","${l.type}","${l.amount}","${l.cost}","${l.markup}","${l.description || ''}","${l.createdAt.toISOString()}"`
       ).join("\n")
 
       return { success: true, csvContent: csvHeader + csvRows, filename: `usage_audit_${Date.now()}.csv` }

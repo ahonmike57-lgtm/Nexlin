@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
 
 export async function getWebhookDeliveries() {
-  const auth = await requireTenantAuth("tenant_user")
+  const auth = await requireTenantAuth("user")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }
@@ -24,7 +24,7 @@ export async function getWebhookDeliveries() {
 }
 
 export async function retryWebhookDelivery(deliveryId: string) {
-  const auth = await requireTenantAuth("tenant_admin")
+  const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }
