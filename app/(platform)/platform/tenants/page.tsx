@@ -1,8 +1,13 @@
 import { db } from "@/lib/db"
+import { getSession } from "@/lib/auth"
 import { ImpersonateButton } from "@/components/platform/ImpersonateButton"
+import { CreateTenantDialog } from "@/components/platform/CreateTenantDialog"
 import { format } from "date-fns"
 
 export default async function PlatformTenantsPage() {
+  const session = await getSession()
+  const isOwner = (session?.user as any)?.role === "owner"
+
   const tenants = await db.agency.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -14,11 +19,14 @@ export default async function PlatformTenantsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-text-primary">Tenants</h1>
-        <p className="text-text-secondary">
-          Manage all registered agencies on the platform.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-text-primary">Tenants</h1>
+          <p className="text-text-secondary">
+            Manage all registered agencies on the platform.
+          </p>
+        </div>
+        <CreateTenantDialog isOwner={isOwner} />
       </div>
 
       <div className="rounded-xl border border-border bg-bg-primary shadow-sm">
