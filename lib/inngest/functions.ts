@@ -31,7 +31,6 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
       } else if (action.type === "send_email") {
         await step.run(`send-email-${action.id}`, async () => {
           console.log(`[Inngest] Executing send_email for contact ${contactId} in workflow ${workflow.name}`)
-          // Mock sending email
           if (contactId) {
             await db.contact.update({
               where: { id: contactId },
@@ -47,5 +46,54 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
     }
 
     return { success: true, completedActions: workflow.actions.length }
+  }
+)
+
+export const cronReviewRequests = (inngest.createFunction as any)(
+  { id: "cron-daily-review-requests" },
+  { cron: "0 9 * * *" }, // Daily at 9 AM UTC
+  async ({ step }: { step: any }) => {
+    const pendingRequests = await step.run("process-review-requests", async () => {
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      const reviews = await db.reviewRequest.findMany({
+        where: { status: "pending", createdAt: { gte: yesterday } },
+        take: 50
+      })
+      
+      for (const r of reviews) {
+        await db.reviewRequest.update({
+          where: { id: r.id },
+          data: { status: "sent" }
+        })
+      }
+
+      return reviews.length
+    })
+
+    return { success: true, processed: pendingRequests }
+  }
+)
+
+export const cronUsageRebillingSync = (inngest.createFunction as any)(
+  { id: "cron-hourly-rebilling-sync" },
+  { cron: "0 * * * *" }, // Every hour
+  async ({ step }: { step: any }) => {
+    const syncedWallets = await step.run("reconcile-wallets", async () => {
+      const lowWallets = await db.wallet.findMany({
+        where: { autoTopup: true, balance: { lt: 10 } },
+        take: 20
+      })
+
+      for (const w of lowWallets) {
+        await db.wallet.update({
+          where: { id: w.id },
+          data: { balance: { increment: w.topupAmount || 50 } }
+        })
+      }
+
+      return lowWallets.length
+    })
+
+    return { success: true, toppedUp: syncedWallets }
   }
 )
