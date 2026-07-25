@@ -28,7 +28,8 @@ export default function LoginPage() {
     })
 
     if (result?.error) {
-      setError("Invalid email or password.")
+      console.error("Login result error:", result.error)
+      setError(result.error === "CredentialsSignin" ? "Invalid email or password." : `Authentication Error: ${result.error}`)
       setLoading(false)
     } else {
       const res = await fetch("/api/auth/session")
