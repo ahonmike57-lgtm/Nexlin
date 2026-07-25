@@ -8,7 +8,6 @@ import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || "nexlin-production-auth-secret-key-2026",
-  trustHost: true,
   adapter: PrismaAdapter(db) as any,
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
