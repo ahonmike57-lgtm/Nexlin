@@ -78,3 +78,42 @@ export async function getTenantInspectionDetails(agencyId: string) {
     return { success: false, error: "Forbidden" }
   }
 }
+
+export async function exportAuditLogs(logType: "impersonation" | "usage") {
+  try {
+    const auth = await requirePlatformAuth(["owner", "developer", "support"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error }
+    }
+
+    if (logType === "impersonation") {
+      const logs = await db.impersonationLog.findMany({
+        orderBy: { startedAt: "desc" },
+        take: 200,
+        include: { agency: { select: { name: true, subdomain: true } } }
+      })
+
+      const csvHeader = "ID,Admin Email,Admin Role,Target Tenant,Started At,Ended At,Reason\n"
+      const csvRows = logs.map(l => 
+        `"${l.id}","${l.adminEmail}","${l.adminRole}","${l.agency?.name || l.agencyId}","${l.startedAt.toISOString()}","${l.endedAt ? l.endedAt.toISOString() : 'Active'}","${l.reason || ''}"`
+      ).join("\n")
+
+      return { success: true, csvContent: csvHeader + csvRows, filename: `impersonation_audit_${Date.now()}.csv` }
+    } else {
+      const logs = await db.usageLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 200
+      })
+
+      const csvHeader = "ID,Category,Units,Base Cost,Billed Cost,Timestamp\n"
+      const csvRows = logs.map(l => 
+        `"${l.id}","${l.category}","${l.units}","${l.baseCost}","${l.billedCost}","${l.createdAt.toISOString()}"`
+      ).join("\n")
+
+      return { success: true, csvContent: csvHeader + csvRows, filename: `usage_audit_${Date.now()}.csv` }
+    }
+  } catch (error: any) {
+    console.error("Export audit logs error:", error)
+    return { success: false, error: "Failed to export logs" }
+  }
+}

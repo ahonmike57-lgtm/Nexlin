@@ -74,6 +74,8 @@ model Agency {
   rebillingMarkups  RebillingMarkup[]
   affiliates        Affiliate[]
   impersonationLogs ImpersonationLog[]
+  apiKeys           ApiKey[]
+  webhookDeliveries WebhookDelivery[]
 }
 
 model SubAgency {
@@ -790,6 +792,37 @@ model ImpersonationLog {
   endedAt     DateTime?
   ipAddress   String?
   reason      String?
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  keyPrefix   String
+  keyHash     String
+  scopes      String    @default("contacts:read,workflows:read") // Comma-separated list of scopes
+  status      String    @default("active") // active, revoked
+  agencyId    String
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  createdById String?
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model WebhookDelivery {
+  id             String   @id @default(cuid())
+  webhookId      String
+  agencyId       String
+  agency         Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  url            String
+  event          String
+  payload        String   // JSON string
+  responseStatus Int?
+  responseBody   String?
+  success        Boolean  @default(false)
+  retryCount     Int      @default(0)
+  deliveredAt    DateTime @default(now())
 }
 
 

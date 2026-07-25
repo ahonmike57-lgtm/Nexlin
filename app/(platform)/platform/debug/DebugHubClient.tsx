@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { getTenantInspectionDetails } from "@/app/actions/debug"
+import { getTenantInspectionDetails, exportAuditLogs } from "@/app/actions/debug"
 import { toast } from "sonner"
 import { 
   Terminal, 
@@ -16,7 +16,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   Database,
-  Building2
+  Building2,
+  Download
 } from "lucide-react"
 import { format } from "date-fns"
 
@@ -53,17 +54,42 @@ export function DebugHubClient({ logsData, tenantsList }: DebugHubClientProps) {
     }
   }
 
+  const handleExportCsv = async (logType: "impersonation" | "usage") => {
+    const res = await exportAuditLogs(logType)
+    if (res.success && res.csvContent && res.filename) {
+      const blob = new Blob([res.csvContent], { type: "text/csv" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = res.filename
+      a.click()
+      toast.success(`Exported ${res.filename}`)
+    } else {
+      toast.error(res.error || "Failed to export logs")
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Branding */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-text-primary flex items-center gap-2">
-            <Terminal className="w-8 h-8 text-primary" /> Developer Debug & Diagnostics
+          <h1 className="text-2xl font-bold tracking-tight text-text-primary flex items-center gap-2">
+            <Terminal className="w-7 h-7 text-primary" />
+            Developer Debug & System Audit Hub
           </h1>
-          <p className="text-text-secondary pt-1">
-            Cross-tenant data inspection, audit logs, webhook tracing, and technical troubleshooting hub.
+          <p className="text-text-secondary text-sm mt-1">
+            Real-time audit streams, cross-tenant data inspection, and system metrics for technical troubleshooting.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleExportCsv("impersonation")}
+            className="px-3 py-2 bg-bg-primary border border-border text-text-primary hover:bg-primary/10 hover:text-primary text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors"
+          >
+            <Download className="w-4 h-4" /> Export Audit CSV
+          </button>
         </div>
       </div>
 
