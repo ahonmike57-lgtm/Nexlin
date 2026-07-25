@@ -2,9 +2,11 @@ import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { format } from "date-fns"
 import { InviteAdminDialog } from "@/components/platform/InviteAdminDialog"
+import { DeleteAdminButton } from "@/components/platform/DeleteAdminButton"
 
 export default async function PlatformAdminsPage() {
   const session = await getSession()
+  const currentUserId = (session?.user as any)?.id
   const isOwner = (session?.user as any)?.role === "owner"
 
   const admins = await db.platformAdmin.findMany({
@@ -34,6 +36,7 @@ export default async function PlatformAdminsPage() {
                 <th className="h-12 px-4 text-left align-middle font-medium text-text-secondary">Status</th>
                 <th className="h-12 px-4 text-left align-middle font-medium text-text-secondary">Last Login</th>
                 <th className="h-12 px-4 text-left align-middle font-medium text-text-secondary">Created</th>
+                {isOwner && <th className="h-12 px-4 text-right align-middle font-medium text-text-secondary">Actions</th>}
               </tr>
             </thead>
             <tbody className="[&_tr:last-child]:border-0">
@@ -72,6 +75,15 @@ export default async function PlatformAdminsPage() {
                     <td className="p-4 align-middle text-text-secondary">
                       {format(new Date(admin.createdAt), "MMM d, yyyy")}
                     </td>
+                    {isOwner && (
+                      <td className="p-4 align-middle text-right">
+                        <DeleteAdminButton 
+                          adminId={admin.id} 
+                          adminEmail={admin.email} 
+                          currentAdminId={currentUserId}
+                        />
+                      </td>
+                    )}
                   </tr>
                 )
               })}

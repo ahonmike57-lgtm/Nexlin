@@ -179,3 +179,42 @@ export async function completeAdminSignup(data: {
     return { success: false, error: error.message || "Failed to complete admin signup." }
   }
 }
+
+export async function deletePlatformAdmin(adminId: string) {
+  try {
+    const session = await getSession()
+    if (!session || !session.user || !(session.user as any).isPlatformAdmin) {
+      return { success: false, error: "Unauthorized. Platform admin access required." }
+    }
+
+    const currentRole = (session.user as any).role
+    if (currentRole !== "owner") {
+      return { success: false, error: "Only platform owners can delete admin accounts." }
+    }
+
+    const currentAdminId = (session.user as any).id
+    if (currentAdminId && currentAdminId === adminId) {
+      return { success: false, error: "You cannot delete your own admin account." }
+    }
+
+    const targetAdmin = await db.platformAdmin.findUnique({
+      where: { id: adminId }
+    })
+
+    if (!targetAdmin) {
+      return { success: false, error: "Admin account not found." }
+    }
+
+    await db.platformAdmin.delete({
+      where: { id: adminId }
+    })
+
+    revalidatePath("/platform/admins")
+
+    return { success: true }
+  } catch (error: any) {
+    console.error("Delete platform admin error:", error)
+    return { success: false, error: error.message || "Failed to delete platform admin." }
+  }
+}
+
