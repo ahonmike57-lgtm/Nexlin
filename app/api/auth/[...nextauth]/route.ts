@@ -7,6 +7,7 @@ import { db } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET || "nexlin-production-auth-secret-key-2026",
   adapter: PrismaAdapter(db) as any,
   providers: [
     GoogleProvider({
