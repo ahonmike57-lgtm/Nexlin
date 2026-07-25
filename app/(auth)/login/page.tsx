@@ -34,13 +34,8 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/session")
       const session = await res.json()
       
-      if (session?.user?.isPlatformAdmin) {
-        router.push("/platform")
-      } else {
-        router.push("/dashboard")
-      }
-      
-      router.refresh()
+      const targetPath = session?.user?.isPlatformAdmin ? "/platform" : "/dashboard"
+      window.location.href = targetPath
     }
   }
 
