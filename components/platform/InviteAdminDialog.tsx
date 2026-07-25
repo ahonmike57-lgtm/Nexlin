@@ -138,8 +138,18 @@ export function InviteAdminDialog({ isOwner }: InviteAdminDialogProps) {
               </div>
 
               <div className="pt-2 border-t border-border">
-                <div className="text-xs font-semibold text-text-secondary mb-1 flex items-center gap-1">
-                  <ExternalLink className="w-3.5 h-3.5 text-primary" /> Direct Signup Link
+                <div className="text-xs font-semibold text-text-secondary mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <ExternalLink className="w-3.5 h-3.5 text-primary" /> Direct Acceptance URL
+                  </span>
+                  <a
+                    href={createdInvite.acceptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                  >
+                    Open Page <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded-lg bg-bg-primary border border-border gap-2">
                   <input
@@ -151,10 +161,11 @@ export function InviteAdminDialog({ isOwner }: InviteAdminDialogProps) {
                   <button
                     type="button"
                     onClick={() => copyToClipboard(createdInvite.acceptUrl, "link")}
-                    className="p-1.5 rounded-md hover:bg-bg-secondary text-text-secondary hover:text-text-primary transition-colors shrink-0"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-bg-secondary hover:bg-border text-xs text-text-primary font-medium transition-colors shrink-0"
                     title="Copy Link"
                   >
-                    {copiedLink ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedLink ? "Copied" : "Copy"}
                   </button>
                 </div>
               </div>

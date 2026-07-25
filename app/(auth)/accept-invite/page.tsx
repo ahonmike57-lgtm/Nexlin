@@ -26,14 +26,17 @@ function AcceptInviteContent() {
   const [name, setName] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-
   const [isCompleted, setIsCompleted] = useState(false)
 
+  // Sync state if URL query parameters update
   useEffect(() => {
+    if (initialEmail) setEmail(initialEmail)
+    if (initialCode) setCode(initialCode)
+
     if (initialEmail && initialCode) {
       handleVerifyCode(initialEmail, initialCode)
     }
-  }, [])
+  }, [initialEmail, initialCode])
 
   const handleVerifyCode = async (verifyEmail?: string, verifyCode?: string) => {
     const e = verifyEmail || email
