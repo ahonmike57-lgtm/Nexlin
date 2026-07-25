@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { requirePlatformAuth } from "@/lib/permissions"
+import { revalidatePath } from "next/cache"
 
 const DEFAULT_FLAGS = [
   {

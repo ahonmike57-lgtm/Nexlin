@@ -106,6 +106,17 @@ export async function requireTenantAuth(requiredRole: TenantRole = "user") {
 }
 
 /**
+ * Backward-compatible helper for legacy server actions checking tenant permission.
+ */
+export async function checkPermission(agencyId?: string, roleRequired?: string): Promise<boolean> {
+  const reqRole = roleRequired && roleRequired.toLowerCase().includes("admin") ? "admin" : "user"
+  const auth = await requireTenantAuth(reqRole)
+  if (!auth.authorized) return false
+  if (agencyId && auth.agencyId !== agencyId) return false
+  return true
+}
+
+/**
  * Log an impersonation start event to the audit trail
  */
 export async function logImpersonationStart(data: {
