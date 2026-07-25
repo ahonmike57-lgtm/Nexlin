@@ -12,9 +12,9 @@ export async function logTenantActivity(action: string, entityType: string, enti
       data: {
         userId: auth.userId,
         action,
-        entityType,
-        entityId: entityId || null,
-        details: details || null,
+        entity: entityType,
+        entityId: entityId || "",
+        details: details || "",
       }
     })
   } catch (e) {
