@@ -7,14 +7,14 @@ export default async function PlatformLayout({
 }: {
   children: React.ReactNode
 }) {
+  const session = await getSession()
+
+  // Strict role protection: Must be a logged-in platform admin
+  if (!session || !session.user || !(session.user as any).isPlatformAdmin) {
+    redirect("/login")
+  }
+
   try {
-    const session = await getSession()
-
-    // Strict role protection: Must be a logged-in platform admin
-    if (!session || !session.user || !(session.user as any).isPlatformAdmin) {
-      redirect("/login")
-    }
-
     return (
       <div className="flex h-screen bg-bg-secondary overflow-hidden text-text-primary">
         <aside className="w-64 bg-bg-primary border-r border-border flex flex-col z-10 hidden md:flex">
@@ -37,7 +37,7 @@ export default async function PlatformLayout({
       </div>
     )
   } catch (e: any) {
-    if (e.message && e.message === "NEXT_REDIRECT") throw e; // Let Next.js handle redirects
+    if (e?.digest?.includes("NEXT_REDIRECT") || e?.message?.includes("NEXT_REDIRECT")) throw e; // Let Next.js handle redirects
 
     return (
       <div className="p-8 bg-error/10 text-error border border-error/20 rounded-xl h-screen flex flex-col items-center justify-center">

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { getSystemDebugLogs } from "@/app/actions/debug"
 import { getTenants } from "@/app/actions/tenants"
 import { DebugHubClient } from "./DebugHubClient"
