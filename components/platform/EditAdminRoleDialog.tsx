@@ -72,10 +72,11 @@ export function EditAdminRoleDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
-          className="p-1 text-text-secondary hover:text-text-primary rounded-md transition-colors"
+          className="px-2.5 py-1 text-xs font-semibold bg-bg-secondary hover:bg-primary/10 hover:text-primary text-text-primary border border-border rounded-lg transition-colors flex items-center gap-1.5"
           title="Edit Admin Settings"
         >
-          <Settings className="w-4 h-4" />
+          <Settings className="w-3.5 h-3.5" />
+          Edit Role
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-bg-primary text-text-primary border-border">
