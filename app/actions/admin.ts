@@ -207,3 +207,51 @@ export async function deletePlatformAdmin(adminId: string) {
   }
 }
 
+export async function updatePlatformAdminRole(adminId: string, newRole: string) {
+  try {
+    const auth = await requirePlatformAuth(["owner"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error }
+    }
+
+    if (auth.admin.id === adminId && newRole !== "owner") {
+      return { success: false, error: "You cannot change your own role from Owner." }
+    }
+
+    await db.platformAdmin.update({
+      where: { id: adminId },
+      data: { role: newRole }
+    })
+
+    revalidatePath("/platform/admins")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Update admin role error:", error)
+    return { success: false, error: error.message || "Failed to update admin role." }
+  }
+}
+
+export async function togglePlatformAdminStatus(adminId: string, newStatus: "active" | "suspended") {
+  try {
+    const auth = await requirePlatformAuth(["owner"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error }
+    }
+
+    if (auth.admin.id === adminId) {
+      return { success: false, error: "You cannot suspend your own admin account." }
+    }
+
+    await db.platformAdmin.update({
+      where: { id: adminId },
+      data: { status: newStatus }
+    })
+
+    revalidatePath("/platform/admins")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Toggle admin status error:", error)
+    return { success: false, error: error.message || "Failed to toggle admin status." }
+  }
+}
+

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { format } from "date-fns"
 import { InviteAdminDialog } from "@/components/platform/InviteAdminDialog"
 import { DeleteAdminButton } from "@/components/platform/DeleteAdminButton"
+import { EditAdminRoleDialog } from "@/components/platform/EditAdminRoleDialog"
 
 export default async function PlatformAdminsPage() {
   const session = await getSession()
@@ -76,7 +77,15 @@ export default async function PlatformAdminsPage() {
                       {format(new Date(admin.createdAt), "MMM d, yyyy")}
                     </td>
                     {isOwner && (
-                      <td className="p-4 align-middle text-right">
+                      <td className="p-4 align-middle text-right flex items-center justify-end gap-1">
+                        <EditAdminRoleDialog
+                          adminId={admin.id}
+                          adminName={admin.name || ""}
+                          adminEmail={admin.email}
+                          currentRole={admin.role}
+                          currentStatus={admin.status || "active"}
+                          isSelf={admin.id === currentUserId}
+                        />
                         <DeleteAdminButton 
                           adminId={admin.id} 
                           adminEmail={admin.email} 

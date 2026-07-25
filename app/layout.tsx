@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/Providers"
 import { Toaster } from "sonner";
 import PwaRegister from "@/components/PwaRegister";
+import { ImpersonationBanner } from "@/components/platform/ImpersonationBanner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -32,6 +33,7 @@ export default function RootLayout({
         className={`${inter.variable} ${plusJakartaSans.variable} antialiased`}
       >
         <Providers>
+          <ImpersonationBanner />
           {children}
         </Providers>
         <Toaster position="bottom-right" richColors />
