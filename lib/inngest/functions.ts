@@ -78,22 +78,15 @@ export const cronUsageRebillingSync = (inngest.createFunction as any)(
   { id: "cron-hourly-rebilling-sync" },
   { cron: "0 * * * *" }, // Every hour
   async ({ step }: { step: any }) => {
-    const syncedWallets = await step.run("reconcile-wallets", async () => {
-      const lowWallets = await db.wallet.findMany({
-        where: { autoTopup: true, balance: { lt: 10 } },
-        take: 20
+    const activeAgencies = await step.run("reconcile-agencies", async () => {
+      const agencies = await db.agency.findMany({
+        where: { status: "active" },
+        select: { id: true, name: true, planTier: true }
       })
 
-      for (const w of lowWallets) {
-        await db.wallet.update({
-          where: { id: w.id },
-          data: { balance: { increment: w.topupAmount || 50 } }
-        })
-      }
-
-      return lowWallets.length
+      return agencies.length
     })
 
-    return { success: true, toppedUp: syncedWallets }
+    return { success: true, activeAgencies }
   }
 )
