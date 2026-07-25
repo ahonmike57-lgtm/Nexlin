@@ -50,8 +50,7 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
 )
 
 export const cronReviewRequests = (inngest.createFunction as any)(
-  { id: "cron-daily-review-requests" },
-  { cron: "0 9 * * *" }, // Daily at 9 AM UTC
+  { id: "cron-daily-review-requests", cron: "0 9 * * *" },
   async ({ step }: { step: any }) => {
     const pendingRequests = await step.run("process-review-requests", async () => {
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -75,8 +74,7 @@ export const cronReviewRequests = (inngest.createFunction as any)(
 )
 
 export const cronUsageRebillingSync = (inngest.createFunction as any)(
-  { id: "cron-hourly-rebilling-sync" },
-  { cron: "0 * * * *" }, // Every hour
+  { id: "cron-hourly-rebilling-sync", cron: "0 * * * *" },
   async ({ step }: { step: any }) => {
     const activeAgencies = await step.run("reconcile-agencies", async () => {
       const agencies = await db.agency.findMany({
