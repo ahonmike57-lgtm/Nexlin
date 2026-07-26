@@ -28,7 +28,8 @@ import {
   FileSignature,
   FolderOpen,
   Store,
-  LayoutTemplate
+  LayoutTemplate,
+  Sparkles
 } from "lucide-react"
 
 const sidebarLinks = [
@@ -43,6 +44,7 @@ const sidebarLinks = [
   { href: "/social", label: "Social Planner", icon: Share2 },
   { href: "/ads", label: "Ads Manager", icon: Megaphone },
   { href: "/reputation", label: "Reputation", icon: Star },
+  { href: "/forge", label: "Forge AI Builder", icon: Sparkles },
   { href: "/websites", label: "Websites", icon: LayoutTemplate },
   { href: "/websites/blogs", label: "Blogs & CMS", icon: BookOpen },
   { href: "/funnels", label: "Funnels", icon: Workflow },

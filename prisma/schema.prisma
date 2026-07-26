@@ -76,6 +76,7 @@ model Agency {
   impersonationLogs ImpersonationLog[]
   apiKeys           ApiKey[]
   webhookDeliveries WebhookDelivery[]
+  forgeSites        ForgeSite[]
 }
 
 model SubAgency {
@@ -146,6 +147,7 @@ model Contact {
   reviews         Review[]
   reviewRequests  ReviewRequest[]
   formSubmissions FormSubmission[]
+  forgeLeads      ForgeLead[]
 }
 
 model Deal {
@@ -833,4 +835,80 @@ model WebhookDelivery {
   deliveredAt    DateTime @default(now())
 }
 
+// --- NEXLIN Forge — Conversational AI Website & Funnel Builder ---
 
+model ForgeSite {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  name      String
+  domain    String?  @unique // e.g. dealer.nexlin.site or custom domain
+  status    String   @default("draft") // draft, published, archived
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pages     ForgePage[]
+  funnels   ForgeFunnel[]
+}
+
+model ForgePage {
+  id            String      @id @default(cuid())
+  siteId        String
+  site          ForgeSite   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  slug          String      @default("home")
+  componentTree String      // JSON array of streamed sections & UI blocks
+  seoMeta       String?     // JSON object with title, description, JSON-LD schema
+  version       Int         @default(1)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  generations   ForgeGeneration[]
+}
+
+model ForgeFunnel {
+  id        String    @id @default(cuid())
+  siteId    String
+  site      ForgeSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  name      String
+  steps     String    // JSON array of funnel step mappings (Landing -> Optin -> PreQual -> ThankYou)
+  abTest    String?   // JSON object for A/B variant split testing
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  leads     ForgeLead[]
+}
+
+model ForgeGeneration {
+  id           String     @id @default(cuid())
+  pageId       String?
+  page         ForgePage? @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  prompt       String
+  taskType     String     // layout_generation, copywriting, image_generation, design_critique, seo_metadata
+  modelUsed    String     // e.g. claude-3-5-sonnet, gpt-4o, flux-1-dev
+  outputRef    String?    // JSON or reference output
+  qualityScore Float?     // User feedback rating or visual critique score
+  costUsd      Float?     // Estimated AI API cost
+  latencyMs    Int?       // Execution time in milliseconds
+  createdAt    DateTime   @default(now())
+}
+
+model ForgeModelRegistry {
+  id        String   @id @default(cuid())
+  taskType  String   @unique // layout_generation, copywriting, image_generation, design_critique, seo_metadata
+  provider  String   // anthropic, openai, replicate, fal, google
+  modelName String   // exact API model identifier
+  priority  Int      @default(1)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ForgeLead {
+  id          String      @id @default(cuid())
+  funnelId    String
+  funnel      ForgeFunnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  contactId   String?
+  contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  payload     String      // JSON submitted form payload
+  submittedAt DateTime    @default(now())
+}
