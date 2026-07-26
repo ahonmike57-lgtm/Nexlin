@@ -99,41 +99,45 @@ model SubAgency {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  email         String?    @unique
-  passwordHash  String?
-  name          String?
-  role          String     @default("Business Owner") // Super Admin, Agency Owner, Business Owner, Team Member
-  country       String?
-  isAfricaUser  Boolean    @default(false)
-  agencyId      String?
-  agency        Agency?    @relation(fields: [agencyId], references: [id])
-  subAgencyId   String?
-  subAgency     SubAgency? @relation(fields: [subAgencyId], references: [id])
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  auditLogs     AuditLog[]
-  installedApps TenantApp[]
+  id               String     @id @default(cuid())
+  email            String?    @unique
+  passwordHash     String?
+  name             String?
+  role             String     @default("Business Owner") // Super Admin, Agency Owner, Business Owner, Team Member
+  country          String?
+  isAfricaUser     Boolean    @default(false)
+  agencyId         String?
+  agency           Agency?    @relation(fields: [agencyId], references: [id])
+  subAgencyId      String?
+  subAgency        SubAgency? @relation(fields: [subAgencyId], references: [id])
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  emailVerified    DateTime?
+  image            String?
+  accounts         Account[]
+  sessions         Session[]
+  auditLogs        AuditLog[]
+  installedApps    TenantApp[]
+  assignedContacts Contact[]  @relation("AssignedContacts")
+  assignedDeals    Deal[]     @relation("AssignedDeals")
 }
 
 model Contact {
-  id          String     @id @default(cuid())
-  agencyId    String
-  agency      Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  firstName   String
-  lastName    String?
-  email       String?
-  phone       String?
-  company     String?
-  subAgencyId String?
-  subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
-  leadScore   Int        @default(0)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id            String     @id @default(cuid())
+  agencyId      String
+  agency        Agency     @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  firstName     String
+  lastName      String?
+  email         String?
+  phone         String?
+  company       String?
+  subAgencyId   String?
+  subAgency     SubAgency? @relation(fields: [subAgencyId], references: [id])
+  leadScore     Int        @default(0)
+  assignedRepId String?
+  assignedRep   User?      @relation("AssignedContacts", fields: [assignedRepId], references: [id], onDelete: SetNull)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
   deals           Deal[]
   conversations   Conversation[]
@@ -145,22 +149,24 @@ model Contact {
 }
 
 model Deal {
-  id          String         @id @default(cuid())
-  agencyId    String
-  agency      Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
-  subAgencyId String?
-  subAgency   SubAgency?     @relation(fields: [subAgencyId], references: [id])
-  contactId   String?
-  contact     Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  pipelineId  String?
-  pipeline    Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
-  stageId     String?
-  stageObj    PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
-  title       String
-  value       Float          @default(0)
-  stage       String // Legacy string stage for backward compatibility
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  agencyId      String
+  agency        Agency         @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  subAgencyId   String?
+  subAgency     SubAgency?     @relation(fields: [subAgencyId], references: [id])
+  contactId     String?
+  contact       Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  pipelineId    String?
+  pipeline      Pipeline?      @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  stageId       String?
+  stageObj      PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  title         String
+  value         Float          @default(0)
+  stage         String // Legacy string stage for backward compatibility
+  assignedRepId String?
+  assignedRep   User?          @relation("AssignedDeals", fields: [assignedRepId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Pipeline {

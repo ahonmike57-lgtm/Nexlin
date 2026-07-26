@@ -6,19 +6,29 @@ import { getOrCreateAgency } from "./agency"
 import { getActiveSubAccountId } from "./subaccounts"
 import { generateAiReply } from "./ai"
 
+import { getSession } from "@/lib/auth"
+
 export async function getDeals() {
   try {
     const agencyId = await getOrCreateAgency()
     const subAgencyId = await getActiveSubAccountId()
+    const session = await getSession()
     
     const whereClause: any = { agencyId }
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId
     }
 
+    // Server-side Tenant User Scoping: If user is staff/rep (not owner/admin), scope strictly to deals assigned to them
+    const userRole = (session?.user as any)?.role
+    const userId = (session?.user as any)?.id
+    if (userId && userRole && !userRole.toLowerCase().includes("owner") && !userRole.toLowerCase().includes("admin")) {
+      whereClause.assignedRepId = userId
+    }
+
     const deals = await db.deal.findMany({
       where: whereClause,
-      include: { contact: true },
+      include: { contact: true, assignedRep: { select: { id: true, name: true, email: true } } },
       orderBy: { updatedAt: 'desc' }
     })
     return { success: true, data: deals }

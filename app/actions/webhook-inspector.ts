@@ -3,6 +3,29 @@
 import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
 
+function sanitizePayload(raw: string): string {
+  try {
+    const obj = JSON.parse(raw)
+    const maskSensitive = (item: any): any => {
+      if (typeof item !== "object" || item === null) return item
+      const copy: any = Array.isArray(item) ? [] : {}
+      for (const [key, val] of Object.entries(item)) {
+        if (/password|secret|token|apiKey|authorization|credit_card|ssn/i.test(key) && typeof val === "string") {
+          copy[key] = "••••••••"
+        } else if (typeof val === "object" && val !== null) {
+          copy[key] = maskSensitive(val)
+        } else {
+          copy[key] = val
+        }
+      }
+      return copy
+    }
+    return JSON.stringify(maskSensitive(obj))
+  } catch (e) {
+    return raw
+  }
+}
+
 export async function getWebhookDeliveries() {
   const auth = await requireTenantAuth("user")
   if (!auth.authorized || !auth.agencyId) {
@@ -10,11 +33,17 @@ export async function getWebhookDeliveries() {
   }
 
   try {
-    const deliveries = await db.webhookDelivery.findMany({
+    const rawDeliveries = await db.webhookDelivery.findMany({
       where: { agencyId: auth.agencyId },
       take: 50,
       orderBy: { deliveredAt: "desc" }
     })
+
+    const deliveries = rawDeliveries.map(d => ({
+      ...d,
+      payload: sanitizePayload(d.payload),
+      responseBody: sanitizePayload(d.responseBody)
+    }))
 
     return { success: true, deliveries }
   } catch (error: any) {

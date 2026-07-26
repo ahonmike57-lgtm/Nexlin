@@ -125,3 +125,71 @@ export async function createTenant(data: {
     return { success: false, error: error.message || "Failed to create tenant" }
   }
 }
+
+export async function reassignTenantAdmin(data: {
+  agencyId: string
+  newAdminEmail: string
+  newAdminName: string
+  reason: string
+}) {
+  try {
+    const auth = await requirePlatformAuth(["owner", "support"])
+    if (!auth.authorized) {
+      return { success: false, error: auth.error }
+    }
+
+    const cleanEmail = data.newAdminEmail.trim().toLowerCase()
+    if (!cleanEmail || !data.reason.trim()) {
+      return { success: false, error: "New admin email and justification reason are required." }
+    }
+
+    const agency = await db.agency.findUnique({
+      where: { id: data.agencyId }
+    })
+
+    if (!agency) {
+      return { success: false, error: "Tenant agency not found." }
+    }
+
+    // 1. Audit Log Break-Glass Action
+    await db.impersonationLog.create({
+      data: {
+        adminEmail: auth.admin.email,
+        adminRole: auth.role,
+        agencyId: agency.id,
+        reason: `[BREAK-GLASS ADMIN REASSIGNMENT] Reassigned owner to ${cleanEmail}. Justification: ${data.reason.trim()}`
+      }
+    })
+
+    // 2. Check if user already exists for this email
+    let user = await db.user.findUnique({ where: { email: cleanEmail } })
+
+    if (user) {
+      // Elevate existing user to Agency Owner and link to this tenant agency
+      await db.user.update({
+        where: { id: user.id },
+        data: {
+          agencyId: agency.id,
+          role: "Agency Owner",
+          name: data.newAdminName.trim() || user.name
+        }
+      })
+    } else {
+      // Create new Agency Owner user
+      await db.user.create({
+        data: {
+          email: cleanEmail,
+          name: data.newAdminName.trim() || "Agency Owner",
+          role: "Agency Owner",
+          agencyId: agency.id
+        }
+      })
+    }
+
+    revalidatePath("/platform/tenants")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Reassign tenant admin error:", error)
+    return { success: false, error: error.message || "Failed to reassign tenant admin" }
+  }
+}

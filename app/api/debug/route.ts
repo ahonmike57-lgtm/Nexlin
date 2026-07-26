@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const auth = await requirePlatformAuth(["owner", "developer", "support"])
+    const auth = await requirePlatformAuth(["owner", "developer"])
     if (!auth.authorized) {
       return NextResponse.json({ success: false, error: auth.error }, { status: 403 })
     }

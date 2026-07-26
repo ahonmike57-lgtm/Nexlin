@@ -2,6 +2,7 @@ import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 import { ImpersonateButton } from "@/components/platform/ImpersonateButton"
 import { CreateTenantDialog } from "@/components/platform/CreateTenantDialog"
+import { ReassignAdminDialog } from "@/components/platform/ReassignAdminDialog"
 import { format } from "date-fns"
 
 export default async function PlatformTenantsPage() {
@@ -65,7 +66,8 @@ export default async function PlatformTenantsPage() {
                   <td className="p-4 align-middle text-text-secondary">
                     {format(new Date(tenant.createdAt), "MMM d, yyyy")}
                   </td>
-                  <td className="p-4 align-middle text-right">
+                  <td className="p-4 align-middle text-right flex items-center justify-end gap-2">
+                    <ReassignAdminDialog agencyId={tenant.id} tenantName={tenant.name} />
                     <ImpersonateButton tenantId={tenant.id} tenantName={tenant.name} />
                   </td>
                 </tr>

@@ -6,19 +6,30 @@ import { getOrCreateAgency } from "./agency"
 import { triggerWorkflows } from "./workflow-engine"
 import { getActiveSubAccountId } from "./subaccounts"
 
+import { getSession } from "@/lib/auth"
+
 export async function getContacts() {
   try {
     const agencyId = await getOrCreateAgency()
     const subAgencyId = await getActiveSubAccountId()
+    const session = await getSession()
     
     const whereClause: any = { agencyId }
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId
     }
 
+    // Server-side Tenant User Scoping: If user is staff/rep (not owner/admin), scope strictly to leads assigned to them
+    const userRole = (session?.user as any)?.role
+    const userId = (session?.user as any)?.id
+    if (userId && userRole && !userRole.toLowerCase().includes("owner") && !userRole.toLowerCase().includes("admin")) {
+      whereClause.assignedRepId = userId
+    }
+
     const contacts = await db.contact.findMany({
       where: whereClause,
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: { assignedRep: { select: { id: true, name: true, email: true } } }
     })
     return { success: true, data: contacts }
   } catch (error) {

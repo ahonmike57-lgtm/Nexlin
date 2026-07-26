@@ -5,7 +5,7 @@ import { requirePlatformAuth } from "@/lib/permissions"
 
 export async function getSystemDebugLogs() {
   try {
-    const auth = await requirePlatformAuth(["owner", "developer", "support"])
+    const auth = await requirePlatformAuth(["owner", "developer"])
     if (!auth.authorized) {
       return { success: false, error: auth.error }
     }
@@ -50,7 +50,7 @@ export async function getSystemDebugLogs() {
 
 export async function getTenantInspectionDetails(agencyId: string) {
   try {
-    const auth = await requirePlatformAuth(["owner", "developer", "support"])
+    const auth = await requirePlatformAuth(["owner", "developer"])
     if (!auth.authorized) {
       return { success: false, error: auth.error }
     }
@@ -72,6 +72,14 @@ export async function getTenantInspectionDetails(agencyId: string) {
       return { success: false, error: "Tenant not found" }
     }
 
+    // Mask AI API keys and sensitive tokens before returning to client
+    if (agency.aiSettings) {
+      agency.aiSettings = agency.aiSettings.map(s => ({
+        ...s,
+        apiKey: s.apiKey ? "••••••••" + s.apiKey.slice(-4) : "••••••••"
+      }))
+    }
+
     return { success: true, agency }
   } catch (error: any) {
     console.error("Get tenant inspection error:", error)
@@ -81,7 +89,7 @@ export async function getTenantInspectionDetails(agencyId: string) {
 
 export async function exportAuditLogs(logType: "impersonation" | "usage") {
   try {
-    const auth = await requirePlatformAuth(["owner", "developer", "support"])
+    const auth = await requirePlatformAuth(["owner", "developer"])
     if (!auth.authorized) {
       return { success: false, error: auth.error }
     }
