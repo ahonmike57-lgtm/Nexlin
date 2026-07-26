@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
 import MarketplaceClient from "./MarketplaceClient"
+import { TOP_30_MARKETPLACE_APPS } from "@/lib/marketplace-apps-seed"
 
 export default async function MarketplacePage() {
   const session = await getSession()
@@ -11,46 +12,35 @@ export default async function MarketplacePage() {
     redirect("/login")
   }
 
-  // Fetch apps and tenant installs
-  let apps = await db.app.findMany()
+  // Ensure all 30 top necessary apps exist in the database
+  let apps = await db.app.findMany({ orderBy: { sortOrder: "asc" } })
   
-  if (apps.length === 0) {
-    const mockApps = [
-      {
-        id: "stripe-sync",
-        name: "Stripe Sync",
-        category: "Payments",
-        description: "Deeply integrate Stripe payments and subscriptions into Nexlin CRM.",
-        installType: "oauth",
-        configSchema: "{}",
-      },
-      {
-        id: "elevenlabs-voice",
-        name: "ElevenLabs Voice Agents",
-        category: "AI",
-        description: "Deploy ultra-realistic AI voice agents for inbound and outbound calling.",
-        installType: "apikey",
-        configSchema: "{}",
-      },
-      {
-        id: "twilio-connect",
-        name: "Twilio Connect",
-        category: "Communication",
-        description: "Send automated SMS and handle A2P 10DLC compliance automatically.",
-        installType: "apikey",
-        configSchema: "{}",
-      },
-      {
-        id: "openai-copilot",
-        name: "OpenAI Workflow Copilot",
-        category: "AI",
-        description: "Bring GPT-4 directly into your pipeline automations and chat inbox.",
-        installType: "apikey",
-        configSchema: "{}",
-      }
-    ]
-    await db.app.createMany({ data: mockApps })
-    apps = await db.app.findMany()
+  if (apps.length < 30) {
+    for (const appData of TOP_30_MARKETPLACE_APPS) {
+      await db.app.upsert({
+        where: { id: appData.id },
+        update: {
+          name: appData.name,
+          category: appData.category,
+          tagline: appData.tagline,
+          description: appData.description,
+          installType: appData.installType,
+          badge: appData.badge,
+          sortOrder: appData.sortOrder
+        },
+        create: {
+          id: appData.id,
+          name: appData.name,
+          category: appData.category,
+          tagline: appData.tagline,
+          description: appData.description,
+          installType: appData.installType,
+          badge: appData.badge,
+          sortOrder: appData.sortOrder
+        }
+      })
+    }
+    apps = await db.app.findMany({ orderBy: { sortOrder: "asc" } })
   }
   
   const { getOrCreateAgency } = await import("@/app/actions/agency")
@@ -66,4 +56,3 @@ export default async function MarketplacePage() {
     agencyId={agencyId} 
   />
 }
-
