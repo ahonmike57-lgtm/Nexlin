@@ -154,6 +154,7 @@ export async function reassignTenantAdmin(data: {
     // 1. Audit Log Break-Glass Action
     await db.impersonationLog.create({
       data: {
+        adminId: auth.admin.id,
         adminEmail: auth.admin.email,
         adminRole: auth.role,
         agencyId: agency.id,

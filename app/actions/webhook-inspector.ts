@@ -42,7 +42,7 @@ export async function getWebhookDeliveries() {
     const deliveries = rawDeliveries.map(d => ({
       ...d,
       payload: sanitizePayload(d.payload),
-      responseBody: sanitizePayload(d.responseBody)
+      responseBody: sanitizePayload(d.responseBody || "")
     }))
 
     return { success: true, deliveries }
