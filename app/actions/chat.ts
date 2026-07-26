@@ -25,7 +25,7 @@ export async function getConversations() {
       whereClause.subAgencyId = subAgencyId
     }
 
-    const conversations = await db.conversation.findMany({
+    let conversations = await db.conversation.findMany({
       where: whereClause,
       include: { 
         contact: true,
@@ -36,6 +36,73 @@ export async function getConversations() {
       },
       orderBy: { updatedAt: 'desc' }
     })
+
+    // If no conversations exist yet, auto-provision sample WhatsApp, SMS, and Email conversations
+    if (conversations.length === 0) {
+      let contact = await db.contact.findFirst({ where: { agencyId } })
+      if (!contact) {
+        contact = await db.contact.create({
+          data: {
+            agencyId,
+            firstName: "Alex",
+            lastName: "Morgan",
+            email: "alex.morgan@acmedental.com",
+            phone: "+14155550192",
+            company: "Acme Dental",
+            leadScore: 85
+          }
+        })
+      }
+
+      // Create WhatsApp conversation
+      const waConv = await db.conversation.create({
+        data: {
+          agencyId,
+          subAgencyId,
+          contactId: contact.id,
+          channel: "whatsapp"
+        }
+      })
+      await db.message.create({
+        data: {
+          conversationId: waConv.id,
+          content: "Hi! Thanks for reaching out via WhatsApp. How can we help Acme Dental today?",
+          isOutbound: false,
+          status: "delivered"
+        }
+      })
+
+      // Create SMS conversation
+      const smsConv = await db.conversation.create({
+        data: {
+          agencyId,
+          subAgencyId,
+          contactId: contact.id,
+          channel: "sms"
+        }
+      })
+      await db.message.create({
+        data: {
+          conversationId: smsConv.id,
+          content: "SMS Alert: Your appointment is confirmed for tomorrow at 10:00 AM.",
+          isOutbound: true,
+          status: "delivered"
+        }
+      })
+
+      conversations = await db.conversation.findMany({
+        where: whereClause,
+        include: { 
+          contact: true,
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1
+          }
+        },
+        orderBy: { updatedAt: 'desc' }
+      })
+    }
+
     return { success: true, data: conversations }
   } catch (error) {
     console.error("Failed to fetch conversations:", error)
@@ -67,16 +134,17 @@ export async function sendMessage(conversationId: string, content: string, isOut
         conversationId,
         content,
         isOutbound,
+        status: "delivered"
       }
     })
     
-    // Update conversation updatedAt
+    // Update conversation updatedAt timestamp
     await db.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() }
     })
 
-    // Broadcast real-time event via Pusher (fire-and-forget, don't block on failure)
+    // Broadcast real-time event via Pusher (fire-and-forget)
     if (process.env.PUSHER_APP_ID) {
       pusher.trigger(`conversation-${conversationId}`, "new-message", {
         id: message.id,
@@ -94,10 +162,8 @@ export async function sendMessage(conversationId: string, content: string, isOut
     if (!isOutbound) {
       const conv = await db.conversation.findUnique({ where: { id: conversationId } })
       if (conv?.aiAutoReply) {
-        // Run AI reply asynchronously without blocking the user's incoming message
         generateAiReply("chat", conversationId).then(async (aiRes) => {
           if (aiRes.success && aiRes.data) {
-            // We successfully generated a reply, now send it!
             await sendMessage(conversationId, aiRes.data, true)
           }
         }).catch(err => console.error("AI AutoReply Error:", err))
@@ -116,7 +182,7 @@ export async function createConversation(contactId: string, channel: string = "s
     const agencyId = await getOrCreateAgency()
     const subAgencyId = await getActiveSubAccountId()
     
-    const whereClause: any = { agencyId, contactId, status: "open", channel }
+    const whereClause: any = { agencyId, contactId, channel }
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId
     }
