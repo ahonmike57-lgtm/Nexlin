@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { CreateAppDialog } from "@/components/platform/CreateAppDialog"
 import Image from "next/image"
 
 export default async function PlatformAppsPage() {
@@ -13,11 +14,14 @@ export default async function PlatformAppsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-text-primary">Marketplace Analytics</h1>
-        <p className="text-text-secondary">
-          Global overview of app installations across all tenants.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-text-primary">Marketplace Management</h1>
+          <p className="text-text-secondary">
+            Register apps, configure API scope credentials, and track global installation analytics.
+          </p>
+        </div>
+        <CreateAppDialog />
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
