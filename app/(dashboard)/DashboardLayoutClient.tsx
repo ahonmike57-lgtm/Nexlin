@@ -44,6 +44,7 @@ const sidebarLinks = [
   { href: "/ads", label: "Ads Manager", icon: Megaphone },
   { href: "/reputation", label: "Reputation", icon: Star },
   { href: "/websites", label: "Websites", icon: LayoutTemplate },
+  { href: "/websites/blogs", label: "Blogs & CMS", icon: BookOpen },
   { href: "/funnels", label: "Funnels", icon: Workflow },
   { href: "/forms", label: "Forms & Surveys", icon: FileSignature },
   { href: "/media", label: "Media Library", icon: FolderOpen },

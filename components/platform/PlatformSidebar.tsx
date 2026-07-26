@@ -37,6 +37,11 @@ const routes = [
     icon: ShieldAlert,
     href: "/platform/admins",
   },
+  {
+    label: "Prospecting Audit Scanner",
+    icon: Building,
+    href: "/platform/prospecting",
+  },
 ];
 
 export function PlatformSidebar() {
