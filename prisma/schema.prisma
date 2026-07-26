@@ -616,6 +616,8 @@ model App {
   description  String?
   icon         String?
   installType  String   // "oauth", "apikey", "webhook", "config", "number"
+  redirectUrl  String?  // OAuth Redirect or Embed View URL
+  webhookUrl   String?  // Webhook Listener URL
   configSchema String?  // JSON string
   badge        String?
   isActive     Boolean  @default(true)

@@ -21,6 +21,8 @@ export function CreateAppDialog() {
   const [category, setCategory] = useState("CRM")
   const [author, setAuthor] = useState("")
   const [icon, setIcon] = useState("")
+  const [redirectUrl, setRedirectUrl] = useState("")
+  const [webhookUrl, setWebhookUrl] = useState("")
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,7 +34,9 @@ export function CreateAppDialog() {
       description,
       category,
       icon,
-      installType: "oauth"
+      installType: "oauth",
+      redirectUrl,
+      webhookUrl,
     })
 
     if (res.success) {
@@ -40,7 +44,8 @@ export function CreateAppDialog() {
       setOpen(false)
       setName("")
       setDescription("")
-      setAuthor("")
+      setRedirectUrl("")
+      setWebhookUrl("")
       setIcon("")
     } else {
       toast.error(res.error || "Failed to register app")
@@ -102,11 +107,20 @@ export function CreateAppDialog() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">Developer / Author Name</label>
+            <label className="text-sm font-medium">OAuth Redirect / Embed URL</label>
             <Input
-              placeholder="e.g. Acme Dev Team"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
+              placeholder="https://myapp.com/oauth/callback"
+              value={redirectUrl}
+              onChange={(e) => setRedirectUrl(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Webhook Event Listener URL</label>
+            <Input
+              placeholder="https://myapp.com/webhooks/nexlin"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
             />
           </div>
 

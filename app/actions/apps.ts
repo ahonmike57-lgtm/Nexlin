@@ -11,6 +11,8 @@ export async function createMarketplaceApp(data: {
   icon?: string
   installType?: string
   tagline?: string
+  redirectUrl?: string
+  webhookUrl?: string
 }) {
   try {
     const auth = await requirePlatformAuth(["owner", "developer"])
@@ -41,6 +43,8 @@ export async function createMarketplaceApp(data: {
         installType: data.installType || "oauth",
         tagline: data.tagline || data.description.trim().slice(0, 80),
         icon: data.icon || null,
+        redirectUrl: data.redirectUrl || null,
+        webhookUrl: data.webhookUrl || null,
         isActive: true,
       }
     })
