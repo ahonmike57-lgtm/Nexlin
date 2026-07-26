@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Filter, Download, MoreHorizontal, Mail, Phone, Flame } from "lucide-react"
 import AddContactModal from "./AddContactModal"
+import { MergeContactsDialog } from "@/components/crm/MergeContactsDialog"
+import { PowerDialer } from "@/components/crm/PowerDialer"
 
 const getScoreColor = (score: number) => {
   if (score >= 80) return "text-red-500 bg-red-500/10 border-red-500/20";
@@ -35,7 +37,9 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
           <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
           <p className="text-text-secondary">Manage your leads and customers ({initialContacts.length} total).</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <PowerDialer contacts={initialContacts} />
+          <MergeContactsDialog />
           <Button variant="outline"><Download className="w-4 h-4 mr-2" /> Export</Button>
           <AddContactModal />
         </div>

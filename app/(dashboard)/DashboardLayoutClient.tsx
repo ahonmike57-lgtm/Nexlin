@@ -64,6 +64,8 @@ const LINK_FEATURE_MAP: Record<string, string> = {
   "/voice": "voice_ai",
 }
 
+import { AskAiCommandBar } from "@/components/AskAiCommandBar"
+
 export default function DashboardLayoutClient({ children, agency, featureFlags = [] }: { children: ReactNode, agency?: any, featureFlags?: any[] }) {
   const pathname = usePathname()
   const { data: session } = useSession()
@@ -103,12 +105,10 @@ export default function DashboardLayoutClient({ children, agency, featureFlags =
             const featureKey = LINK_FEATURE_MAP[link.href]
             const flag = featureFlags.find((f: any) => f.key === featureKey)
 
-            // 1. If feature is disabled globally by platform admin, hide it
             if (flag && !flag.isEnabledGlobal) {
               return null
             }
 
-            // 2. Check tier restriction
             const allowedTiers = flag?.enabledTiers ? flag.enabledTiers.split(",").map((t: string) => t.trim().toLowerCase()) : []
             const isTierLocked = flag && allowedTiers.length > 0 && !allowedTiers.includes(agencyTier)
 
@@ -159,8 +159,8 @@ export default function DashboardLayoutClient({ children, agency, featureFlags =
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar */}
         <header className="h-16 bg-bg-primary border-b border-border flex items-center justify-between px-6 z-[50] relative">
-          <div className="flex-1 max-w-md">
-            <div className="relative">
+          <div className="flex-1 max-w-md flex items-center gap-3">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
               <input 
                 type="text" 
@@ -168,6 +168,7 @@ export default function DashboardLayoutClient({ children, agency, featureFlags =
                 className="w-full pl-9 pr-4 py-2 bg-bg-secondary border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
               />
             </div>
+            <AskAiCommandBar />
           </div>
           
           <div className="flex items-center gap-4">
