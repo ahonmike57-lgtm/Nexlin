@@ -101,6 +101,13 @@ export async function createTenant(data: {
       platform = await db.platform.create({ data: { name: "NEXLIN GHL" } })
     }
 
+    // Generate a one-time temporary password — returned once to the Platform Owner
+    // New tenant must change it on first login via the forgot-password flow
+    const crypto = (await import("crypto")).default
+    const bcrypt = (await import("bcryptjs")).default
+    const tempPassword = crypto.randomBytes(10).toString("hex") // 20-char hex
+    const passwordHash = await bcrypt.hash(tempPassword, 12)
+
     const agency = await db.agency.create({
       data: {
         platformId: platform.id,
@@ -113,13 +120,14 @@ export async function createTenant(data: {
             email: cleanEmail,
             name: data.ownerName.trim() || "Agency Owner",
             role: "Agency Owner",
+            passwordHash,
           }
         }
       }
     })
 
     revalidatePath("/platform/tenants")
-    return { success: true, agency }
+    return { success: true, agency, tempPassword }
   } catch (error: any) {
     console.error("Create tenant error:", error)
     return { success: false, error: error.message || "Failed to create tenant" }
@@ -133,7 +141,8 @@ export async function reassignTenantAdmin(data: {
   reason: string
 }) {
   try {
-    const auth = await requirePlatformAuth(["owner", "support"])
+    // Break-glass: OWNER ONLY. Support cannot reassign without an Owner performing this action.
+    const auth = await requirePlatformAuth(["owner"])
     if (!auth.authorized) {
       return { success: false, error: auth.error }
     }

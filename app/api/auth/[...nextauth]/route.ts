@@ -37,9 +37,9 @@ export const authOptions: NextAuthOptions = {
         })
         
         if (admin && admin.passwordHash) {
-          const bcryptMatch = await bcrypt.compare(credentials.password, admin.passwordHash).catch(() => false)
-          const isValid = bcryptMatch || admin.passwordHash === credentials.password
-          const isActive = !admin.status || admin.status === "active"
+          // Only bcrypt comparison is accepted — plaintext fallback removed intentionally
+          const isValid = await bcrypt.compare(credentials.password, admin.passwordHash).catch(() => false)
+          const isActive = admin.status === "active"
 
           if (isValid && isActive) {
             await db.platformAdmin.update({
@@ -66,8 +66,8 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        const bcryptMatchUser = await bcrypt.compare(credentials.password, user.passwordHash).catch(() => false)
-        const isValidUser = bcryptMatchUser || credentials.password === user.passwordHash
+        // Only bcrypt comparison is accepted — plaintext fallback removed intentionally
+        const isValidUser = await bcrypt.compare(credentials.password, user.passwordHash).catch(() => false)
 
         if (isValidUser) {
           return { 

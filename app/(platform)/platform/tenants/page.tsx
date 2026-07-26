@@ -1,5 +1,6 @@
-import { db } from "@/lib/db"
+import { getTenants } from "@/app/actions/tenants"
 import { getSession } from "@/lib/auth"
+import { redirect } from "next/navigation"
 import { ImpersonateButton } from "@/components/platform/ImpersonateButton"
 import { CreateTenantDialog } from "@/components/platform/CreateTenantDialog"
 import { ReassignAdminDialog } from "@/components/platform/ReassignAdminDialog"
@@ -7,16 +8,16 @@ import { format } from "date-fns"
 
 export default async function PlatformTenantsPage() {
   const session = await getSession()
-  const isOwner = (session?.user as any)?.role === "owner"
+  const userRole = (session?.user as any)?.role
+  const isOwner = userRole === "owner"
 
-  const tenants = await db.agency.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      users: {
-        where: { role: "admin" } // Show the primary admin/owner if possible
-      }
-    }
-  })
+  // Route through the auth-gated server action — not a raw db call
+  const result = await getTenants()
+  if (!result.success) {
+    redirect("/platform")
+  }
+
+  const tenants = result.tenants || []
 
   return (
     <div className="space-y-6">
@@ -27,7 +28,7 @@ export default async function PlatformTenantsPage() {
             Manage all registered agencies on the platform.
           </p>
         </div>
-        <CreateTenantDialog isOwner={isOwner} />
+        {isOwner && <CreateTenantDialog isOwner={isOwner} />}
       </div>
 
       <div className="rounded-xl border border-border bg-bg-primary shadow-sm">
@@ -43,7 +44,7 @@ export default async function PlatformTenantsPage() {
               </tr>
             </thead>
             <tbody className="[&_tr:last-child]:border-0">
-              {tenants.map((tenant) => (
+              {tenants.map((tenant: any) => (
                 <tr key={tenant.id} className="border-b border-border transition-colors hover:bg-bg-secondary/50">
                   <td className="p-4 align-middle">
                     <div className="font-medium text-text-primary">{tenant.name}</div>
@@ -67,7 +68,8 @@ export default async function PlatformTenantsPage() {
                     {format(new Date(tenant.createdAt), "MMM d, yyyy")}
                   </td>
                   <td className="p-4 align-middle text-right flex items-center justify-end gap-2">
-                    <ReassignAdminDialog agencyId={tenant.id} tenantName={tenant.name} />
+                    {/* Only platform owners can perform break-glass reassignment */}
+                    {isOwner && <ReassignAdminDialog agencyId={tenant.id} tenantName={tenant.name} />}
                     <ImpersonateButton tenantId={tenant.id} tenantName={tenant.name} />
                   </td>
                 </tr>

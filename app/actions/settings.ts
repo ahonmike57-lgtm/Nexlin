@@ -2,14 +2,20 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 import { getActiveSubAccountId } from "./subaccounts"
-import { checkPermission } from "@/lib/permissions"
 
-export async function getAgencyBranding(agencyId: string) {
+// ─── Branding ───────────────────────────────────────────────────────────────
+
+export async function getAgencyBranding() {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     const agency = await db.agency.findUnique({
-      where: { id: agencyId },
+      where: { id: auth.agencyId },       // always from session
       select: {
         name: true,
         logoUrl: true,
@@ -27,15 +33,24 @@ export async function getAgencyBranding(agencyId: string) {
   }
 }
 
-export async function updateAgencyBranding(agencyId: string, branding: any) {
-  try {
-    await checkPermission(agencyId, "Agency Admin")
+export async function updateAgencyBranding(branding: {
+  logoUrl?: string
+  colors?: any
+  customDomain?: string
+  whiteLabelName?: string
+  loginBackgroundImage?: string
+}) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
     const updated = await db.agency.update({
-      where: { id: agencyId },
+      where: { id: auth.agencyId },       // always from session
       data: {
         logoUrl: branding.logoUrl,
-        brandColors: JSON.stringify(branding.colors),
+        brandColors: branding.colors ? JSON.stringify(branding.colors) : undefined,
         customDomain: branding.customDomain || null,
         whiteLabelName: branding.whiteLabelName || null,
         loginBackgroundImage: branding.loginBackgroundImage || null
@@ -50,10 +65,17 @@ export async function updateAgencyBranding(agencyId: string, branding: any) {
   }
 }
 
-export async function getTeamMembers(agencyId: string) {
+// ─── Team Members ────────────────────────────────────────────────────────────
+
+export async function getTeamMembers() {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     const subAgencyId = await getActiveSubAccountId()
-    const whereClause: any = { agencyId }
+    const whereClause: any = { agencyId: auth.agencyId }   // always from session
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId
     }
@@ -75,19 +97,30 @@ export async function getTeamMembers(agencyId: string) {
   }
 }
 
-export async function inviteTeamMember(agencyId: string, email: string, role: string) {
-  try {
-    await checkPermission(agencyId, "Agency Admin")
+export async function inviteTeamMember(email: string, role: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
     const subAgencyId = await getActiveSubAccountId()
 
-    // In a real app, this would send an email invite.
-    // For now, we just create a stub user.
+    // Check for duplicate
+    const existing = await db.user.findFirst({
+      where: { email: email.trim().toLowerCase(), agencyId: auth.agencyId }
+    })
+    if (existing) {
+      return { success: false, error: "A team member with this email already exists." }
+    }
+
+    // In production this would send an email invite.
+    // For now we create a stub user with no passwordHash — they must set password via invite link.
     const user = await db.user.create({
       data: {
-        agencyId,
+        agencyId: auth.agencyId,          // always from session
         subAgencyId,
-        email,
+        email: email.trim().toLowerCase(),
         role,
         name: email.split("@")[0]
       }
@@ -101,10 +134,17 @@ export async function inviteTeamMember(agencyId: string, email: string, role: st
   }
 }
 
-export async function getAgencySettings(agencyId: string) {
+// ─── General Settings ────────────────────────────────────────────────────────
+
+export async function getAgencySettings() {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     const agency = await db.agency.findUnique({
-      where: { id: agencyId },
+      where: { id: auth.agencyId },       // always from session
       select: {
         missedCallEnabled: true,
         missedCallMessage: true,
@@ -116,16 +156,21 @@ export async function getAgencySettings(agencyId: string) {
   }
 }
 
-export async function updateMissedCallTextBack(agencyId: string, enabled: boolean, message: string) {
+export async function updateMissedCallTextBack(enabled: boolean, message: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     await db.agency.update({
-      where: { id: agencyId },
+      where: { id: auth.agencyId },       // always from session
       data: {
         missedCallEnabled: enabled,
         missedCallMessage: message,
       }
     })
-    
+
     revalidatePath("/settings")
     return { success: true }
   } catch (error: any) {

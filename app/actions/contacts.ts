@@ -73,9 +73,14 @@ export async function deleteContact(id: string) {
       return { success: false, error: "Insufficient permissions to delete contacts" }
     }
 
-    await db.contact.delete({
-      where: { id }
+    // agencyId scoped — ensures this agency owns the contact before deleting
+    const deleted = await db.contact.deleteMany({
+      where: { id, agencyId }
     })
+
+    if (deleted.count === 0) {
+      return { success: false, error: "Contact not found or access denied" }
+    }
     
     revalidatePath("/crm/contacts")
     return { success: true }

@@ -40,13 +40,20 @@ export async function getDeals() {
 
 export async function updateDealStage(dealId: string, newStage: string) {
   try {
-    const deal = await db.deal.update({
-      where: { id: dealId },
+    const agencyId = await getOrCreateAgency()
+
+    // Scope the update to agencyId — prevents IDOR if a user supplies another tenant's dealId
+    const deal = await db.deal.updateMany({
+      where: { id: dealId, agencyId },
       data: { stage: newStage }
     })
-    
+
+    if (deal.count === 0) {
+      return { success: false, error: "Deal not found or access denied" }
+    }
+
     revalidatePath("/crm/deals")
-    return { success: true, data: deal }
+    return { success: true }
   } catch (error) {
     console.error("Failed to update deal:", error)
     return { success: false, error: "Failed to update deal" }
