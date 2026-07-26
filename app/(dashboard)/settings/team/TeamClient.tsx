@@ -8,7 +8,7 @@ import { Plus, UserPlus, MoreVertical, Mail } from "lucide-react"
 import { inviteTeamMember } from "@/app/actions/settings"
 import { useRouter } from "next/navigation"
 
-export default function TeamClient({ initialTeam, agencyId }: { initialTeam: any[], agencyId: string }) {
+export default function TeamClient({ initialTeam }: { initialTeam: any[] }) {
   const [isInviting, setIsInviting] = useState(false)
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("Team Member")
@@ -19,7 +19,7 @@ export default function TeamClient({ initialTeam, agencyId }: { initialTeam: any
     if (!inviteEmail) return
 
     setIsInviting(true)
-    const res = await inviteTeamMember(agencyId, inviteEmail, inviteRole)
+    const res = await inviteTeamMember(inviteEmail, inviteRole)
     if (res.success) {
       setInviteEmail("")
       router.refresh()

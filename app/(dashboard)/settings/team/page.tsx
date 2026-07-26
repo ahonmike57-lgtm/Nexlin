@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import TeamClient from "./TeamClient"
@@ -11,11 +11,8 @@ export default async function TeamPage() {
     redirect("/login")
   }
 
-  const agencyId = "agency-1"
-
-  const response = await getTeamMembers(agencyId)
+  const response = await getTeamMembers()
   const team = response.data || []
 
-  return <TeamClient initialTeam={team} agencyId={agencyId} />
+  return <TeamClient initialTeam={team} />
 }
-

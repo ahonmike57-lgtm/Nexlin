@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { getAgencyPhoneData } from "@/app/actions/telephony"
@@ -10,16 +10,12 @@ export default async function PhoneNumbersPage() {
     redirect("/login")
   }
 
-  const agencyId = "agency-1" // Mock agency ID
-
-  const res = await getAgencyPhoneData(agencyId)
+  const res = await getAgencyPhoneData()
   
   return (
     <PhoneNumbersClient 
       initialNumbers={res.success ? res.numbers || [] : []} 
       initialPortRequests={res.success ? res.portRequests || [] : []}
-      agencyId={agencyId}
     />
   )
 }
-

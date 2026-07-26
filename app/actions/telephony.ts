@@ -2,7 +2,8 @@
 
 import twilio from "twilio"
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
+import { encryptConfig, decryptConfig } from "@/lib/encryption"
 import { pusherServer } from "@/lib/pusher"
 import { getActiveSubAccountId } from "./subaccounts"
 
@@ -13,10 +14,12 @@ const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || "+1234567890"
 const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
 export async function sendSMS(contactId: string, content: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
     const contact = await db.contact.findUnique({ where: { id: contactId } })
     if (!contact?.phone) {
       return { success: false, error: "Contact does not have a phone number" }
@@ -45,29 +48,16 @@ export async function sendSMS(contactId: string, content: string) {
       whereClause.subAgencyId = subAgencyId
     }
 
-    let conversation = await db.conversation.findFirst({
-      where: whereClause
-    })
+    let conversation = await db.conversation.findFirst({ where: whereClause })
 
     if (!conversation) {
       conversation = await db.conversation.create({
-        data: {
-          contactId,
-          agencyId: contact.agencyId,
-          subAgencyId,
-          channel: "sms"
-        }
+        data: { contactId, agencyId: contact.agencyId, subAgencyId, channel: "sms" }
       })
     }
 
-    // Create message record
     const newMessage = await db.message.create({
-      data: {
-        conversationId: conversation.id,
-        content,
-        isOutbound: true,
-        status: "delivered",
-      }
+      data: { conversationId: conversation.id, content, isOutbound: true, status: "delivered" }
     })
 
     await db.conversation.update({
@@ -75,7 +65,6 @@ export async function sendSMS(contactId: string, content: string) {
       data: { updatedAt: new Date() }
     })
 
-    // Trigger pusher event for SMS channel as well
     try {
       await pusherServer.trigger(`conversation-${conversation.id}`, "new-message", newMessage)
     } catch (e) {
@@ -89,17 +78,20 @@ export async function sendSMS(contactId: string, content: string) {
   }
 }
 
-export async function buyPhoneNumber(agencyId: string, areaCode: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
 
+export async function buyPhoneNumber(areaCode: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
     // Mock Twilio Purchase
     const mockNumber = "+1" + areaCode + Math.floor(1000000 + Math.random() * 9000000).toString()
     
     const newPhone = await db.phoneNumber.create({
       data: {
-        agencyId,
+        agencyId: auth.agencyId,   // always from session
         number: mockNumber,
         status: "active",
         provider: "twilio"
@@ -112,26 +104,35 @@ export async function buyPhoneNumber(agencyId: string, areaCode: string) {
   }
 }
 
-export async function submitPortRequest(agencyId: string, data: { numberToPort: string, currentCarrier: string, accountNumber: string, accountPin: string }) {
+export async function submitPortRequest(data: {
+  numberToPort: string
+  currentCarrier: string
+  accountNumber: string
+  accountPin: string
+}) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    // Encrypt the carrier account PIN before storing — it's sensitive credential data
+    const encryptedPin = encryptConfig(data.accountPin)
 
     const portReq = await db.portRequest.create({
       data: {
-        agencyId,
+        agencyId: auth.agencyId,   // always from session
         numberToPort: data.numberToPort,
         currentCarrier: data.currentCarrier,
         accountNumber: data.accountNumber,
-        accountPin: data.accountPin,
+        accountPin: encryptedPin,
         status: "pending"
       }
     })
 
-    // Also add to phone numbers as porting state
     await db.phoneNumber.create({
       data: {
-        agencyId,
+        agencyId: auth.agencyId,
         number: data.numberToPort,
         status: "porting",
         provider: "twilio"
@@ -144,13 +145,22 @@ export async function submitPortRequest(agencyId: string, data: { numberToPort: 
   }
 }
 
-export async function getAgencyPhoneData(agencyId: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+export async function getAgencyPhoneData() {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    const numbers = await db.phoneNumber.findMany({ where: { agencyId } })
-    const portRequests = await db.portRequest.findMany({ where: { agencyId } })
+  try {
+    const numbers = await db.phoneNumber.findMany({ where: { agencyId: auth.agencyId } })
+    const rawRequests = await db.portRequest.findMany({ where: { agencyId: auth.agencyId } })
+
+    // Mask account PIN — never send decrypted PIN to client
+    const portRequests = rawRequests.map(r => ({
+      ...r,
+      accountPin: r.accountPin ? "••••" : null
+    }))
+
     return { success: true, numbers, portRequests }
   } catch (error) {
     return { success: false, error: "Failed to fetch phone data" }

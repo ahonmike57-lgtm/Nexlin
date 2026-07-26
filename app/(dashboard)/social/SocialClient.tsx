@@ -10,7 +10,7 @@ import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, format, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns"
 
-export default function SocialClient({ initialAccounts, initialPosts, agencyId }: { initialAccounts: any[], initialPosts: any[], agencyId: string }) {
+export default function SocialClient({ initialAccounts, initialPosts }: { initialAccounts: any[], initialPosts: any[] }) {
   const [activeTab, setActiveTab] = useState("calendar")
   const [accounts, setAccounts] = useState(initialAccounts)
   const [posts, setPosts] = useState(initialPosts)
@@ -36,7 +36,7 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
     }
 
     try {
-      const res = await createSocialPost(agencyId, newPost.accountId, newPost.content, new Date(newPost.scheduledFor))
+      const res = await createSocialPost(newPost.accountId, newPost.content, new Date(newPost.scheduledFor))
 
       if (res.success) {
         toast.success("Post scheduled successfully!")
@@ -55,7 +55,7 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
     if (!aiPrompt) return toast.error("Please enter a topic to generate.")
     setIsGenerating(true)
     const prompt = `Write an engaging social media post about: ${aiPrompt}. Keep it professional, use emojis, and include relevant hashtags. Do not include quotes around the post.`
-    const res = await generateAiReply(agencyId, prompt)
+    const res = await generateAiReply("", prompt)
     if (res.success) {
       setNewPost(prev => ({ ...prev, content: res.data || "" }))
       setAiPrompt("")
@@ -66,7 +66,7 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
   }
 
   const handleConnectAccount = async (platform: string, handle: string) => {
-    const res = await connectSocialAccount(agencyId, platform, handle)
+    const res = await connectSocialAccount(platform, handle)
     if (res.success) {
       toast.success(`${platform} connected successfully!`)
       setAccounts([...accounts, res.account])
@@ -127,7 +127,7 @@ export default function SocialClient({ initialAccounts, initialPosts, agencyId }
                     variant="outline" 
                     className="h-20 flex flex-col justify-center items-center gap-2"
                     onClick={() => {
-                      window.location.href = `/api/oauth/connect?platform=${plat.toLowerCase()}&agencyId=${agencyId}`
+                      window.location.href = `/api/oauth/connect?platform=${plat.toLowerCase()}`
                     }}
                   >
                     {getPlatformIcon(plat, "h-6 w-6")}

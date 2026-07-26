@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import BrandingClient from "./BrandingClient"
@@ -11,11 +11,8 @@ export default async function BrandingPage() {
     redirect("/login")
   }
 
-  const agencyId = "agency-1"
-
-  const response = await getAgencyBranding(agencyId)
+  const response = await getAgencyBranding()
   const branding = response.data || {}
 
-  return <BrandingClient initialBranding={branding} agencyId={agencyId} />
+  return <BrandingClient initialBranding={branding} />
 }
-

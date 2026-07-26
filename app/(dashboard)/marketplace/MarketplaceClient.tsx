@@ -64,7 +64,7 @@ export default function MarketplaceClient({ initialApps, initialInstalls, agency
   const handleInstall = async (appId: string) => {
     setProcessingId(appId)
     // Here we would normally collect config in a modal
-    const res = await installApp(agencyId, appId, { token: "demo-token" })
+    const res = await installApp(appId, { token: "demo-token" })
     if (res.success && res.install) {
       setInstalls([...installs, res.install])
     }
@@ -73,7 +73,7 @@ export default function MarketplaceClient({ initialApps, initialInstalls, agency
 
   const handleUninstall = async (installId: string, appId: string) => {
     setProcessingId(appId)
-    const res = await uninstallApp(agencyId, appId)
+    const res = await uninstallApp(appId)
     if (res.success) {
       setInstalls(installs.filter(i => i.id !== installId))
     }

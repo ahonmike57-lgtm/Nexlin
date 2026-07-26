@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { updateAgencyBranding } from "@/app/actions/settings"
 import { useRouter } from "next/navigation"
 
-export default function BrandingClient({ initialBranding, agencyId }: { initialBranding: any, agencyId: string }) {
+export default function BrandingClient({ initialBranding }: { initialBranding: any }) {
   const [colors, setColors] = useState(
     initialBranding.brandColors ? JSON.parse(initialBranding.brandColors) : { primary: "#000000" }
   )
@@ -21,7 +21,7 @@ export default function BrandingClient({ initialBranding, agencyId }: { initialB
 
   const handleSave = async () => {
     setIsSaving(true)
-    const res = await updateAgencyBranding(agencyId, { 
+    const res = await updateAgencyBranding({ 
       colors, 
       logoUrl, 
       whiteLabelName, 

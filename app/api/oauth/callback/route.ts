@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { encryptConfig } from "@/lib/encryption"
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -33,13 +34,13 @@ export async function GET(request: Request) {
       handle = `@real_${platform}_user`
     }
 
-    // Save to DB
+    // Save to DB — encrypt the access token before writing
     await db.socialAccount.create({
       data: {
         agencyId,
         platform: platform.charAt(0).toUpperCase() + platform.slice(1).toLowerCase(),
         handle,
-        accessToken,
+        accessToken: encryptConfig(accessToken),
         isActive: true
       }
     })

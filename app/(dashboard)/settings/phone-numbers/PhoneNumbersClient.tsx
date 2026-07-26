@@ -10,12 +10,10 @@ import { toast } from "sonner"
 
 export default function PhoneNumbersClient({ 
   initialNumbers, 
-  initialPortRequests, 
-  agencyId 
+  initialPortRequests
 }: { 
   initialNumbers: any[], 
-  initialPortRequests: any[], 
-  agencyId: string 
+  initialPortRequests: any[]
 }) {
   const [activeTab, setActiveTab] = useState("active")
   const [numbers, setNumbers] = useState(initialNumbers)
@@ -33,7 +31,7 @@ export default function PhoneNumbersClient({
   const handleBuyNumber = async () => {
     setIsBuying(true)
     try {
-      const res = await buyPhoneNumber(agencyId, "415")
+      const res = await buyPhoneNumber("415")
       if (res.success) {
         toast.success("Successfully purchased new number!")
         setNumbers([...numbers, res.data])
@@ -53,7 +51,7 @@ export default function PhoneNumbersClient({
     }
     setIsPorting(true)
     try {
-      const res = await submitPortRequest(agencyId, portForm)
+      const res = await submitPortRequest(portForm)
       if (res.success) {
         toast.success("Port request submitted successfully!")
         setPortRequests([...portRequests, res.data])
