@@ -5,83 +5,63 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Download, Trash2, ShieldCheck, CheckCircle2, Store, Sparkles, CreditCard, MessageSquare, Megaphone } from "lucide-react"
+import { Search, Download, Trash2, ShieldCheck, CheckCircle2, Store, Sparkles, CreditCard, MessageSquare, Megaphone, Zap, Loader2 } from "lucide-react"
 import { installApp, uninstallApp } from "@/app/actions/marketplace"
+import { toast } from "sonner"
 
-const MOCK_CATEGORIES = [
-  { id: "ai", name: "AI & Voice", icon: Sparkles },
-  { id: "payments", name: "Payments", icon: CreditCard },
-  { id: "comms", name: "Communications", icon: MessageSquare },
-  { id: "marketing", name: "Marketing", icon: Megaphone }
-]
-
-const BEST_IN_CLASS_APPS = [
-  {
-    id: "stripe-sync",
-    name: "Stripe Sync",
-    version: "2.1.0",
-    description: "Deeply integrate Stripe payments and subscriptions into Nexlin CRM.",
-    category: "payments",
-    developer: "Nexlin Official",
-    icon: "https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg"
-  },
-  {
-    id: "elevenlabs-voice",
-    name: "ElevenLabs Voice Agents",
-    version: "1.0.5",
-    description: "Deploy ultra-realistic AI voice agents for inbound and outbound calling.",
-    category: "ai",
-    developer: "ElevenLabs",
-    icon: "https://images.crunchbase.com/image/upload/c_pad,f_auto,q_auto:eco,dpr_1/ub9k9okg1vofm7r4u6h2"
-  },
-  {
-    id: "twilio-sms",
-    name: "Twilio Connect",
-    version: "3.4.1",
-    description: "Send automated SMS and handle A2P 10DLC compliance automatically.",
-    category: "comms",
-    developer: "Nexlin Official",
-    icon: "https://upload.wikimedia.org/wikipedia/commons/7/7e/Twilio-logo-red.svg"
-  },
-  {
-    id: "openai-copilot",
-    name: "OpenAI Workflow Copilot",
-    version: "1.2.0",
-    description: "Bring GPT-4 directly into your pipeline automations and chat inbox.",
-    category: "ai",
-    developer: "OpenAI",
-    icon: "https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg"
-  }
-]
-
-export default function MarketplaceClient({ initialApps, initialInstalls, agencyId }: { initialApps: any[], initialInstalls: any[], agencyId: string }) {
+export default function MarketplaceClient({ initialApps, initialInstalls }: { initialApps: any[], initialInstalls: any[], agencyId?: string }) {
   const [apps] = useState(initialApps)
   const [installs, setInstalls] = useState(initialInstalls)
   const [activeCategory, setActiveCategory] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [processingId, setProcessingId] = useState<string | null>(null)
 
+  const categories = ["all", "Payments", "AI", "Communication", "Automation", "Marketing", "E-Commerce", "CRM", "Support", "Installed"]
+
   const handleInstall = async (appId: string) => {
     setProcessingId(appId)
-    // Here we would normally collect config in a modal
-    const res = await installApp(appId, { token: "demo-token" })
+    const res = await installApp(appId, { installedAt: new Date().toISOString() })
     if (res.success && res.install) {
+      toast.success("App installed successfully!")
       setInstalls([...installs, res.install])
+    } else {
+      toast.error(res.error || "Failed to install app")
     }
     setProcessingId(null)
   }
 
-  const handleUninstall = async (installId: string, appId: string) => {
+  const handleUninstall = async (appId: string) => {
     setProcessingId(appId)
     const res = await uninstallApp(appId)
     if (res.success) {
-      setInstalls(installs.filter(i => i.id !== installId))
+      toast.success("App uninstalled")
+      setInstalls(installs.filter(i => i.appId !== appId))
+    } else {
+      toast.error(res.error || "Failed to uninstall app")
     }
     setProcessingId(null)
   }
 
+  const filteredApps = apps.filter(app => {
+    const isInstalled = installs.some(i => i.appId === app.id)
+
+    if (activeCategory === "Installed") {
+      if (!isInstalled) return false
+    } else if (activeCategory !== "all") {
+      if (app.category.toLowerCase() !== activeCategory.toLowerCase()) return false
+    }
+
+    if (!searchQuery) return true
+    const q = searchQuery.toLowerCase()
+    return (
+      app.name.toLowerCase().includes(q) ||
+      (app.description || "").toLowerCase().includes(q) ||
+      app.category.toLowerCase().includes(q)
+    )
+  })
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-7xl mx-auto">
       {/* Hero Header */}
       <div className="bg-gradient-to-r from-primary/10 to-transparent p-8 rounded-2xl border border-primary/20 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
@@ -90,15 +70,15 @@ export default function MarketplaceClient({ initialApps, initialInstalls, agency
             <h1 className="text-3xl font-bold tracking-tight">App Marketplace</h1>
           </div>
           <p className="text-text-secondary max-w-xl text-lg">
-            Supercharge your CRM with best-in-class integrations. Connect payments, AI voices, and automation tools instantly.
+            Supercharge your CRM with 30+ enterprise integrations. Connect payments, AI voices, telephony, and marketing automation tools instantly.
           </p>
         </div>
         <div className="w-full md:w-auto relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
           <Input 
             type="text" 
-            placeholder="Search for apps..." 
-            className="w-full pl-10 py-6 text-lg rounded-xl border-border focus:ring-primary/50"
+            placeholder="Search 30+ integrations..." 
+            className="w-full pl-10 py-6 text-lg rounded-xl border-border focus:ring-primary/50 bg-bg-primary"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -107,91 +87,92 @@ export default function MarketplaceClient({ initialApps, initialInstalls, agency
 
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar Categories */}
-        <div className="w-full md:w-64 shrink-0 space-y-2">
-          <h3 className="font-semibold text-sm text-text-secondary uppercase tracking-wider mb-4 px-2">Categories</h3>
-          <Button 
-            variant={activeCategory === "all" ? "default" : "ghost"} 
-            className={`w-full justify-start ${activeCategory === "all" ? "" : "text-text-secondary hover:text-text-primary"}`}
-            onClick={() => setActiveCategory("all")}
-          >
-            <Store className="w-4 h-4 mr-2" /> All Apps
-          </Button>
-          {MOCK_CATEGORIES.map(cat => (
-            <Button 
-              key={cat.id}
-              variant={activeCategory === cat.id ? "default" : "ghost"} 
-              className={`w-full justify-start ${activeCategory === cat.id ? "" : "text-text-secondary hover:text-text-primary"}`}
-              onClick={() => setActiveCategory(cat.id)}
-            >
-              <cat.icon className="w-4 h-4 mr-2" /> {cat.name}
-            </Button>
-          ))}
+        <div className="w-full md:w-56 shrink-0 space-y-1">
+          <h3 className="font-semibold text-xs text-text-secondary uppercase tracking-wider mb-3 px-2">Categories</h3>
+          {categories.map(cat => {
+            const isInstalledTab = cat === "Installed"
+            const count = isInstalledTab 
+              ? installs.length 
+              : cat === "all" 
+              ? apps.length 
+              : apps.filter(a => a.category.toLowerCase() === cat.toLowerCase()).length
+
+            return (
+              <Button 
+                key={cat}
+                variant={activeCategory === cat ? "default" : "ghost"} 
+                className={`w-full justify-between capitalize ${activeCategory === cat ? "" : "text-text-secondary hover:text-text-primary"}`}
+                onClick={() => setActiveCategory(cat)}
+              >
+                <span className="flex items-center gap-2">
+                  {isInstalledTab ? <CheckCircle2 className="w-4 h-4 text-success" /> : <Store className="w-4 h-4" />}
+                  {cat}
+                </span>
+                <span className="text-xs opacity-70">({count})</span>
+              </Button>
+            )
+          })}
         </div>
 
         {/* Apps Grid */}
         <div className="flex-1">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {BEST_IN_CLASS_APPS.filter(app => activeCategory === "all" || app.category === activeCategory).map((app) => {
-              // Map mock UI apps to DB apps if they exist, else treat as UI only
-              const dbApp = apps.find(e => e.name === app.name)
-              const install = dbApp ? installs.find(i => i.appId === dbApp.id) : null
-              const isInstalled = !!install
+          {filteredApps.length === 0 ? (
+            <div className="text-center py-16 bg-bg-primary rounded-xl border border-border space-y-3">
+              <Store className="w-10 h-10 text-text-secondary mx-auto" />
+              <h3 className="font-semibold text-lg">No Apps Found</h3>
+              <p className="text-sm text-text-secondary">Try searching for a different keyword or category.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredApps.map((app) => {
+                const isInstalled = installs.some(i => i.appId === app.id)
+                const isProcessing = processingId === app.id
 
-              return (
-                <Card key={app.id} className="border border-border hover:border-primary/30 transition-colors flex flex-col group">
-                  <CardHeader className="flex flex-row items-start gap-4 pb-4">
-                    <div className="w-16 h-16 rounded-xl bg-white border border-border flex items-center justify-center overflow-hidden p-2 shrink-0 group-hover:scale-105 transition-transform">
-                      <img src={app.icon} alt={app.name} className="w-full h-full object-contain" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <CardTitle className="text-xl">{app.name}</CardTitle>
-                        {isInstalled && <Badge variant="success" className="ml-2"><CheckCircle2 className="w-3 h-3 mr-1" /> Installed</Badge>}
+                return (
+                  <Card key={app.id} className="bg-bg-primary border-border flex flex-col justify-between hover:border-primary/50 transition-colors shadow-sm">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <Badge variant="outline" className="text-[10px] uppercase font-semibold">{app.category}</Badge>
+                        {app.badge && <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">{app.badge}</Badge>}
                       </div>
-                      <p className="text-xs text-text-secondary mt-1 flex items-center gap-1">
-                        By <span className="font-medium text-text-primary">{app.developer}</span> • v{app.version}
-                      </p>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1">
-                    <CardDescription className="text-sm">
-                      {app.description}
-                    </CardDescription>
-                  </CardContent>
-                  <CardFooter className="pt-4 border-t border-border mt-auto flex justify-between items-center bg-bg-secondary/30">
-                    <div className="flex items-center text-xs text-text-secondary">
-                      <ShieldCheck className="w-4 h-4 mr-1 text-success" /> Verified Partner
-                    </div>
-                    {dbApp ? (
-                      isInstalled ? (
+                      <CardTitle className="text-lg flex items-center justify-between">
+                        <span>{app.name}</span>
+                        {isInstalled && <CheckCircle2 className="w-4 h-4 text-success shrink-0" />}
+                      </CardTitle>
+                      <CardDescription className="text-xs text-text-secondary line-clamp-2 mt-1">
+                        {app.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardFooter className="pt-3 border-t border-border flex items-center justify-between text-xs">
+                      <span className="text-text-secondary font-mono text-[11px]">Auth: {app.installType}</span>
+                      {isInstalled ? (
                         <Button 
-                          variant="danger" 
-                          size="sm"
-                          onClick={() => handleUninstall(install.id, dbApp.id)}
-                          disabled={processingId === dbApp.id}
+                          variant="outline" 
+                          size="sm" 
+                          className="h-8 text-error hover:text-error hover:bg-error/10"
+                          disabled={isProcessing}
+                          onClick={() => handleUninstall(app.id)}
                         >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          {processingId === dbApp.id ? "Uninstalling..." : "Uninstall"}
+                          {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Trash2 className="w-3.5 h-3.5 mr-1" />}
+                          Uninstall
                         </Button>
                       ) : (
                         <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => handleInstall(dbApp.id)}
-                          disabled={processingId === dbApp.id}
+                          size="sm" 
+                          className="h-8"
+                          disabled={isProcessing}
+                          onClick={() => handleInstall(app.id)}
                         >
-                          <Download className="w-4 h-4 mr-2" />
-                          {processingId === dbApp.id ? "Installing..." : "Install App"}
+                          {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Download className="w-3.5 h-3.5 mr-1" />}
+                          Install App
                         </Button>
-                      )
-                    ) : (
-                      <Button variant="outline" size="sm" disabled>Coming Soon</Button>
-                    )}
-                  </CardFooter>
-                </Card>
-              )
-            })}
-          </div>
+                      )}
+                    </CardFooter>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
