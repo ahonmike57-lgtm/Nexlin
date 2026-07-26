@@ -1,17 +1,22 @@
 'use server'
 
 import { db } from '@/lib/db'
-import { encrypt } from '@/lib/crypto'
+import { encryptConfig } from '@/lib/encryption'
+import { requireTenantAuth } from '@/lib/permissions'
 import { revalidatePath } from 'next/cache'
 import { listMcpTools } from '@/lib/mcp'
 
-export async function getMcpConnections(agencyId: string) {
+export async function getMcpConnections() {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     const connections = await db.mcpConnection.findMany({
-      where: { agencyId },
+      where: { agencyId: auth.agencyId },
       orderBy: { createdAt: 'desc' }
     });
-    // Never return the encryptedCredentials to the client
     return {
       success: true,
       connections: connections.map(({ encryptedCredentials, ...rest }) => rest)
@@ -21,32 +26,40 @@ export async function getMcpConnections(agencyId: string) {
   }
 }
 
-export async function addMcpConnection(agencyId: string, data: { name: string, serverUrl: string, apiKey: string }) {
+export async function addMcpConnection(data: { name: string, serverUrl: string, apiKey: string }) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const encryptedCredentials = data.apiKey ? encrypt(data.apiKey) : null;
+    const encryptedCredentials = data.apiKey ? encryptConfig(data.apiKey) : null;
     const connection = await db.mcpConnection.create({
       data: {
-        agencyId,
-        name: data.name,
-        serverUrl: data.serverUrl,
+        agencyId: auth.agencyId,
+        name: data.name.trim(),
+        serverUrl: data.serverUrl.trim(),
         encryptedCredentials,
       }
     });
-    
-    // Audit log
-    const { getSession } = await import('@/lib/auth')
-    const session = await getSession()
-    if (session?.user?.id) {
-      await db.auditLog.create({
-        data: {
-          userId: session.user.id,
-          action: 'MCP_ADD_CONNECTION',
-          entity: 'McpConnection',
-          entityId: connection.id,
-          details: JSON.stringify({ name: data.name, serverUrl: data.serverUrl }),
-        }
-      });
-    }
+
+    revalidatePath('/settings/mcp');
+    return { success: true, connection };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteMcpConnection(connectionId: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    await db.mcpConnection.deleteMany({
+      where: { id: connectionId, agencyId: auth.agencyId }
+    });
 
     revalidatePath('/settings/mcp');
     return { success: true };
@@ -55,52 +68,19 @@ export async function addMcpConnection(agencyId: string, data: { name: string, s
   }
 }
 
-export async function deleteMcpConnection(connectionId: string, agencyId: string) {
-  try {
-    const connection = await db.mcpConnection.findUnique({
-      where: { id: connectionId }
-    });
-
-    if (connection?.agencyId !== agencyId) {
-      throw new Error("Unauthorized");
-    }
-
-    await db.mcpConnection.delete({
-      where: { id: connectionId }
-    });
-    
-    const { getSession } = await import('@/lib/auth')
-    const session = await getSession()
-    if (session?.user?.id) {
-      await db.auditLog.create({
-        data: {
-          userId: session.user.id,
-          action: 'MCP_DELETE_CONNECTION',
-          entity: 'McpConnection',
-          entityId: connectionId,
-          details: JSON.stringify({ connectionId }),
-        }
-      });
-    }
-
-    revalidatePath('/settings/mcp');
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+export async function testMcpConnection(connectionId: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
   }
-}
 
-export async function testMcpConnection(connectionId: string, agencyId: string) {
   try {
-    const connection = await db.mcpConnection.findUnique({
-      where: { id: connectionId }
+    const connection = await db.mcpConnection.findFirst({
+      where: { id: connectionId, agencyId: auth.agencyId }
     });
 
-    if (connection?.agencyId !== agencyId) {
-      throw new Error("Unauthorized");
-    }
+    if (!connection) throw new Error("MCP Connection not found");
 
-    // Try to list tools
     const tools = await listMcpTools(connectionId);
     return { success: true, tools };
   } catch (error: any) {

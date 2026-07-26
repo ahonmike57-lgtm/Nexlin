@@ -1,15 +1,17 @@
-﻿export const dynamic = 'force-dynamic';
-import { db } from '@/lib/db'
-import McpClient from './McpClient'
+export const dynamic = 'force-dynamic';
+import { getSession } from "@/lib/auth"
+import { redirect } from "next/navigation"
+import { getMcpConnections } from "@/app/actions/mcp"
+import McpClient from "./McpClient"
 
 export default async function McpPage() {
-  const agencyId = 'cluz12345000008l412345678' // mock agency ID, like in other pages
+  const session = await getSession()
+  if (!session?.user?.id) {
+    redirect("/login")
+  }
 
-  const connections = await db.mcpConnection.findMany({
-    where: { agencyId },
-    orderBy: { createdAt: 'desc' }
-  });
+  const res = await getMcpConnections()
+  const connections = res.success && res.connections ? res.connections : []
 
-  return <McpClient connections={connections} agencyId={agencyId} />
+  return <McpClient initialConnections={connections} />
 }
-
