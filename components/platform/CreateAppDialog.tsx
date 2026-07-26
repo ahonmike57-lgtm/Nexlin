@@ -31,8 +31,8 @@ export function CreateAppDialog() {
       name,
       description,
       category,
-      author,
       icon,
+      installType: "oauth"
     })
 
     if (res.success) {
