@@ -9,8 +9,8 @@ export async function createMarketplaceApp(data: {
   description: string
   category: string
   icon?: string
-  author?: string
-  websiteUrl?: string
+  installType?: string
+  tagline?: string
 }) {
   try {
     const auth = await requirePlatformAuth(["owner", "developer"])
@@ -22,25 +22,26 @@ export async function createMarketplaceApp(data: {
       return { success: false, error: "App name and description are required." }
     }
 
-    const slug = data.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-")
+    const id = data.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-")
 
     const existing = await db.app.findUnique({
-      where: { slug }
+      where: { id }
     })
 
     if (existing) {
-      return { success: false, error: "An app with this name already exists." }
+      return { success: false, error: "An app with this ID/slug already exists." }
     }
 
     const app = await db.app.create({
       data: {
+        id,
         name: data.name.trim(),
-        slug,
         description: data.description.trim(),
         category: data.category || "General",
+        installType: data.installType || "oauth",
+        tagline: data.tagline || data.description.trim().slice(0, 80),
         icon: data.icon || null,
-        author: data.author || "Platform Certified Developer",
-        isFeatured: false,
+        isActive: true,
       }
     })
 
@@ -53,7 +54,7 @@ export async function createMarketplaceApp(data: {
   }
 }
 
-export async function toggleAppFeaturedStatus(appId: string, isFeatured: boolean) {
+export async function toggleAppActiveStatus(appId: string, isActive: boolean) {
   try {
     const auth = await requirePlatformAuth(["owner", "developer"])
     if (!auth.authorized) {
@@ -62,14 +63,14 @@ export async function toggleAppFeaturedStatus(appId: string, isFeatured: boolean
 
     await db.app.update({
       where: { id: appId },
-      data: { isFeatured }
+      data: { isActive }
     })
 
     revalidatePath("/platform/apps")
     revalidatePath("/marketplace")
     return { success: true }
   } catch (error: any) {
-    console.error("Toggle app featured error:", error)
+    console.error("Toggle app active status error:", error)
     return { success: false, error: "Failed to toggle status" }
   }
 }
