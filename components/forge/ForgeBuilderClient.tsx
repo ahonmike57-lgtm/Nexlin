@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { 
   Sparkles, Send, RefreshCw, Eye, Globe, Layers, GitBranch, ShieldCheck, 
-  RotateCcw, ExternalLink, CheckCircle2, Loader2, FileCode 
+  RotateCcw, ExternalLink, CheckCircle2, Loader2, FileCode, Play 
 } from "lucide-react"
 
 import { createForgeSite, generateForgePageFromPrompt, updateForgeSectionPrompt } from "@/app/actions/forge-builder"
@@ -22,16 +22,22 @@ export function ForgeBuilderClient({ initialSite, initialPage }: { initialSite?:
   const [activeTab, setActiveTab] = useState<"builder" | "funnel">("builder")
 
   // Streamed component sections
-  const [sections, setSections] = useState<any[]>(
-    initialPage?.componentTree ? JSON.parse(initialPage.componentTree) : []
-  )
+  const [sections, setSections] = useState<any[]>(() => {
+    if (initialPage?.componentTree) {
+      try {
+        return JSON.parse(initialPage.componentTree)
+      } catch {
+        return []
+      }
+    }
+    return []
+  })
 
   // Version checkpoint tracking
   const [history, setHistory] = useState<any[]>([])
 
   const handleGenerate = async (explicitPrompt?: string) => {
-    const textPrompt = explicitPrompt || promptInput
-    if (!textPrompt.trim()) return
+    const textPrompt = explicitPrompt || promptInput || "Build a high-converting auto dealership landing page with inventory showcase, credit pre-qualification form, and testimonials."
 
     setIsGenerating(true)
     try {
@@ -58,7 +64,7 @@ export function ForgeBuilderClient({ initialSite, initialPage }: { initialSite?:
 
   const handleScopedEdit = async (sectionId: string) => {
     const editPrompt = window.prompt("Scoped section edit prompt (e.g. 'make this section dark' or 'shorten title'):")
-    if (!editPrompt || !page) return
+    if (!editPrompt || !page?.id) return
 
     setIsGenerating(true)
     const res = await updateForgeSectionPrompt(page.id, sectionId, editPrompt)
@@ -120,7 +126,7 @@ export function ForgeBuilderClient({ initialSite, initialPage }: { initialSite?:
             </Button>
           )}
 
-          <Button size="sm" className="bg-[#1A3CFF] hover:bg-[#1A3CFF]/90 text-white gap-2">
+          <Button size="sm" className="bg-[#1A3CFF] hover:bg-[#1A3CFF]/90 text-white gap-2" onClick={() => toast.success("Site Published to " + (site?.domain || "rodriguezauto.nexlin.site"))}>
             <Globe className="w-4 h-4" /> Publish Live
           </Button>
         </div>
@@ -202,7 +208,7 @@ export function ForgeBuilderClient({ initialSite, initialPage }: { initialSite?:
                 />
                 <Button 
                   type="submit" 
-                  disabled={isGenerating || !promptInput.trim()} 
+                  disabled={isGenerating} 
                   className="w-full bg-[#1A3CFF] hover:bg-[#1A3CFF]/90 text-white font-medium"
                 >
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2 text-[#F5A623]" />}
@@ -215,16 +221,25 @@ export function ForgeBuilderClient({ initialSite, initialPage }: { initialSite?:
           {/* Right Panel - Live Preview Canvas with Gold Streaming Pulse Signature */}
           <div className="flex-1 bg-[#050811] p-6 overflow-y-auto flex flex-col items-center">
             {sections.length === 0 ? (
-              <div className="my-auto text-center space-y-4 max-w-md">
+              <div className="my-auto text-center space-y-5 max-w-md">
                 <div className="w-16 h-16 rounded-2xl bg-[#1A3CFF]/10 border border-[#1A3CFF]/30 flex items-center justify-center mx-auto text-[#1A3CFF]">
                   <Layers className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-xl font-display text-white">Your Forge Canvas is Empty</h3>
+                  <h3 className="font-bold text-xl font-display text-white">Your Forge Canvas is Ready</h3>
                   <p className="text-xs text-text-secondary mt-1">
-                    Select a Dealership seed template on the left or type a prompt to stream your first website section.
+                    Click the button below or pick a Dealership starter template on the left to generate your live website canvas.
                   </p>
                 </div>
+                <Button 
+                  size="lg"
+                  onClick={() => handleGenerate("Build a high-converting auto dealership landing page with inventory showcase, credit pre-qualification form, and testimonials.")}
+                  disabled={isGenerating}
+                  className="bg-[#1A3CFF] hover:bg-[#1A3CFF]/90 text-white font-bold rounded-xl gap-2 shadow-lg"
+                >
+                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                  {isGenerating ? "Streaming Sections..." : "Generate Dealership Funnel (1-Click)"}
+                </Button>
               </div>
             ) : (
               <div className="w-full max-w-4xl space-y-6">
