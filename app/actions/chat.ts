@@ -187,28 +187,72 @@ export async function createConversation(contactId: string, channel: string = "s
       whereClause.subAgencyId = subAgencyId
     }
 
-    const existing = await db.conversation.findFirst({
-      where: whereClause
+    let conversation = await db.conversation.findFirst({
+      where: whereClause,
+      include: { contact: true, messages: { orderBy: { createdAt: 'desc' }, take: 1 } }
     })
     
-    if (existing) {
-      return { success: true, data: existing }
+    if (!conversation) {
+      const created = await db.conversation.create({
+        data: {
+          agencyId,
+          subAgencyId,
+          contactId,
+          channel
+        }
+      })
+
+      conversation = await db.conversation.findUnique({
+        where: { id: created.id },
+        include: { contact: true, messages: { orderBy: { createdAt: 'desc' }, take: 1 } }
+      })
     }
-    
-    const conversation = await db.conversation.create({
-      data: {
-        agencyId,
-        subAgencyId,
-        contactId,
-        channel
-      }
-    })
     
     revalidatePath("/chat")
     return { success: true, data: conversation }
   } catch (error: any) {
     console.error("Failed to create conversation:", error)
     return { success: false, error: error.message || "Failed to create conversation" }
+  }
+}
+
+export async function createQuickContactAndConversation(name: string, phoneOrEmail: string, channel: string) {
+  try {
+    const agencyId = await getOrCreateAgency()
+    const subAgencyId = await getActiveSubAccountId()
+
+    const names = name.trim().split(" ")
+    const firstName = names[0] || "New"
+    const lastName = names.slice(1).join(" ") || "Contact"
+    const isEmail = phoneOrEmail.includes("@")
+
+    let contact = await db.contact.findFirst({
+      where: {
+        agencyId,
+        OR: [
+          { phone: phoneOrEmail },
+          { email: phoneOrEmail }
+        ]
+      }
+    })
+
+    if (!contact) {
+      contact = await db.contact.create({
+        data: {
+          agencyId,
+          subAgencyId,
+          firstName,
+          lastName,
+          phone: isEmail ? undefined : phoneOrEmail,
+          email: isEmail ? phoneOrEmail : undefined
+        }
+      })
+    }
+
+    const convRes = await createConversation(contact.id, channel)
+    return convRes
+  } catch (error: any) {
+    return { success: false, error: error.message }
   }
 }
 

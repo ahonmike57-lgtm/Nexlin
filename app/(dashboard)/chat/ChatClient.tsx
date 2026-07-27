@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { 
   Search, Filter, MoreVertical, Paperclip, Smile, Send, 
-  Mail, MessageSquare, Phone, User, Clock, Check, CheckCheck, Sparkles, Plus 
+  Mail, MessageSquare, Phone, User, Clock, Check, CheckCheck, Sparkles, Plus, Loader2 
 } from "lucide-react"
 
-import { getMessages, sendMessage, createConversation, toggleAiAutoReply } from "@/app/actions/chat"
+import { getMessages, sendMessage, createConversation, createQuickContactAndConversation } from "@/app/actions/chat"
 import { generateAiReply } from "@/app/actions/ai"
 import { toast } from "sonner"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export default function ChatClient({ initialConversations }: { initialConversations: any[] }) {
   const [conversations, setConversations] = useState<any[]>(initialConversations)
@@ -30,8 +30,10 @@ export default function ChatClient({ initialConversations }: { initialConversati
 
   // New Conversation Modal State
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false)
+  const [newContactName, setNewContactName] = useState("")
   const [newContactPhone, setNewContactPhone] = useState("")
   const [newChannel, setNewChannel] = useState("whatsapp")
+  const [isCreatingChat, setIsCreatingChat] = useState(false)
 
   // Update activeChannel when active conversation changes
   useEffect(() => {
@@ -42,7 +44,7 @@ export default function ChatClient({ initialConversations }: { initialConversati
 
   // Load messages when conversation changes
   useEffect(() => {
-    if (activeConversation) {
+    if (activeConversation?.id) {
       getMessages(activeConversation.id).then(res => {
         if (res.success) setMessages(res.data || [])
       })
@@ -102,17 +104,42 @@ export default function ChatClient({ initialConversations }: { initialConversati
     if (!activeConversation) return
     setActiveChannel(channel)
 
-    // Switch or create a conversation for this channel
     const res = await createConversation(activeConversation.contactId, channel)
     if (res.success && res.data) {
-      setActiveConversation(res.data)
+      const convData = res.data
+      setActiveConversation(convData)
       setConversations(prev => {
-        const exists = prev.some(c => c.id === res.data.id)
-        if (exists) return prev
-        return [res.data, ...prev]
+        const exists = prev.some(c => c.id === convData.id)
+        if (exists) return prev.map(c => c.id === convData.id ? convData : c)
+        return [convData, ...prev]
       })
       toast.success(`Switched active channel to ${channel.toUpperCase()}`)
     }
+  }
+
+  const handleCreateNewChat = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newContactPhone.trim()) return
+
+    setIsCreatingChat(true)
+    const res = await createQuickContactAndConversation(
+      newContactName.trim() || "New Lead",
+      newContactPhone.trim(),
+      newChannel
+    )
+
+    if (res.success && res.data) {
+      const conv = res.data
+      setConversations(prev => [conv, ...prev.filter(c => c.id !== conv.id)])
+      setActiveConversation(conv)
+      setIsNewDialogOpen(false)
+      setNewContactName("")
+      setNewContactPhone("")
+      toast.success(`New ${newChannel.toUpperCase()} conversation started!`)
+    } else {
+      toast.error(res.error || "Failed to create conversation")
+    }
+    setIsCreatingChat(false)
   }
 
   const ChannelIcon = ({ type, className = "" }: { type: string, className?: string }) => {
@@ -190,8 +217,11 @@ export default function ChatClient({ initialConversations }: { initialConversati
           
           <div className="flex-1 overflow-y-auto">
             {filteredConversations.length === 0 ? (
-              <div className="p-6 text-center text-text-secondary text-xs">
-                No {filterChannel !== 'all' ? filterChannel : ''} conversations found.
+              <div className="p-6 text-center text-text-secondary text-xs space-y-2">
+                <p>No {filterChannel !== 'all' ? filterChannel : ''} conversations found.</p>
+                <Button size="sm" variant="outline" className="text-xs" onClick={() => setIsNewDialogOpen(true)}>
+                  <Plus className="w-3 h-3 mr-1" /> Start New Chat
+                </Button>
               </div>
             ) : (
               filteredConversations.map((conv) => {
@@ -208,7 +238,7 @@ export default function ChatClient({ initialConversations }: { initialConversati
                     <div className="flex gap-3">
                       <div className="relative">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${isActive ? 'bg-primary text-white' : 'bg-bg-secondary text-text-secondary'}`}>
-                          {contact.firstName?.charAt(0) || "U"}
+                          {contact.firstName?.charAt(0) || "C"}
                         </div>
                         <div className="absolute -bottom-1 -right-1 bg-bg-primary rounded-full p-0.5">
                           <ChannelIcon type={conv.channel} />
@@ -217,8 +247,12 @@ export default function ChatClient({ initialConversations }: { initialConversati
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start mb-1">
-                          <h4 className="text-sm font-semibold truncate text-text-primary">{contact.firstName} {contact.lastName}</h4>
-                          <span className="text-[10px] text-text-secondary flex-shrink-0 ml-2">{new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <h4 className="text-sm font-semibold truncate text-text-primary">
+                            {contact.firstName ? `${contact.firstName} ${contact.lastName || ''}` : 'Contact'}
+                          </h4>
+                          <span className="text-[10px] text-text-secondary flex-shrink-0 ml-2">
+                            {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         </div>
                         <div className="flex justify-between items-center">
                           <p className="text-xs truncate text-text-secondary">
@@ -245,16 +279,18 @@ export default function ChatClient({ initialConversations }: { initialConversati
                     {activeConversation.contact?.firstName?.charAt(0) || "C"}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm">{activeConversation.contact?.firstName} {activeConversation.contact?.lastName}</h3>
+                    <h3 className="font-semibold text-sm">
+                      {activeConversation.contact?.firstName} {activeConversation.contact?.lastName}
+                    </h3>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-xs text-text-secondary flex items-center gap-1 font-mono">
-                        {activeConversation.contact?.phone || activeConversation.contact?.email}
+                        {activeConversation.contact?.phone || activeConversation.contact?.email || 'No Phone/Email'}
                       </span>
                       {/* Channel Switcher */}
                       <select 
                         value={activeChannel}
                         onChange={(e) => handleChannelSwitch(e.target.value)}
-                        className="text-[11px] font-semibold bg-bg-secondary border border-border rounded px-2 py-0.5 text-text-primary focus:outline-none"
+                        className="text-[11px] font-semibold bg-bg-secondary border border-border rounded px-2 py-0.5 text-text-primary focus:outline-none cursor-pointer"
                       >
                         <option value="whatsapp">📱 WhatsApp</option>
                         <option value="sms">💬 SMS</option>
@@ -265,8 +301,8 @@ export default function ChatClient({ initialConversations }: { initialConversati
                 </div>
 
                 <div className="flex gap-2">
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {activeConversation.channel === "whatsapp" ? "WhatsApp Active" : `${activeConversation.channel.toUpperCase()} Active`}
+                  <Badge variant="outline" className="text-xs font-normal capitalize">
+                    {activeConversation.channel} Channel Active
                   </Badge>
                 </div>
               </div>
@@ -363,12 +399,73 @@ export default function ChatClient({ initialConversations }: { initialConversati
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-text-secondary text-sm">
-              Select a conversation from the left inbox sidebar to start messaging.
+            <div className="flex-1 flex flex-col items-center justify-center text-text-secondary text-sm space-y-3">
+              <MessageSquare className="w-10 h-10 text-text-secondary/50" />
+              <p>Select a conversation from the left inbox sidebar to start messaging.</p>
+              <Button size="sm" onClick={() => setIsNewDialogOpen(true)}>
+                <Plus className="w-4 h-4 mr-1" /> Start New Chat
+              </Button>
             </div>
           )}
         </div>
       </div>
+
+      {/* Start New Chat Modal Dialog */}
+      {isNewDialogOpen && (
+        <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
+          <DialogContent className="bg-bg-primary border-border sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <MessageSquare className="w-5 h-5 text-primary" /> Start New Conversation
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateNewChat} className="space-y-4 pt-2 text-xs">
+              <div className="space-y-1">
+                <label className="font-medium text-text-primary">Contact Name</label>
+                <Input 
+                  placeholder="e.g. Sarah Jenkins"
+                  value={newContactName}
+                  onChange={e => setNewContactName(e.target.value)}
+                  className="bg-bg-secondary text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-text-primary">Phone Number or Email</label>
+                <Input 
+                  placeholder="+1 (555) 019-2834 or sarah@example.com"
+                  value={newContactPhone}
+                  onChange={e => setNewContactPhone(e.target.value)}
+                  className="bg-bg-secondary text-xs font-mono"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-medium text-text-primary">Select Channel</label>
+                <select 
+                  value={newChannel}
+                  onChange={e => setNewChannel(e.target.value)}
+                  className="w-full p-2 rounded-lg bg-bg-secondary border border-border text-xs text-text-primary focus:outline-none cursor-pointer font-semibold"
+                >
+                  <option value="whatsapp">📱 WhatsApp Business API</option>
+                  <option value="sms">💬 Twilio SMS / MMS</option>
+                  <option value="email">✉️ Email</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsNewDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={isCreatingChat || !newContactPhone.trim()}>
+                  {isCreatingChat ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                  {isCreatingChat ? "Creating..." : "Start Chat"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
