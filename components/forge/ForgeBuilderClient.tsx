@@ -35,29 +35,16 @@ export function ForgeBuilderClient({ initialSite, initialPage }: { initialSite?:
 
     setIsGenerating(true)
     try {
-      let activeSite = site
-      let activePage = page
-
-      // Auto-create site & page if starting fresh
-      if (!activeSite || !activePage) {
-        const createRes = await createForgeSite("Rodriguez Auto Sales", "rodriguezauto.nexlin.site")
-        if (createRes.success) {
-          activeSite = createRes.site
-          activePage = createRes.page
-          setSite(activeSite)
-          setPage(activePage)
-        }
-      }
-
       // Checkpoint current state for 1-click revert
-      if (sections.length > 0) {
-        setHistory(prev => [...prev, { version: activePage.version, sections }])
+      if (sections.length > 0 && page) {
+        setHistory(prev => [...prev, { version: page.version || 1, sections }])
       }
 
-      const res = await generateForgePageFromPrompt(activePage.id, textPrompt, "dealership")
+      const res = await generateForgePageFromPrompt(page?.id, textPrompt, "dealership")
       if (res.success && res.sections) {
         setSections(res.sections)
-        setPage(res.page)
+        if (res.page) setPage(res.page)
+        if (res.site) setSite(res.site)
         toast.success("Page sections streamed & generated!")
         setPromptInput("")
       } else {
