@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { 
   Search, Filter, MoreVertical, Paperclip, Smile, Send, 
-  Mail, MessageSquare, Phone, User, Clock, Check, CheckCheck, Sparkles, Plus, Loader2 
+  Mail, MessageSquare, Phone, User, Clock, Check, CheckCheck, Sparkles, Plus, Loader2, Link2, ShieldCheck 
 } from "lucide-react"
 
 import { getMessages, sendMessage, createConversation, createQuickContactAndConversation } from "@/app/actions/chat"
+import { getChannelCredentials, saveChannelCredentials } from "@/app/actions/channel-credentials"
 import { generateAiReply } from "@/app/actions/ai"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -34,6 +35,31 @@ export default function ChatClient({ initialConversations }: { initialConversati
   const [newContactPhone, setNewContactPhone] = useState("")
   const [newChannel, setNewChannel] = useState("whatsapp")
   const [isCreatingChat, setIsCreatingChat] = useState(false)
+
+  // Channel Link Setup Modal State
+  const [isSetupOpen, setIsSetupOpen] = useState(false)
+  const [savingCredentials, setSavingCredentials] = useState(false)
+  const [channelData, setChannelData] = useState({
+    whatsappPhoneNumberId: "",
+    whatsappWabaId: "",
+    whatsappAccessToken: "",
+    emailAddress: "",
+    smtpHost: "smtp.sendgrid.net",
+    smtpPort: "587",
+    smtpUser: "",
+    smtpPassword: "",
+    isWhatsappConnected: false,
+    isEmailConnected: false
+  })
+
+  // Load Channel Credentials
+  useEffect(() => {
+    getChannelCredentials().then(res => {
+      if (res.success && res.data) {
+        setChannelData(prev => ({ ...prev, ...res.data }))
+      }
+    })
+  }, [])
 
   // Update activeChannel when active conversation changes
   useEffect(() => {
@@ -142,6 +168,20 @@ export default function ChatClient({ initialConversations }: { initialConversati
     setIsCreatingChat(false)
   }
 
+  const handleSaveChannelCredentials = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingCredentials(true)
+    const res = await saveChannelCredentials(channelData)
+    if (res.success) {
+      toast.success(res.message)
+      setIsSetupOpen(false)
+      getChannelCredentials().then(r => r.success && setChannelData(prev => ({ ...prev, ...r.data })))
+    } else {
+      toast.error(res.error || "Failed to save credentials")
+    }
+    setSavingCredentials(false)
+  }
+
   const ChannelIcon = ({ type, className = "" }: { type: string, className?: string }) => {
     switch (type?.toLowerCase()) {
       case "email": return <Mail className={`w-4 h-4 ${className}`} />
@@ -170,9 +210,14 @@ export default function ChatClient({ initialConversations }: { initialConversati
           <div className="p-4 border-b border-border space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Inbox</h2>
-              <Button size="sm" className="h-8 text-xs" onClick={() => setIsNewDialogOpen(true)}>
-                <Plus className="w-3.5 h-3.5 mr-1" /> New Chat
-              </Button>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setIsSetupOpen(true)}>
+                  <Link2 className="w-3.5 h-3.5 mr-1 text-primary" /> Link Channels
+                </Button>
+                <Button size="sm" className="h-8 text-xs" onClick={() => setIsNewDialogOpen(true)}>
+                  <Plus className="w-3.5 h-3.5 mr-1" /> New
+                </Button>
+              </div>
             </div>
 
             {/* Channel Filters */}
@@ -301,8 +346,11 @@ export default function ChatClient({ initialConversations }: { initialConversati
                 </div>
 
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setIsSetupOpen(true)}>
+                    <Link2 className="w-3.5 h-3.5 text-primary" /> Setup Keys
+                  </Button>
                   <Badge variant="outline" className="text-xs font-normal capitalize">
-                    {activeConversation.channel} Channel Active
+                    {activeConversation.channel} Active
                   </Badge>
                 </div>
               </div>
@@ -460,6 +508,103 @@ export default function ChatClient({ initialConversations }: { initialConversati
                 <Button type="submit" disabled={isCreatingChat || !newContactPhone.trim()}>
                   {isCreatingChat ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
                   {isCreatingChat ? "Creating..." : "Start Chat"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Link Channels Credentials Modal */}
+      {isSetupOpen && (
+        <Dialog open={isSetupOpen} onOpenChange={setIsSetupOpen}>
+          <DialogContent className="bg-bg-primary border-border sm:max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <Link2 className="w-5 h-5 text-primary" /> Link WhatsApp & Email Credentials
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleSaveChannelCredentials} className="space-y-6 pt-2 text-xs">
+              {/* WhatsApp Meta Cloud API */}
+              <div className="p-4 rounded-xl border border-border bg-bg-secondary/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-text-primary flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-success" /> Meta WhatsApp Business API
+                  </div>
+                  {channelData.isWhatsappConnected && <Badge className="bg-success text-white text-[10px]">Connected</Badge>}
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-text-secondary">WhatsApp Phone Number ID</label>
+                    <Input 
+                      placeholder="109283746501928"
+                      value={channelData.whatsappPhoneNumberId}
+                      onChange={e => setChannelData({ ...channelData, whatsappPhoneNumberId: e.target.value })}
+                      className="bg-bg-primary text-xs font-mono mt-0.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-text-secondary">Meta Permanent Access Token</label>
+                    <Input 
+                      type="password"
+                      placeholder="EAAG..."
+                      value={channelData.whatsappAccessToken}
+                      onChange={e => setChannelData({ ...channelData, whatsappAccessToken: e.target.value })}
+                      className="bg-bg-primary text-xs font-mono mt-0.5"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Email SMTP Server */}
+              <div className="p-4 rounded-xl border border-border bg-bg-secondary/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-text-primary flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-primary" /> Agency Email & SMTP Relay
+                  </div>
+                  {channelData.isEmailConnected && <Badge className="bg-primary text-white text-[10px]">Connected</Badge>}
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[11px] text-text-secondary">Sender Email Address</label>
+                    <Input 
+                      placeholder="support@youragency.com"
+                      value={channelData.emailAddress}
+                      onChange={e => setChannelData({ ...channelData, emailAddress: e.target.value })}
+                      className="bg-bg-primary text-xs font-mono mt-0.5"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-text-secondary">SMTP Host</label>
+                      <Input 
+                        placeholder="smtp.sendgrid.net"
+                        value={channelData.smtpHost}
+                        onChange={e => setChannelData({ ...channelData, smtpHost: e.target.value })}
+                        className="bg-bg-primary text-xs font-mono mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] text-text-secondary">SMTP User</label>
+                      <Input 
+                        placeholder="apikey"
+                        value={channelData.smtpUser}
+                        onChange={e => setChannelData({ ...channelData, smtpUser: e.target.value })}
+                        className="bg-bg-primary text-xs font-mono mt-0.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsSetupOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={savingCredentials}>
+                  {savingCredentials ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ShieldCheck className="w-4 h-4 mr-1" />}
+                  {savingCredentials ? "Encrypted & Saving..." : "Save Credentials"}
                 </Button>
               </div>
             </form>
