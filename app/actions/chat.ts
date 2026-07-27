@@ -15,6 +15,36 @@ const pusher = new Pusher({
   useTLS: true,
 })
 
+// Meta WhatsApp Cloud API Error Resolver
+export async function resolveMetaWhatsappError(errorCodeStr: string) {
+  const code = errorCodeStr.replace(/[^0-9]/g, "")
+
+  if (code === "3538221404" || code.includes("3538221404")) {
+    return {
+      errorCode: "3538221404",
+      title: "Meta WhatsApp Error 3538221404: 24-Hour Messaging Window & System Token Expiry",
+      cause: "Meta WhatsApp Cloud API blocked freeform message dispatch because either (1) the 24-hour customer service session expired, or (2) your Meta System User Permanent Access Token lacks 'whatsapp_business_messaging' scope.",
+      resolutionSteps: [
+        "1. Open Meta Business Manager (business.facebook.com) -> Settings -> System Users.",
+        "2. Ensure your System User Token has permissions: 'whatsapp_business_messaging' and 'whatsapp_business_management'.",
+        "3. Generate a Permanent System User Token (Never-Expiring) and paste it into '/chat -> Link Channels'.",
+        "4. If replying to a customer outside the 24-hour window, send an approved Meta WhatsApp Message Template instead of freeform text."
+      ]
+    }
+  }
+
+  return {
+    errorCode: code || "UNKNOWN",
+    title: `Meta WhatsApp Error ${code}`,
+    cause: "Meta WhatsApp API authorization or phone number configuration issue.",
+    resolutionSteps: [
+      "1. Verify your WhatsApp Phone Number ID in Meta Developers Console.",
+      "2. Confirm your Meta Permanent Token is pasted in '/chat -> Link Channels'.",
+      "3. Verify payment method attached to Meta WhatsApp Business Account (WABA)."
+    ]
+  }
+}
+
 export async function getConversations() {
   try {
     const agencyId = await getOrCreateAgency()
