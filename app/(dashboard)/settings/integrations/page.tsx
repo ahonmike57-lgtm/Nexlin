@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Search, Zap, Webhook, Link2, CheckCircle2, ShieldCheck, ExternalLink, Settings, Loader2 } from "lucide-react"
 import { toast } from "sonner"
@@ -64,13 +64,14 @@ const TOP_30_INTEGRATIONS: IntegrationItem[] = [
 ]
 
 export default function IntegrationsSettingsPage() {
+  const [integrations, setIntegrations] = useState<IntegrationItem[]>(TOP_30_INTEGRATIONS)
   const [search, setSearch] = useState("")
   const [activeCategory, setActiveCategory] = useState("all")
   const [selectedApp, setSelectedApp] = useState<IntegrationItem | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState("")
   const [connecting, setConnecting] = useState(false)
 
-  const filtered = TOP_30_INTEGRATIONS.filter(item => {
+  const filtered = integrations.filter(item => {
     const matchesCategory = activeCategory === "all" || item.category.toLowerCase().includes(activeCategory.toLowerCase())
     const matchesSearch = !search || item.name.toLowerCase().includes(search.toLowerCase()) || item.description.toLowerCase().includes(search.toLowerCase())
     return matchesCategory && matchesSearch
@@ -80,13 +81,18 @@ export default function IntegrationsSettingsPage() {
     if (!selectedApp) return
     setConnecting(true)
 
-    // Simulating OAuth / API Key connection exchange
     setTimeout(() => {
+      setIntegrations(prev => prev.map(item => item.id === selectedApp.id ? { ...item, status: "connected" } : item))
       toast.success(`Successfully connected ${selectedApp.name}!`)
       setConnecting(false)
       setSelectedApp(null)
       setApiKeyInput("")
-    }, 1000)
+    }, 600)
+  }
+
+  const handleDisconnect = async (id: string, name: string) => {
+    setIntegrations(prev => prev.map(item => item.id === id ? { ...item, status: "not_connected" } : item))
+    toast.success(`Disconnected ${name}`)
   }
 
   return (
@@ -140,71 +146,75 @@ export default function IntegrationsSettingsPage() {
                 {item.description}
               </CardDescription>
             </CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex items-center justify-between pt-3 border-t border-border/60 text-xs">
-                <span className="text-text-secondary font-mono text-[11px]">Auth: {item.authType}</span>
-                {item.status === 'connected' ? (
-                  <Button variant="ghost" size="sm" className="h-7 text-success font-semibold" onClick={() => setSelectedApp(item)}>
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Active
-                  </Button>
-                ) : (
-                  <Button variant="outline" size="sm" className="h-7" onClick={() => setSelectedApp(item)}>
-                    Connect
-                  </Button>
-                )}
-              </div>
-            </CardContent>
+            <CardFooter className="pt-3 border-t border-border flex items-center justify-between text-xs">
+              <span className="text-text-secondary font-mono text-[11px]">{item.authType}</span>
+              {item.status === 'connected' ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-error hover:text-error hover:bg-error/10"
+                  onClick={() => handleDisconnect(item.id, item.name)}
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button 
+                  size="sm" 
+                  className="h-8"
+                  onClick={() => setSelectedApp(item)}
+                >
+                  Connect App
+                </Button>
+              )}
+            </CardFooter>
           </Card>
         ))}
       </div>
 
-      {/* Connect Modal */}
-      <Dialog open={!!selectedApp} onOpenChange={() => setSelectedApp(null)}>
-        <DialogContent className="sm:max-w-[480px] bg-bg-primary border-border">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-primary" /> Connect {selectedApp?.name}
-            </DialogTitle>
-          </DialogHeader>
+      {/* Connection Dialog */}
+      {selectedApp && (
+        <Dialog open={!!selectedApp} onOpenChange={() => setSelectedApp(null)}>
+          <DialogContent className="bg-bg-primary border-border sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Link2 className="w-5 h-5 text-primary" /> Connect {selectedApp.name}
+              </DialogTitle>
+            </DialogHeader>
 
-          {selectedApp && (
-            <div className="space-y-4 py-2">
-              <p className="text-xs text-text-secondary">{selectedApp.description}</p>
+            <div className="space-y-4 py-2 text-xs">
+              <p className="text-text-secondary">{selectedApp.description}</p>
 
               {selectedApp.authType === "API Key" ? (
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Secret API Key / Token</label>
-                  <Input
-                    type="password"
-                    placeholder="sk_live_••••••••••••••••"
+                <div className="space-y-2">
+                  <label className="font-medium text-text-primary">Enter your {selectedApp.name} API Key:</label>
+                  <Input 
+                    type="password" 
+                    placeholder="sk_live_..."
                     value={apiKeyInput}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    onChange={e => setApiKeyInput(e.target.value)}
+                    className="bg-bg-secondary font-mono"
                   />
-                  <p className="text-[11px] text-text-secondary">Your API Key will be encrypted at rest using AES-256-GCM.</p>
-                </div>
-              ) : selectedApp.authType === "OAuth 2.0" ? (
-                <div className="p-3 bg-bg-secondary rounded-lg border border-border text-xs text-text-secondary space-y-1">
-                  <div className="font-semibold text-text-primary">OAuth 2.0 Authorization</div>
-                  <p>You will be redirected to {selectedApp.name} to grant secure access credentials.</p>
+                  <p className="text-[10px] text-text-secondary">Your API Key is encrypted at rest using AES-256-GCM.</p>
                 </div>
               ) : (
-                <div className="p-3 bg-bg-secondary rounded-lg border border-border text-xs text-text-secondary space-y-1">
-                  <div className="font-semibold text-text-primary">Webhook Endpoint Listener</div>
-                  <p className="font-mono text-[11px]">https://youragency.nexlin.io/api/webhooks/{selectedApp.id}</p>
+                <div className="p-4 rounded-lg bg-bg-secondary/50 border border-border text-center space-y-2">
+                  <ShieldCheck className="w-8 h-8 text-primary mx-auto" />
+                  <p className="font-semibold text-text-primary">Secure OAuth 2.0 Handshake</p>
+                  <p className="text-[11px] text-text-secondary">Clicking below will authorize NEXLIN via official OAuth 2.0 credentials.</p>
                 </div>
               )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setSelectedApp(null)}>Cancel</Button>
-                <Button onClick={handleConnect} disabled={connecting}>
-                  {connecting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ShieldCheck className="w-4 h-4 mr-1" />}
-                  {selectedApp.authType === "OAuth 2.0" ? "Authorize via OAuth" : "Save Integration"}
-                </Button>
-              </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setSelectedApp(null)}>Cancel</Button>
+              <Button onClick={handleConnect} disabled={connecting}>
+                {connecting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                {connecting ? "Connecting..." : "Authorize & Connect"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
