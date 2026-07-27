@@ -375,6 +375,19 @@ export default function ChatClient({ initialConversations }: { initialConversati
                 </div>
               </div>
 
+              {/* Meta Error 3538221404 Alert Banner */}
+              {activeConversation.channel === "whatsapp" && (
+                <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2 flex items-center justify-between text-xs text-amber-300">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span><strong>Meta Error 3538221404 Handler Active:</strong> Outbound messages auto-format as Meta Utility Templates to bypass 24-hour limits.</span>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-amber-400 hover:text-amber-300 underline" onClick={handleFixMetaError3538221404}>
+                    View Fix Guide
+                  </Button>
+                </div>
+              )}
+
               {/* Chat Messages */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-bg-secondary/20">
                 <div className="flex justify-center">
