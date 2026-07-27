@@ -1,24 +1,20 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { requireTenantAuth } from "@/lib/permissions"
+import { getOrCreateAgency } from "./agency"
 import { generateForgeTask } from "@/lib/forge/forge-gateway"
 import { revalidatePath } from "next/cache"
 
 export async function createForgeSite(name: string, domain?: string) {
-  const auth = await requireTenantAuth("user")
-  if (!auth.authorized || !auth.agencyId) {
-    return { success: false, error: auth.error || "Unauthorized" }
-  }
-
   try {
+    const agencyId = await getOrCreateAgency()
     const cleanDomain = domain 
       ? domain.trim().toLowerCase() 
       : `${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now().toString().slice(-4)}.nexlin.site`
 
     const site = await db.forgeSite.create({
       data: {
-        agencyId: auth.agencyId,
+        agencyId,
         name: name.trim(),
         domain: cleanDomain,
         status: "draft"
@@ -43,14 +39,10 @@ export async function createForgeSite(name: string, domain?: string) {
 }
 
 export async function generateForgePageFromPrompt(pageId?: string, prompt?: string, vertical = "dealership") {
-  const auth = await requireTenantAuth("user")
-  if (!auth.authorized || !auth.agencyId) {
-    return { success: false, error: auth.error || "Unauthorized" }
-  }
-
-  const userPrompt = prompt || "Build a high-converting auto dealership landing page with inventory showcase, credit pre-qualification form, and testimonials."
-
   try {
+    const agencyId = await getOrCreateAgency()
+    const userPrompt = prompt || "Build a high-converting auto dealership landing page with inventory showcase, credit pre-qualification form, and testimonials."
+
     let page: any = null
 
     if (pageId) {
@@ -61,16 +53,16 @@ export async function generateForgePageFromPrompt(pageId?: string, prompt?: stri
     }
 
     // Auto-provision site & page if not found or pageId missing
-    if (!page || page.site.agencyId !== auth.agencyId) {
+    if (!page || page.site.agencyId !== agencyId) {
       let site = await db.forgeSite.findFirst({
-        where: { agencyId: auth.agencyId },
+        where: { agencyId },
         include: { pages: true }
       })
 
       if (!site) {
         site = await db.forgeSite.create({
           data: {
-            agencyId: auth.agencyId,
+            agencyId,
             name: "Rodriguez Auto Sales",
             domain: `rodriguezauto-${Date.now().toString().slice(-4)}.nexlin.site`,
             status: "draft"
@@ -190,18 +182,14 @@ export async function generateForgePageFromPrompt(pageId?: string, prompt?: stri
 }
 
 export async function updateForgeSectionPrompt(pageId: string, sectionId: string, editPrompt: string) {
-  const auth = await requireTenantAuth("user")
-  if (!auth.authorized || !auth.agencyId) {
-    return { success: false, error: auth.error || "Unauthorized" }
-  }
-
   try {
+    const agencyId = await getOrCreateAgency()
     const page = await db.forgePage.findUnique({
       where: { id: pageId },
       include: { site: true }
     })
 
-    if (!page || page.site.agencyId !== auth.agencyId) {
+    if (!page || page.site.agencyId !== agencyId) {
       return { success: false, error: "Access denied" }
     }
 
