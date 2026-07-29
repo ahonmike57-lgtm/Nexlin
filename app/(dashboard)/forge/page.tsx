@@ -13,12 +13,40 @@ export default async function ForgePage() {
   const { getOrCreateAgency } = await import("@/app/actions/agency")
   const agencyId = await getOrCreateAgency()
 
-  const site = await db.forgeSite.findFirst({
+  let site = await db.forgeSite.findFirst({
     where: { agencyId },
     include: { pages: true }
   })
 
-  const page = site?.pages?.[0] || null
+  // Auto-provision initial ForgeSite and ForgePage on initial load
+  if (!site) {
+    site = await db.forgeSite.create({
+      data: {
+        agencyId,
+        name: "Rodriguez Auto Sales",
+        domain: `rodriguezauto-${Date.now().toString().slice(-4)}.nexlin.site`,
+        status: "draft"
+      },
+      include: { pages: true }
+    })
+  }
+
+  let page = site.pages?.[0] || null
+
+  if (!page) {
+    page = await db.forgePage.create({
+      data: {
+        siteId: site.id,
+        slug: "home",
+        componentTree: JSON.stringify([]),
+        version: 1
+      }
+    })
+    site = await db.forgeSite.findUnique({
+      where: { id: site.id },
+      include: { pages: true }
+    }) || site
+  }
 
   return <ForgeBuilderClient initialSite={site} initialPage={page} />
 }
