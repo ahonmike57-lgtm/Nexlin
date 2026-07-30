@@ -1,17 +1,34 @@
 "use server"
 
 import { db } from "@/lib/db"
+import bcrypt from "bcryptjs"
 
-export async function registerUser(data: { 
-  firstName: string, 
-  lastName: string, 
-  company: string, 
-  email: string, 
-  passwordHash: string 
+const BCRYPT_ROUNDS = 12
+const MIN_PASSWORD_LENGTH = 8
+
+export async function registerUser(data: {
+  firstName: string,
+  lastName: string,
+  company: string,
+  email: string,
+  password: string
 }) {
   try {
+    const email = data.email?.trim().toLowerCase()
+
+    if (!email || !data.password) {
+      return { success: false, error: "Email and password are required" }
+    }
+
+    if (data.password.length < MIN_PASSWORD_LENGTH) {
+      return {
+        success: false,
+        error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      }
+    }
+
     const existingUser = await db.user.findUnique({
-      where: { email: data.email }
+      where: { email }
     })
 
     if (existingUser) {
@@ -19,15 +36,16 @@ export async function registerUser(data: {
     }
 
     const name = `${data.firstName} ${data.lastName}`.trim()
-    
-    // In production we would hash the password here (e.g. bcrypt)
-    // For now we assume the client sent the string to store, per Phase 3 specs.
-    
+
+    // Hash on the server. The client must never be trusted to send a hash —
+    // if it did, the hash itself would become the password.
+    const passwordHash = await bcrypt.hash(data.password, BCRYPT_ROUNDS)
+
     const user = await db.user.create({
       data: {
         name,
-        email: data.email,
-        passwordHash: data.passwordHash,
+        email,
+        passwordHash,
         role: "Agency Owner",
       }
     })
@@ -35,6 +53,7 @@ export async function registerUser(data: {
     return { success: true, data: { id: user.id } }
   } catch (error: any) {
     console.error("Registration error:", error)
-    return { success: false, error: error.message || "Failed to register" }
+    // Don't leak internal error text (Prisma errors can echo schema/connection details).
+    return { success: false, error: "Failed to register" }
   }
 }

@@ -23,15 +23,15 @@ export default function RegisterPage() {
     const lastName = formData.get("lastName") as string
     const company = formData.get("company") as string
     const email = formData.get("email") as string
-    const passwordHash = formData.get("password") as string
+    const password = formData.get("password") as string
 
-    const result = await registerUser({ firstName, lastName, company, email, passwordHash })
+    const result = await registerUser({ firstName, lastName, company, email, password })
 
     if (result.success) {
       const signInResult = await signIn("credentials", {
         redirect: false,
         email,
-        password: passwordHash,
+        password,
       })
 
       if (signInResult?.error) {

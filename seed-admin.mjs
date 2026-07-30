@@ -3,13 +3,24 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+const email = process.env.ADMIN_EMAIL;
+const password = process.env.ADMIN_PASSWORD;
+
+if (!email || !password) {
+  console.error(
+    'Set ADMIN_EMAIL and ADMIN_PASSWORD before seeding.\n' +
+    'Example: ADMIN_EMAIL=you@example.com ADMIN_PASSWORD="$(openssl rand -base64 24)" node seed-admin.mjs'
+  );
+  process.exit(1);
+}
+
 async function main() {
-  const hash = await bcrypt.hash('Admin123!', 10);
+  const hash = await bcrypt.hash(password, 12);
   const admin = await prisma.platformAdmin.upsert({
-    where: { email: 'admin@nexlin.com' },
+    where: { email },
     update: { passwordHash: hash, status: 'active' },
     create: {
-      email: 'admin@nexlin.com',
+      email,
       name: 'Super Admin',
       role: 'owner',
       status: 'active',

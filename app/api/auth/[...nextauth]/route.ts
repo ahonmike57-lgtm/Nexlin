@@ -5,8 +5,18 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
+const authSecret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
+
+if (!authSecret) {
+  // Fail fast rather than silently falling back to a shared, public constant.
+  // A predictable secret lets anyone forge a session JWT for any account.
+  throw new Error(
+    "NEXTAUTH_SECRET (or AUTH_SECRET) is not set. Generate one with: openssl rand -base64 32"
+  )
+}
+
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || "nexlin-production-auth-secret-key-2026",
+  secret: authSecret,
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
       GoogleProvider({

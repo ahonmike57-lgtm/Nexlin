@@ -43,3 +43,12 @@ next-env.d.ts
 /app/generated/prisma
 
 .vercel
+
+# local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# allow the env template
+!.env.example
