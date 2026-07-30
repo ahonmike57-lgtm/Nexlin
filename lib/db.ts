@@ -1,9 +1,16 @@
 import { PrismaClient } from "@prisma/client"
 
-const connectionString = 
-  process.env.DATABASE_URL || 
-  process.env.POSTGRES_PRISMA_URL || 
-  "postgres://postgres.zfnnukdfjplymakfssqh:sip6DEfB95vbIB3O@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL
+
+if (!connectionString) {
+  // Never fall back to a literal connection string. A credential committed to
+  // source is public the moment the repo is, and rotating it is the only fix.
+  throw new Error(
+    "DATABASE_URL (or POSTGRES_PRISMA_URL) is not set. Configure it in your environment / Vercel project settings."
+  )
+}
 
 const prismaClientSingleton = () => {
   return new PrismaClient({ 
