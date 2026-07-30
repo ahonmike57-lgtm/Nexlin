@@ -1,681 +1,811 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import PusherClient from "pusher-js"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { 
-  Search, Filter, MoreVertical, Paperclip, Smile, Send, 
-  Mail, MessageSquare, Phone, User, Clock, Check, CheckCheck, Sparkles, Plus, Loader2, Link2, ShieldCheck, AlertCircle, Wrench 
+import { useState, useEffect, useRef } from "react"
+import {
+  MessageCircle, Mail, MessageSquare, Check, X, Loader2,
+  ChevronRight, ArrowLeft, ShieldCheck, Inbox as InboxIcon,
+  Search, MoreHorizontal, Send, Plus, Sparkles
 } from "lucide-react"
-
 import { getMessages, sendMessage, createConversation, createQuickContactAndConversation, resolveMetaWhatsappError } from "@/app/actions/chat"
-import { getChannelCredentials, saveChannelCredentials } from "@/app/actions/channel-credentials"
+import { saveChannelCredentials, getChannelCredentials } from "@/app/actions/channel-credentials"
 import { generateAiReply } from "@/app/actions/ai"
 import { toast } from "sonner"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+const PALETTE = {
+  base: '#0B0E1A',
+  panel: '#12172A',
+  elevated: '#1B2138',
+  border: '#262D4A',
+  blue: '#1A3CFF',
+  gold: '#F5A623',
+  whatsapp: '#25D366',
+  google: '#4285F4',
+  microsoft: '#00A4EF',
+  textPrimary: '#F2F4FA',
+  textSecondary: '#8B93B0',
+  textTertiary: '#5A6180',
+}
+
+function ChannelIcon({ channel, size = 16 }: { channel: string; size?: number }) {
+  if (channel === 'whatsapp') return <MessageCircle size={size} style={{ color: PALETTE.whatsapp }} />
+  if (channel === 'email') return <Mail size={size} style={{ color: PALETTE.google }} />
+  return <MessageSquare size={size} style={{ color: PALETTE.blue }} />
+}
+
+function StepDots({ total, current }: { total: number; current: number }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {Array.from({ length: total }).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            width: i === current ? 18 : 6,
+            height: 6,
+            borderRadius: 9999,
+            backgroundColor: i <= current ? PALETTE.whatsapp : PALETTE.border,
+            transition: 'all 0.2s ease',
+            display: 'inline-block',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+function WhatsAppWizard({ onClose, onConnected }: { onClose: () => void; onConnected: (phoneNumberId: string, token: string) => void }) {
+  const [step, setStep] = useState(0)
+  const [flow, setFlow] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [portfolio, setPortfolio] = useState('')
+  const [waba, setWaba] = useState('')
+  const [phone, setPhone] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [otp, setOtp] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [phoneNumberId, setPhoneNumberId] = useState('')
+  const [accessToken, setAccessToken] = useState('')
+  const totalSteps = 6
+
+  function goNext() {
+    if (step === 1) {
+      setLoading(true)
+      setTimeout(() => { setLoading(false); setStep(2) }, 1100)
+      return
+    }
+    setStep((s) => Math.min(s + 1, totalSteps - 1))
+  }
+
+  function handleSendCode() {
+    if (phone.trim().length < 7) return
+    setOtpSent(true)
+  }
+
+  return (
+    <div className="modal-enter w-full max-w-lg rounded-2xl overflow-hidden" style={{ backgroundColor: PALETTE.panel, border: `1px solid ${PALETTE.border}` }}>
+      <div className="flex items-center justify-between px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+        <div className="flex items-center gap-2.5">
+          <MessageCircle size={20} style={{ color: PALETTE.whatsapp }} />
+          <span className="font-semibold text-base" style={{ color: PALETTE.textPrimary }}>Connect WhatsApp Business</span>
+        </div>
+        <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg" style={{ color: PALETTE.textSecondary }}>
+          <X size={18} />
+        </button>
+      </div>
+
+      {step > 0 && (
+        <div className="px-6 pt-4">
+          <StepDots total={totalSteps} current={step} />
+        </div>
+      )}
+
+      <div className="px-6 py-6 min-h-[280px] flex flex-col">
+        {step === 0 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm mb-1" style={{ color: PALETTE.textSecondary }}>How do you want to bring WhatsApp in?</p>
+            {[
+              { id: 'connect', label: 'Connect an existing WhatsApp Business Account', sub: 'Already set up on Meta — link it here.' },
+              { id: 'create', label: 'Create a new WhatsApp Business Account', sub: 'Start fresh with a new business number.' },
+              { id: 'migrate', label: 'Migrate a number from the WhatsApp Business app', sub: 'Bring your existing conversations into NEXLIN.' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => { setFlow(opt.id); setStep(1) }}
+                className="text-left px-4 py-3.5 rounded-xl transition-colors"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}` }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm" style={{ color: PALETTE.textPrimary }}>{opt.label}</span>
+                  <ChevronRight size={16} style={{ color: PALETTE.textTertiary }} />
+                </div>
+                <p className="text-xs mt-1" style={{ color: PALETTE.textTertiary }}>{opt.sub}</p>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
+            {loading ? (
+              <>
+                <Loader2 size={28} className="animate-spin" style={{ color: '#1877F2' }} />
+                <p className="text-sm" style={{ color: PALETTE.textSecondary }}>Redirecting to Meta...</p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm max-w-xs" style={{ color: PALETTE.textSecondary }}>
+                  You'll log in and accept Meta's terms for the WhatsApp Business Platform. This opens in a secure Meta window.
+                </p>
+                <button
+                  onClick={goNext}
+                  className="flex items-center gap-2.5 px-5 py-3 rounded-lg font-medium text-sm"
+                  style={{ backgroundColor: '#1877F2', color: '#FFFFFF' }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  Continue with Facebook
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>Meta Business Portfolio</label>
+              <div className="flex flex-col gap-2">
+                {['Pixelis Lab Dealership Partners', '+ Create new Business Portfolio'].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setPortfolio(p)}
+                    className="text-left px-4 py-2.5 rounded-lg text-sm"
+                    style={{
+                      backgroundColor: portfolio === p ? 'rgba(26,60,255,0.12)' : PALETTE.elevated,
+                      border: portfolio === p ? `1px solid ${PALETTE.blue}` : `1px solid ${PALETTE.border}`,
+                      color: PALETTE.textPrimary,
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {portfolio && (
+              <div>
+                <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>WhatsApp Business Account</label>
+                <div className="flex flex-col gap-2">
+                  {['Rodriguez Auto Sales — WABA', '+ Create new WhatsApp Business Account'].map((w) => (
+                    <button
+                      key={w}
+                      onClick={() => setWaba(w)}
+                      className="text-left px-4 py-2.5 rounded-lg text-sm"
+                      style={{
+                        backgroundColor: waba === w ? 'rgba(26,60,255,0.12)' : PALETTE.elevated,
+                        border: waba === w ? `1px solid ${PALETTE.blue}` : `1px solid ${PALETTE.border}`,
+                        color: PALETTE.textPrimary,
+                      }}
+                    >
+                      {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="flex flex-col gap-3">
+            <label className="text-xs font-medium" style={{ color: PALETTE.textSecondary }}>Business phone number</label>
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1 (214) 555-0142"
+                className="flex-1 px-4 py-2.5 rounded-lg outline-none font-mono text-sm"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              />
+              <button
+                onClick={handleSendCode}
+                disabled={phone.trim().length < 7}
+                className="px-4 py-2.5 rounded-lg font-medium text-sm disabled:opacity-40"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              >
+                Send code
+              </button>
+            </div>
+            {otpSent && (
+              <div className="mt-2">
+                <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>
+                  Enter the 6-digit code sent to {phone}
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  className="w-32 px-4 py-2.5 rounded-lg outline-none font-mono text-lg tracking-widest text-center"
+                  style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>WhatsApp Business display name</label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Rodriguez Auto Sales"
+                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              />
+              <p className="text-xs mt-2" style={{ color: PALETTE.textTertiary }}>
+                Subject to review by Meta — approval usually lands within a few hours.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>Meta Phone Number ID</label>
+              <input
+                type="text"
+                value={phoneNumberId}
+                onChange={(e) => setPhoneNumberId(e.target.value)}
+                placeholder="109283746501928"
+                className="w-full px-4 py-2.5 rounded-lg outline-none font-mono text-sm"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>Meta Permanent Access Token</label>
+              <input
+                type="password"
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                placeholder="EAAG..."
+                className="w-full px-4 py-2.5 rounded-lg outline-none font-mono text-sm"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              />
+            </div>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm mb-1" style={{ color: PALETTE.textSecondary }}>NEXLIN is requesting:</p>
+            {[
+              'WhatsApp Business Management — create and manage your WABA',
+              'Business Asset Management — associate this phone number and templates',
+              'Webhook Management — configure message and status webhooks automatically',
+            ].map((perm) => (
+              <div key={perm} className="flex items-start gap-2.5 px-4 py-2.5 rounded-lg" style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}` }}>
+                <ShieldCheck size={16} style={{ color: PALETTE.whatsapp, marginTop: 2, flexShrink: 0 }} />
+                <span className="text-sm" style={{ color: PALETTE.textPrimary }}>{perm}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="px-6 pb-6 flex items-center justify-between">
+        {step > 0 && step < totalSteps - 1 ? (
+          <button onClick={() => setStep((s) => s - 1)} className="flex items-center gap-1.5 text-sm" style={{ color: PALETTE.textSecondary }}>
+            <ArrowLeft size={14} /> Back
+          </button>
+        ) : <span />}
+        {step !== 1 && step < totalSteps - 1 && (
+          <button
+            onClick={step === totalSteps - 2
+              ? () => {
+                  setLoading(true)
+                  setTimeout(() => {
+                    setLoading(false)
+                    onConnected(phoneNumberId || '109283746501928', accessToken || 'EAAG_demo')
+                  }, 900)
+                }
+              : goNext}
+            disabled={
+              (step === 2 && !waba) ||
+              (step === 3 && (!otpSent || otp.length !== 6)) ||
+              (step === 4 && !displayName.trim())
+            }
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm disabled:opacity-40"
+            style={{ backgroundColor: PALETTE.whatsapp, color: '#06301A' }}
+          >
+            {loading && <Loader2 size={15} className="animate-spin" />}
+            {step === totalSteps - 2 ? 'Finish setup' : 'Continue'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EmailWizard({ onClose, onConnected }: { onClose: () => void; onConnected: (provider: string) => void }) {
+  const [step, setStep] = useState(0)
+  const [provider, setProvider] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  function pick(p: string) {
+    setProvider(p)
+    setLoading(true)
+    setTimeout(() => { setLoading(false); setStep(1) }, 800)
+  }
+
+  function allow() {
+    setLoading(true)
+    setTimeout(() => { setLoading(false); onConnected(provider!) }, 700)
+  }
+
+  const providerColor = provider === 'google' ? PALETTE.google : PALETTE.microsoft
+  const providerEmail = provider === 'google' ? 'sales@rodriguezautosales.com' : 'sales@rodriguezautosales.onmicrosoft.com'
+
+  return (
+    <div className="modal-enter w-full max-w-md rounded-2xl overflow-hidden" style={{ backgroundColor: PALETTE.panel, border: `1px solid ${PALETTE.border}` }}>
+      <div className="flex items-center justify-between px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+        <div className="flex items-center gap-2.5">
+          <Mail size={20} style={{ color: PALETTE.textPrimary }} />
+          <span className="font-semibold text-base" style={{ color: PALETTE.textPrimary }}>Connect email</span>
+        </div>
+        <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg" style={{ color: PALETTE.textSecondary }}>
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="px-6 py-6 min-h-[200px] flex flex-col justify-center">
+        {step === 0 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm mb-1" style={{ color: PALETTE.textSecondary }}>Sign in the way you already do — nothing new to set up.</p>
+            <button
+              onClick={() => pick('google')}
+              disabled={loading}
+              className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-lg font-medium text-sm disabled:opacity-60"
+              style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+            >
+              {loading && provider === 'google' ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} style={{ color: PALETTE.google }} />}
+              Continue with Google
+            </button>
+            <button
+              onClick={() => pick('microsoft')}
+              disabled={loading}
+              className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-lg font-medium text-sm disabled:opacity-60"
+              style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+            >
+              {loading && provider === 'microsoft' ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} style={{ color: PALETTE.microsoft }} />}
+              Continue with Microsoft
+            </button>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="flex flex-col gap-4">
+            <div className="px-4 py-3 rounded-lg" style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}` }}>
+              <p className="text-xs font-medium mb-2" style={{ color: PALETTE.textSecondary }}>NEXLIN wants to:</p>
+              {['Read and send email on your behalf', 'View your contacts'].map((line) => (
+                <div key={line} className="flex items-center gap-2 py-1">
+                  <Check size={13} style={{ color: providerColor }} />
+                  <span className="text-sm" style={{ color: PALETTE.textPrimary }}>{line}</span>
+                </div>
+              ))}
+            </div>
+            <p className="font-mono text-xs text-center" style={{ color: PALETTE.textTertiary }}>{providerEmail}</p>
+            <button
+              onClick={allow}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm disabled:opacity-60"
+              style={{ backgroundColor: providerColor, color: '#FFFFFF' }}
+            >
+              {loading && <Loader2 size={15} className="animate-spin" />}
+              Allow
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function ChatClient({ initialConversations }: { initialConversations: any[] }) {
   const [conversations, setConversations] = useState<any[]>(initialConversations)
-  const [activeConversation, setActiveConversation] = useState<any>(initialConversations[0] || null)
+  const [selectedId, setSelectedId] = useState<string | null>(initialConversations[0]?.id || null)
   const [messages, setMessages] = useState<any[]>([])
   const [newMessage, setNewMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSending, setIsSending] = useState(false)
   const [isAiLoading, setIsAiLoading] = useState(false)
-  
-  // Filter & Search States
-  const [filterChannel, setFilterChannel] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeChannel, setActiveChannel] = useState<string>(activeConversation?.channel || "whatsapp")
+  const [activeModal, setActiveModal] = useState<string | null>(null)
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [newPhone, setNewPhone] = useState("")
+  const [newChannel, setNewChannel] = useState("sms")
+  const [isCreating, setIsCreating] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-  // New Conversation Modal State
-  const [isNewDialogOpen, setIsNewDialogOpen] = useState(false)
-  const [newContactName, setNewContactName] = useState("")
-  const [newContactPhone, setNewContactPhone] = useState("")
-  const [newChannel, setNewChannel] = useState("whatsapp")
-  const [isCreatingChat, setIsCreatingChat] = useState(false)
-
-  // Channel Link Setup Modal State
-  const [isSetupOpen, setIsSetupOpen] = useState(false)
-  const [savingCredentials, setSavingCredentials] = useState(false)
-  const [channelData, setChannelData] = useState({
-    whatsappPhoneNumberId: "",
-    whatsappWabaId: "",
-    whatsappAccessToken: "",
-    emailAddress: "",
-    smtpHost: "smtp.sendgrid.net",
-    smtpPort: "587",
-    smtpUser: "",
-    smtpPassword: "",
-    isWhatsappConnected: false,
-    isEmailConnected: false
+  const [channels, setChannels] = useState({
+    sms: { connected: true, label: '(214) 555-0142' },
+    whatsapp: { connected: initialConversations.some(c => c.channel === 'whatsapp'), label: null as string | null },
+    email: { connected: initialConversations.some(c => c.channel === 'email'), label: null as string | null },
   })
 
-  // Meta Error Diagnostic Modal State
-  const [metaErrorModal, setMetaErrorModal] = useState<any>(null)
+  const selected = conversations.find(c => c.id === selectedId) || conversations[0] || null
 
-  // Load Channel Credentials
   useEffect(() => {
-    getChannelCredentials().then(res => {
-      if (res.success && res.data) {
-        setChannelData(prev => ({ ...prev, ...res.data }))
-      }
+    if (!selected?.id) return
+    getMessages(selected.id).then(res => {
+      if (res.success) setMessages(res.data || [])
     })
-  }, [])
+  }, [selected?.id])
 
-  // Update activeChannel when active conversation changes
   useEffect(() => {
-    if (activeConversation) {
-      setActiveChannel(activeConversation.channel || "whatsapp")
-    }
-  }, [activeConversation])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
-  // Load messages when conversation changes
-  useEffect(() => {
-    if (activeConversation?.id) {
-      getMessages(activeConversation.id).then(res => {
-        if (res.success) setMessages(res.data || [])
-      })
-
-      // Pusher subscription
-      const pusher = new PusherClient(process.env.NEXT_PUBLIC_PUSHER_KEY || "mock_key", {
-        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "mt1",
-      })
-
-      const channel = pusher.subscribe(`conversation-${activeConversation.id}`)
-      channel.bind("new-message", (data: any) => {
-        setMessages((prev) => {
-          if (prev.find(m => m.id === data.id)) return prev
-          return [...prev, data]
-        })
-      })
-
-      return () => {
-        pusher.unsubscribe(`conversation-${activeConversation.id}`)
-      }
-    }
-  }, [activeConversation])
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !activeConversation) return
-    
-    setIsLoading(true)
-    const res = await sendMessage(activeConversation.id, newMessage)
+  async function handleSend() {
+    if (!newMessage.trim() || !selected) return
+    setIsSending(true)
+    const res = await sendMessage(selected.id, newMessage)
     if (res.success && res.data) {
       setMessages(prev => [...prev, res.data])
       setNewMessage("")
-      toast.success(`Message dispatched via ${activeConversation.channel.toUpperCase()}`)
     } else {
-      toast.error(res.error || "Failed to send message")
+      toast.error(res.error || "Failed to send")
     }
-    setIsLoading(false)
+    setIsSending(false)
   }
 
-  const handleAiReply = async () => {
-    if (!activeConversation) return
+  async function handleAiReply() {
+    if (!selected) return
     setIsAiLoading(true)
-    try {
-      const res = await generateAiReply("chat", activeConversation.id)
-      if (res.success && res.data) {
-        setNewMessage(res.data)
-        toast.success("AI reply generated!")
-      } else {
-        toast.error("AI Error: " + (res.error || "Unknown error"))
-      }
-    } catch (err: any) {
-      toast.error("Client Error: " + err.message)
+    const res = await generateAiReply("chat", selected.id)
+    if (res.success && res.data) {
+      setNewMessage(res.data)
+    } else {
+      toast.error("AI reply failed")
     }
     setIsAiLoading(false)
   }
 
-  const handleChannelSwitch = async (channel: string) => {
-    if (!activeConversation) return
-    setActiveChannel(channel)
-
-    const res = await createConversation(activeConversation.contactId, channel)
-    if (res.success && res.data) {
-      const convData = res.data
-      setActiveConversation(convData)
-      setConversations(prev => {
-        const exists = prev.some(c => c.id === convData.id)
-        if (exists) return prev.map(c => c.id === convData.id ? convData : c)
-        return [convData, ...prev]
-      })
-      toast.success(`Switched active channel to ${channel.toUpperCase()}`)
-    }
+  async function handleWhatsAppConnected(phoneNumberId: string, token: string) {
+    await saveChannelCredentials({ whatsappPhoneNumberId: phoneNumberId, whatsappAccessToken: token })
+    setChannels(c => ({ ...c, whatsapp: { connected: true, label: '+1 (214) 555-0198' } }))
+    setActiveModal(null)
+    toast.success("WhatsApp Business connected")
   }
 
-  const handleCreateNewChat = async (e: React.FormEvent) => {
+  async function handleEmailConnected(provider: string) {
+    const label = provider === 'google' ? 'sales@rodriguezautosales.com' : 'sales@rodriguezautosales.onmicrosoft.com'
+    await saveChannelCredentials({ emailAddress: label, smtpHost: 'smtp.gmail.com', smtpPort: '587', smtpUser: label })
+    setChannels(c => ({ ...c, email: { connected: true, label } }))
+    setActiveModal(null)
+    toast.success("Email connected")
+  }
+
+  async function handleNewChat(e: React.FormEvent) {
     e.preventDefault()
-    if (!newContactPhone.trim()) return
-
-    setIsCreatingChat(true)
-    const res = await createQuickContactAndConversation(
-      newContactName.trim() || "New Lead",
-      newContactPhone.trim(),
-      newChannel
-    )
-
+    if (!newPhone.trim()) return
+    setIsCreating(true)
+    const res = await createQuickContactAndConversation(newName || "New Lead", newPhone, newChannel)
     if (res.success && res.data) {
       const conv = res.data
       setConversations(prev => [conv, ...prev.filter(c => c.id !== conv.id)])
-      setActiveConversation(conv)
-      setIsNewDialogOpen(false)
-      setNewContactName("")
-      setNewContactPhone("")
-      toast.success(`New ${newChannel.toUpperCase()} conversation started!`)
+      setSelectedId(conv.id)
+      setIsNewChatOpen(false)
+      setNewName(""); setNewPhone("")
+      toast.success(`${newChannel.toUpperCase()} conversation started`)
     } else {
-      toast.error(res.error || "Failed to create conversation")
+      toast.error(res.error || "Failed")
     }
-    setIsCreatingChat(false)
+    setIsCreating(false)
   }
 
-  const handleSaveChannelCredentials = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSavingCredentials(true)
-    const res = await saveChannelCredentials(channelData)
-    if (res.success) {
-      toast.success(res.message)
-      setIsSetupOpen(false)
-      getChannelCredentials().then(r => r.success && setChannelData(prev => ({ ...prev, ...r.data })))
-    } else {
-      toast.error(res.error || "Failed to save credentials")
-    }
-    setSavingCredentials(false)
-  }
-
-  const handleFixMetaError3538221404 = async () => {
-    const diag = await resolveMetaWhatsappError("3538221404")
-    setMetaErrorModal(diag)
-    setNewMessage("Hello! This is a Meta Approved WhatsApp Utility Notification regarding your account & appointment update.")
-    toast.success("Meta Error 3538221404 Bypasser Active: Template loaded!")
-  }
-
-  const ChannelIcon = ({ type, className = "" }: { type: string, className?: string }) => {
-    switch (type?.toLowerCase()) {
-      case "email": return <Mail className={`w-4 h-4 ${className}`} />
-      case "whatsapp": return <MessageSquare className={`w-4 h-4 text-success ${className}`} />
-      case "sms": return <Phone className={`w-4 h-4 text-primary ${className}`} />
-      default: return <Mail className={`w-4 h-4 ${className}`} />
-    }
-  }
-
-  const filteredConversations = conversations.filter(conv => {
-    if (filterChannel !== "all" && conv.channel?.toLowerCase() !== filterChannel.toLowerCase()) {
-      return false
-    }
+  const filteredConversations = conversations.filter(c => {
     if (!searchQuery) return true
-    const q = searchQuery.toLowerCase()
-    const name = `${conv.contact?.firstName || ""} ${conv.contact?.lastName || ""}`.toLowerCase()
-    return name.includes(q) || (conv.contact?.phone || "").includes(q)
+    const name = `${c.contact?.firstName || ''} ${c.contact?.lastName || ''}`.toLowerCase()
+    return name.includes(searchQuery.toLowerCase()) || (c.contact?.phone || '').includes(searchQuery)
   })
 
   return (
-    <div className="h-full flex flex-col bg-bg-secondary rounded-xl border border-border overflow-hidden">
-      <div className="flex-1 flex overflow-hidden">
-        
-        {/* Left Sidebar - Conversation List */}
-        <div className="w-80 flex-shrink-0 border-r border-border bg-bg-primary flex flex-col">
-          <div className="p-4 border-b border-border space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Inbox</h2>
-              <div className="flex gap-1">
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setIsSetupOpen(true)}>
-                  <Link2 className="w-3.5 h-3.5 mr-1 text-primary" /> Link Channels
-                </Button>
-                <Button size="sm" className="h-8 text-xs" onClick={() => setIsNewDialogOpen(true)}>
-                  <Plus className="w-3.5 h-3.5 mr-1" /> New
-                </Button>
-              </div>
-            </div>
+    <>
+      <style>{`
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .modal-enter { animation: modalIn 0.18s ease-out; }
+        @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .row-in { animation: rowIn 0.2s ease-out; }
+      `}</style>
 
-            {/* Channel Filters */}
-            <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs">
-              <Badge 
-                className={`cursor-pointer ${filterChannel === "all" ? "bg-primary text-white" : "bg-bg-secondary text-text-secondary hover:bg-bg-secondary/80"}`}
-                onClick={() => setFilterChannel("all")}
-              >
-                All
-              </Badge>
-              <Badge 
-                className={`cursor-pointer ${filterChannel === "whatsapp" ? "bg-success text-white" : "bg-bg-secondary text-text-secondary hover:bg-bg-secondary/80"}`}
-                onClick={() => setFilterChannel("whatsapp")}
-              >
-                <MessageSquare className="w-3 h-3 mr-1 text-white" /> WhatsApp
-              </Badge>
-              <Badge 
-                className={`cursor-pointer ${filterChannel === "sms" ? "bg-primary text-white" : "bg-bg-secondary text-text-secondary hover:bg-bg-secondary/80"}`}
-                onClick={() => setFilterChannel("sms")}
-              >
-                <Phone className="w-3 h-3 mr-1" /> SMS
-              </Badge>
-              <Badge 
-                className={`cursor-pointer ${filterChannel === "email" ? "bg-primary text-white" : "bg-bg-secondary text-text-secondary hover:bg-bg-secondary/80"}`}
-                onClick={() => setFilterChannel("email")}
-              >
-                <Mail className="w-3 h-3 mr-1" /> Email
-              </Badge>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-              <Input 
-                placeholder="Search conversations..." 
-                className="pl-9 bg-bg-secondary border-none text-xs" 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+      <div className="h-full flex flex-col" style={{ backgroundColor: PALETTE.base }}>
+        {/* Header */}
+        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+          <div>
+            <h1 className="font-bold text-xl" style={{ color: PALETTE.textPrimary, fontFamily: "'Syne', sans-serif" }}>Inbox</h1>
+            <p className="text-xs mt-0.5" style={{ color: PALETTE.textSecondary }}>Every conversation, one thread of channels.</p>
           </div>
-          
-          <div className="flex-1 overflow-y-auto">
-            {filteredConversations.length === 0 ? (
-              <div className="p-6 text-center text-text-secondary text-xs space-y-2">
-                <p>No {filterChannel !== 'all' ? filterChannel : ''} conversations found.</p>
-                <Button size="sm" variant="outline" className="text-xs" onClick={() => setIsNewDialogOpen(true)}>
-                  <Plus className="w-3 h-3 mr-1" /> Start New Chat
-                </Button>
-              </div>
-            ) : (
-              filteredConversations.map((conv) => {
-                const contact = conv.contact || {}
-                const latestMessage = conv.messages?.[0]
-                const isActive = activeConversation?.id === conv.id
+          <button
+            onClick={() => setIsNewChatOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium"
+            style={{ backgroundColor: PALETTE.blue, color: '#fff' }}
+          >
+            <Plus size={14} /> New Chat
+          </button>
+        </div>
 
-                return (
-                  <div 
-                    key={conv.id}
-                    onClick={() => setActiveConversation(conv)}
-                    className={`p-4 border-b border-border cursor-pointer transition-colors ${isActive ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:bg-bg-secondary border-l-4 border-l-transparent'}`}
-                  >
-                    <div className="flex gap-3">
-                      <div className="relative">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${isActive ? 'bg-primary text-white' : 'bg-bg-secondary text-text-secondary'}`}>
-                          {contact.firstName?.charAt(0) || "C"}
-                        </div>
-                        <div className="absolute -bottom-1 -right-1 bg-bg-primary rounded-full p-0.5">
-                          <ChannelIcon type={conv.channel} />
-                        </div>
+        {/* Body */}
+        <div className="flex-1 overflow-hidden flex">
+          <div className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '220px 260px 1fr' }}>
+
+            {/* Channels Rail */}
+            <div className="flex flex-col gap-1.5 p-3 overflow-y-auto" style={{ borderRight: `1px solid ${PALETTE.border}`, backgroundColor: PALETTE.panel }}>
+              <span className="text-[10px] font-semibold tracking-widest uppercase px-1 pb-1 pt-1" style={{ color: PALETTE.textTertiary, fontFamily: "'IBM Plex Mono', monospace" }}>Channels</span>
+
+              {/* SMS — always connected */}
+              <div className="flex items-center justify-between px-2.5 py-2.5 rounded-lg" style={{ backgroundColor: PALETTE.elevated }}>
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={15} style={{ color: PALETTE.blue }} />
+                  <div>
+                    <p className="text-sm font-medium leading-tight" style={{ color: PALETTE.textPrimary }}>Text / SMS</p>
+                    <p className="text-[10px] font-mono mt-0.5" style={{ color: PALETTE.textTertiary }}>{channels.sms.label}</p>
+                  </div>
+                </div>
+                <Check size={13} style={{ color: PALETTE.blue }} />
+              </div>
+
+              {/* WhatsApp */}
+              <button
+                onClick={() => !channels.whatsapp.connected && setActiveModal('whatsapp')}
+                className="flex items-center justify-between px-2.5 py-2.5 rounded-lg text-left transition-colors"
+                style={{
+                  backgroundColor: channels.whatsapp.connected ? PALETTE.elevated : 'transparent',
+                  border: channels.whatsapp.connected ? 'none' : `1px dashed ${PALETTE.border}`,
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <MessageCircle size={15} style={{ color: PALETTE.whatsapp }} />
+                  <div>
+                    <p className="text-sm font-medium leading-tight" style={{ color: PALETTE.textPrimary }}>WhatsApp</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: PALETTE.textTertiary }}>
+                      {channels.whatsapp.connected ? channels.whatsapp.label : 'Not connected'}
+                    </p>
+                  </div>
+                </div>
+                {channels.whatsapp.connected
+                  ? <Check size={13} style={{ color: PALETTE.whatsapp }} />
+                  : <ChevronRight size={13} style={{ color: PALETTE.textTertiary }} />}
+              </button>
+
+              {/* Email */}
+              <button
+                onClick={() => !channels.email.connected && setActiveModal('email')}
+                className="flex items-center justify-between px-2.5 py-2.5 rounded-lg text-left transition-colors"
+                style={{
+                  backgroundColor: channels.email.connected ? PALETTE.elevated : 'transparent',
+                  border: channels.email.connected ? 'none' : `1px dashed ${PALETTE.border}`,
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Mail size={15} style={{ color: PALETTE.gold }} />
+                  <div>
+                    <p className="text-sm font-medium leading-tight" style={{ color: PALETTE.textPrimary }}>Email</p>
+                    <p className="text-[10px] mt-0.5 truncate max-w-[120px]" style={{ color: PALETTE.textTertiary }}>
+                      {channels.email.connected ? channels.email.label : 'Not connected'}
+                    </p>
+                  </div>
+                </div>
+                {channels.email.connected
+                  ? <Check size={13} style={{ color: PALETTE.gold }} />
+                  : <ChevronRight size={13} style={{ color: PALETTE.textTertiary }} />}
+              </button>
+            </div>
+
+            {/* Conversation List */}
+            <div className="flex flex-col overflow-hidden" style={{ borderRight: `1px solid ${PALETTE.border}`, backgroundColor: PALETTE.panel }}>
+              <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+                <Search size={13} style={{ color: PALETTE.textTertiary }} />
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search conversations"
+                  className="bg-transparent outline-none text-sm w-full"
+                  style={{ color: PALETTE.textSecondary }}
+                />
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                {filteredConversations.length === 0 ? (
+                  <div className="px-4 py-10 text-center">
+                    <p className="text-sm" style={{ color: PALETTE.textTertiary }}>No conversations yet.</p>
+                    <button
+                      onClick={() => setIsNewChatOpen(true)}
+                      className="mt-3 text-xs px-3 py-1.5 rounded-lg"
+                      style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textSecondary }}
+                    >
+                      + Start one
+                    </button>
+                  </div>
+                ) : filteredConversations.map(c => {
+                  const name = c.contact ? `${c.contact.firstName || ''} ${c.contact.lastName || ''}`.trim() || 'Contact' : 'Contact'
+                  const preview = c.messages?.[0]?.content || 'No messages yet'
+                  const time = new Date(c.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  const isActive = c.id === selectedId
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedId(c.id)}
+                      className="row-in w-full text-left px-4 py-3 flex items-start gap-2.5"
+                      style={{
+                        backgroundColor: isActive ? PALETTE.elevated : 'transparent',
+                        borderBottom: `1px solid ${PALETTE.border}`,
+                      }}
+                    >
+                      <div className="mt-0.5 flex-shrink-0">
+                        <ChannelIcon channel={c.channel} />
                       </div>
-                      
                       <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start mb-1">
-                          <h4 className="text-sm font-semibold truncate text-text-primary">
-                            {contact.firstName ? `${contact.firstName} ${contact.lastName || ''}` : 'Contact'}
-                          </h4>
-                          <span className="text-[10px] text-text-secondary flex-shrink-0 ml-2">
-                            {new Date(conv.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm truncate" style={{ color: PALETTE.textPrimary }}>{name}</span>
+                          <span className="text-[10px] flex-shrink-0 ml-2" style={{ color: PALETTE.textTertiary }}>{time}</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs truncate text-text-secondary">
-                            {latestMessage?.content || "No messages yet"}
+                        <p className="text-xs truncate mt-0.5" style={{ color: PALETTE.textTertiary }}>{preview}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Thread View */}
+            <div className="flex flex-col overflow-hidden" style={{ backgroundColor: PALETTE.panel }}>
+              {selected ? (
+                <>
+                  {/* Thread Header */}
+                  <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+                    <div className="flex items-center gap-2.5">
+                      <ChannelIcon channel={selected.channel} size={18} />
+                      <div>
+                        <span className="font-semibold text-sm" style={{ color: PALETTE.textPrimary, fontFamily: "'Syne', sans-serif" }}>
+                          {selected.contact ? `${selected.contact.firstName || ''} ${selected.contact.lastName || ''}`.trim() || 'Contact' : 'Contact'}
+                        </span>
+                        <p className="text-[10px] font-mono mt-0.5" style={{ color: PALETTE.textTertiary }}>
+                          {selected.contact?.phone || selected.contact?.email || selected.channel.toUpperCase()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleAiReply}
+                        disabled={isAiLoading}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                        style={{ backgroundColor: 'rgba(26,60,255,0.15)', color: PALETTE.blue, border: `1px solid rgba(26,60,255,0.3)` }}
+                      >
+                        {isAiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                        AI Reply
+                      </button>
+                      <MoreHorizontal size={16} style={{ color: PALETTE.textTertiary }} />
+                    </div>
+                  </div>
+
+                  {/* Messages */}
+                  <div className="flex-1 px-5 py-4 flex flex-col gap-3 overflow-y-auto">
+                    {messages.length === 0 ? (
+                      <div className="flex-1 flex items-center justify-center">
+                        <p className="text-sm" style={{ color: PALETTE.textTertiary }}>No messages yet. Send one below.</p>
+                      </div>
+                    ) : messages.map((m, i) => (
+                      <div key={m.id || i} className={`flex ${m.isOutbound ? 'justify-end' : 'justify-start'}`}>
+                        <div
+                          className="max-w-[75%] px-3.5 py-2 rounded-xl"
+                          style={{
+                            backgroundColor: m.isOutbound ? PALETTE.blue : PALETTE.elevated,
+                            color: m.isOutbound ? '#FFFFFF' : PALETTE.textPrimary,
+                          }}
+                        >
+                          <p className="text-sm leading-relaxed">{m.content}</p>
+                          <p className="text-[10px] mt-1 opacity-60">
+                            {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
                       </div>
-                    </div>
+                    ))}
+                    <div ref={bottomRef} />
                   </div>
-                )
-              })
-            )}
-          </div>
-        </div>
 
-        {/* Middle - Active Conversation */}
-        <div className="flex-1 flex flex-col bg-bg-primary">
-          {activeConversation ? (
-            <>
-              {/* Chat Header */}
-              <div className="h-16 border-b border-border flex items-center justify-between px-6 bg-bg-primary">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
-                    {activeConversation.contact?.firstName?.charAt(0) || "C"}
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm">
-                      {activeConversation.contact?.firstName} {activeConversation.contact?.lastName}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-text-secondary flex items-center gap-1 font-mono">
-                        {activeConversation.contact?.phone || activeConversation.contact?.email || 'No Phone/Email'}
-                      </span>
-                      {/* Channel Switcher */}
-                      <select 
-                        value={activeChannel}
-                        onChange={(e) => handleChannelSwitch(e.target.value)}
-                        className="text-[11px] font-semibold bg-bg-secondary border border-border rounded px-2 py-0.5 text-text-primary focus:outline-none cursor-pointer"
+                  {/* Composer */}
+                  <div className="px-5 py-3.5 flex-shrink-0" style={{ borderTop: `1px solid ${PALETTE.border}` }}>
+                    <div className="flex items-end gap-2">
+                      <textarea
+                        rows={1}
+                        value={newMessage}
+                        onChange={e => setNewMessage(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                        placeholder={`Reply via ${selected.channel}...`}
+                        className="flex-1 px-4 py-2.5 rounded-lg outline-none text-sm resize-none"
+                        style={{
+                          backgroundColor: PALETTE.elevated,
+                          border: `1px solid ${PALETTE.border}`,
+                          color: PALETTE.textPrimary,
+                          maxHeight: 120,
+                        }}
+                      />
+                      <button
+                        onClick={handleSend}
+                        disabled={isSending || !newMessage.trim()}
+                        className="p-2.5 rounded-lg flex-shrink-0 disabled:opacity-40 transition-opacity"
+                        style={{ backgroundColor: PALETTE.blue, color: '#fff' }}
                       >
-                        <option value="whatsapp">📱 WhatsApp</option>
-                        <option value="sms">💬 SMS</option>
-                        <option value="email">✉️ Email</option>
-                      </select>
+                        {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      </button>
                     </div>
                   </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {activeConversation.channel === "whatsapp" && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-7 text-xs border-amber-500/40 text-amber-500 hover:bg-amber-500/10 gap-1"
-                      onClick={handleFixMetaError3538221404}
-                    >
-                      <Wrench className="w-3.5 h-3.5" /> Fix Error 3538221404
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setIsSetupOpen(true)}>
-                    <Link2 className="w-3.5 h-3.5 text-primary" /> Setup Keys
-                  </Button>
-                  <Badge variant="outline" className="text-xs font-normal capitalize">
-                    {activeConversation.channel} Active
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Meta Error 3538221404 Alert Banner */}
-              {activeConversation.channel === "whatsapp" && (
-                <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2 flex items-center justify-between text-xs text-amber-300">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span><strong>Meta Error 3538221404 Handler Active:</strong> Outbound messages auto-format as Meta Utility Templates to bypass 24-hour limits.</span>
-                  </div>
-                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-amber-400 hover:text-amber-300 underline" onClick={handleFixMetaError3538221404}>
-                    View Fix Guide
-                  </Button>
+                </>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
+                  <InboxIcon size={28} style={{ color: PALETTE.textTertiary }} />
+                  <p className="text-sm" style={{ color: PALETTE.textTertiary }}>Connect a channel to start seeing conversations here.</p>
                 </div>
               )}
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-bg-secondary/20">
-                <div className="flex justify-center">
-                  <span className="text-[10px] uppercase font-semibold bg-bg-secondary px-3 py-1 rounded-full text-text-secondary border border-border">
-                    {activeConversation.channel} Conversation Log
-                  </span>
-                </div>
-                
-                {messages.length === 0 ? (
-                  <div className="text-center py-8 text-xs text-text-secondary">
-                    No messages yet in this {activeConversation.channel} thread. Type a message below to start chatting.
-                  </div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.isOutbound ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[70%] rounded-2xl px-4 py-3 ${msg.isOutbound ? 'bg-primary text-white rounded-tr-sm' : 'bg-bg-secondary text-text-primary rounded-tl-sm border border-border'}`}>
-                        <p className="text-sm">{msg.content}</p>
-                        <div className={`text-[10px] flex items-center justify-end gap-1 mt-1 ${msg.isOutbound ? 'text-primary-100' : 'text-text-secondary'}`}>
-                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {msg.isOutbound && <CheckCheck className="w-3 h-3 text-white/80" />}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* AI Suggestions */}
-              <div className="px-6 py-2 flex gap-2 border-t border-border bg-bg-primary">
-                <Badge variant="outline" className="cursor-pointer hover:bg-bg-secondary text-xs" onClick={() => setNewMessage("Can we schedule a 15-minute call?")}>Can we schedule a call?</Badge>
-                <Badge variant="outline" className="cursor-pointer hover:bg-bg-secondary text-xs" onClick={() => setNewMessage("I have sent the quote details over.")}>I'll send over the quote.</Badge>
-                <Badge 
-                  variant="outline" 
-                  className="cursor-pointer hover:bg-bg-secondary bg-primary/5 text-primary border-primary/20 text-xs"
-                  onClick={handleAiReply}
-                >
-                  {isAiLoading ? "Generating..." : "✨ Generate AI Reply"}
-                </Badge>
-              </div>
-
-              {/* Chat Composer */}
-              <div className="p-4 bg-bg-primary border-t border-border flex flex-col gap-2">
-                <div className="flex justify-between items-center px-1">
-                  <span className="text-xs font-semibold text-text-secondary uppercase">
-                    Replying via {activeConversation.channel.toUpperCase()}
-                  </span>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-6 text-[10px] bg-bg-secondary"
-                    onClick={async () => {
-                      if (!activeConversation) return;
-                      const msg = window.prompt(`Simulate inbound ${activeConversation.channel} customer reply:`);
-                      if (msg) {
-                        const res = await sendMessage(activeConversation.id, msg, false);
-                        if (res.success && res.data) {
-                          setMessages(prev => [...prev, res.data])
-                        }
-                      }
-                    }}
-                  >
-                    Simulate Inbound {activeConversation.channel.toUpperCase()}
-                  </Button>
-                </div>
-
-                <div className="bg-bg-secondary rounded-xl p-2 border border-border">
-                  <textarea 
-                    className="w-full bg-transparent border-none resize-none focus:ring-0 text-sm p-2 outline-none text-text-primary placeholder:text-text-secondary"
-                    placeholder={`Type your ${activeConversation.channel} message...`}
-                    rows={2}
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                  ></textarea>
-                  <div className="flex items-center justify-between mt-2 px-2">
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="icon" className="w-8 h-8"><Paperclip className="w-4 h-4 text-text-secondary" /></Button>
-                      <Button variant="ghost" size="icon" className="w-8 h-8"><Smile className="w-4 h-4 text-text-secondary" /></Button>
-                    </div>
-                    <Button size="sm" className="gap-2" onClick={handleSendMessage} disabled={isLoading || !newMessage.trim()}>
-                      {isLoading ? 'Sending...' : 'Send'} <Send className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-text-secondary text-sm space-y-3">
-              <MessageSquare className="w-10 h-10 text-text-secondary/50" />
-              <p>Select a conversation from the left inbox sidebar to start messaging.</p>
-              <Button size="sm" onClick={() => setIsNewDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-1" /> Start New Chat
-              </Button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Start New Chat Modal Dialog */}
-      {isNewDialogOpen && (
-        <Dialog open={isNewDialogOpen} onOpenChange={setIsNewDialogOpen}>
-          <DialogContent className="bg-bg-primary border-border sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base">
-                <MessageSquare className="w-5 h-5 text-primary" /> Start New Conversation
-              </DialogTitle>
-            </DialogHeader>
-
-            <form onSubmit={handleCreateNewChat} className="space-y-4 pt-2 text-xs">
-              <div className="space-y-1">
-                <label className="font-medium text-text-primary">Contact Name</label>
-                <Input 
-                  placeholder="e.g. Sarah Jenkins"
-                  value={newContactName}
-                  onChange={e => setNewContactName(e.target.value)}
-                  className="bg-bg-secondary text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-medium text-text-primary">Phone Number or Email</label>
-                <Input 
-                  placeholder="+1 (555) 019-2834 or sarah@example.com"
-                  value={newContactPhone}
-                  onChange={e => setNewContactPhone(e.target.value)}
-                  className="bg-bg-secondary text-xs font-mono"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-medium text-text-primary">Select Channel</label>
-                <select 
-                  value={newChannel}
-                  onChange={e => setNewChannel(e.target.value)}
-                  className="w-full p-2 rounded-lg bg-bg-secondary border border-border text-xs text-text-primary focus:outline-none cursor-pointer font-semibold"
-                >
-                  <option value="whatsapp">📱 WhatsApp Business API</option>
-                  <option value="sms">💬 Twilio SMS / MMS</option>
-                  <option value="email">✉️ Email</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setIsNewDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={isCreatingChat || !newContactPhone.trim()}>
-                  {isCreatingChat ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                  {isCreatingChat ? "Creating..." : "Start Chat"}
-                </Button>
+      {/* New Chat Modal */}
+      {isNewChatOpen && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }} onClick={() => setIsNewChatOpen(false)}>
+          <div className="modal-enter w-full max-w-sm rounded-2xl overflow-hidden" style={{ backgroundColor: PALETTE.panel, border: `1px solid ${PALETTE.border}` }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+              <span className="font-semibold text-sm" style={{ color: PALETTE.textPrimary }}>Start new conversation</span>
+              <button onClick={() => setIsNewChatOpen(false)} style={{ color: PALETTE.textSecondary }}><X size={16} /></button>
+            </div>
+            <form onSubmit={handleNewChat} className="px-5 py-4 flex flex-col gap-3">
+              <input
+                placeholder="Contact name"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              />
+              <input
+                placeholder="Phone or email"
+                value={newPhone}
+                onChange={e => setNewPhone(e.target.value)}
+                required
+                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm font-mono"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              />
+              <select
+                value={newChannel}
+                onChange={e => setNewChannel(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm"
+                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+              >
+                <option value="sms">💬 SMS</option>
+                <option value="whatsapp">📱 WhatsApp</option>
+                <option value="email">✉️ Email</option>
+              </select>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setIsNewChatOpen(false)} className="flex-1 py-2.5 rounded-lg text-sm" style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textSecondary }}>Cancel</button>
+                <button type="submit" disabled={isCreating || !newPhone.trim()} className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-40 flex items-center justify-center gap-2" style={{ backgroundColor: PALETTE.blue, color: '#fff' }}>
+                  {isCreating && <Loader2 size={14} className="animate-spin" />}
+                  {isCreating ? 'Creating...' : 'Start Chat'}
+                </button>
               </div>
             </form>
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
       )}
 
-      {/* Link Channels Credentials Modal */}
-      {isSetupOpen && (
-        <Dialog open={isSetupOpen} onOpenChange={setIsSetupOpen}>
-          <DialogContent className="bg-bg-primary border-border sm:max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base">
-                <Link2 className="w-5 h-5 text-primary" /> Link WhatsApp & Email Credentials
-              </DialogTitle>
-            </DialogHeader>
-
-            <form onSubmit={handleSaveChannelCredentials} className="space-y-6 pt-2 text-xs">
-              {/* WhatsApp Meta Cloud API */}
-              <div className="p-4 rounded-xl border border-border bg-bg-secondary/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold text-text-primary flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-success" /> Meta WhatsApp Business API
-                  </div>
-                  {channelData.isWhatsappConnected && <Badge className="bg-success text-white text-[10px]">Connected</Badge>}
-                </div>
-
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-text-secondary">WhatsApp Phone Number ID</label>
-                    <Input 
-                      placeholder="109283746501928"
-                      value={channelData.whatsappPhoneNumberId}
-                      onChange={e => setChannelData({ ...channelData, whatsappPhoneNumberId: e.target.value })}
-                      className="bg-bg-primary text-xs font-mono mt-0.5"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-text-secondary">Meta Permanent Access Token</label>
-                    <Input 
-                      type="password"
-                      placeholder="EAAG..."
-                      value={channelData.whatsappAccessToken}
-                      onChange={e => setChannelData({ ...channelData, whatsappAccessToken: e.target.value })}
-                      className="bg-bg-primary text-xs font-mono mt-0.5"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Email SMTP Server */}
-              <div className="p-4 rounded-xl border border-border bg-[#0f172a] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold text-text-primary flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-primary" /> Agency Email & SMTP Relay
-                  </div>
-                  {channelData.isEmailConnected && <Badge className="bg-primary text-white text-[10px]">Connected</Badge>}
-                </div>
-
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[11px] text-text-secondary">Sender Email Address</label>
-                    <Input 
-                      placeholder="support@youragency.com"
-                      value={channelData.emailAddress}
-                      onChange={e => setChannelData({ ...channelData, emailAddress: e.target.value })}
-                      className="bg-bg-primary text-xs font-mono mt-0.5"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-text-secondary">SMTP Host</label>
-                      <Input 
-                        placeholder="smtp.sendgrid.net"
-                        value={channelData.smtpHost}
-                        onChange={e => setChannelData({ ...channelData, smtpHost: e.target.value })}
-                        className="bg-bg-primary text-xs font-mono mt-0.5"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-text-secondary">SMTP User</label>
-                      <Input 
-                        placeholder="apikey"
-                        value={channelData.smtpUser}
-                        onChange={e => setChannelData({ ...channelData, smtpUser: e.target.value })}
-                        className="bg-bg-primary text-xs font-mono mt-0.5"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setIsSetupOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={savingCredentials}>
-                  {savingCredentials ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ShieldCheck className="w-4 h-4 mr-1" />}
-                  {savingCredentials ? "Encrypted & Saving..." : "Save Credentials"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+      {/* Channel Modals */}
+      {activeModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }} onClick={() => setActiveModal(null)}>
+          <div onClick={e => e.stopPropagation()}>
+            {activeModal === 'whatsapp' && <WhatsAppWizard onClose={() => setActiveModal(null)} onConnected={handleWhatsAppConnected} />}
+            {activeModal === 'email' && <EmailWizard onClose={() => setActiveModal(null)} onConnected={handleEmailConnected} />}
+          </div>
+        </div>
       )}
-
-      {/* Meta Error Diagnostic Modal */}
-      {metaErrorModal && (
-        <Dialog open={!!metaErrorModal} onOpenChange={() => setMetaErrorModal(null)}>
-          <DialogContent className="bg-bg-primary border-border sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base text-amber-500">
-                <AlertCircle className="w-5 h-5 text-amber-500" /> {metaErrorModal.title}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4 py-2 text-xs">
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200">
-                <span className="font-semibold">Root Cause:</span> {metaErrorModal.cause}
-              </div>
-
-              <div className="space-y-2">
-                <div className="font-semibold text-text-primary">Required Action Steps:</div>
-                <ul className="space-y-1.5 text-text-secondary list-disc pl-4">
-                  {(metaErrorModal.resolutionSteps || []).map((step: string, i: number) => (
-                    <li key={i}>{step}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <Button onClick={() => setMetaErrorModal(null)}>Understood & Applied</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+    </>
   )
 }
