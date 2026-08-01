@@ -5,7 +5,7 @@ import { getCPQQuotes, createCPQQuote, approveCPQQuote } from "@/app/actions/cpq
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Plus, CheckCircle, Clock, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react"
+import { FileText, Plus, CheckCircle, Clock, ShieldCheck, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
@@ -16,9 +16,9 @@ export default function CPQQuotesPage() {
   const [saving, setSaving] = useState(false)
 
   const [title, setTitle] = useState("")
-  const [contactId, setContactId] = useState("contact-1")
+  const [contactId] = useState("contact-1")
   const [discount, setDiscount] = useState(0)
-  const [items, setItems] = useState([
+  const [items] = useState([
     { name: "SaaS Pro Plan (Annual)", quantity: 1, unitPrice: 2970 },
     { name: "Onboarding & Custom Setup", quantity: 1, unitPrice: 500 }
   ])
@@ -26,8 +26,8 @@ export default function CPQQuotesPage() {
   const loadQuotes = async () => {
     setLoading(true)
     const res = await getCPQQuotes()
-    if (res.success && res.quotes) {
-      setQuotes(res.quotes)
+    if (res.success && 'data' in res && res.data) {
+      setQuotes(res.data)
     }
     setLoading(false)
   }
@@ -48,14 +48,14 @@ export default function CPQQuotesPage() {
       items
     })
 
-    if (res.success) {
-      toast.success(res.requiresApproval ? "Quote created & flagged for manager discount approval" : "Quote created & approved!")
+    if (res.success && 'data' in res && res.data) {
+      toast.success(res.data.requiresApproval ? "Quote created & flagged for manager discount approval" : "Quote created & approved!")
       setOpen(false)
       setTitle("")
       setDiscount(0)
       loadQuotes()
     } else {
-      toast.error(res.error || "Failed to create quote")
+      toast.error('error' in res ? res.error : "Failed to create quote")
     }
     setSaving(false)
   }
@@ -66,7 +66,7 @@ export default function CPQQuotesPage() {
       toast.success("Quote approved!")
       loadQuotes()
     } else {
-      toast.error(res.error || "Approval failed")
+      toast.error('error' in res ? res.error : "Approval failed")
     }
   }
 
@@ -154,7 +154,7 @@ export default function CPQQuotesPage() {
                   <h3 className="font-semibold text-base text-text-primary">{q.title}</h3>
                   <Badge variant={q.status === 'approved' ? 'default' : 'secondary'} className="capitalize text-[10px]">
                     {q.status === 'approved' ? <CheckCircle className="w-3 h-3 mr-1" /> : <Clock className="w-3 h-3 mr-1" />}
-                    {q.status.replace("_", " ")}
+                    {q.status?.replace("_", " ")}
                   </Badge>
                 </div>
                 <div className="text-xs text-text-secondary space-x-3 font-mono">
