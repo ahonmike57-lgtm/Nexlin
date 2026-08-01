@@ -1,49 +1,83 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { verifyMetaSignature, logWebhookDelivery } from "@/lib/webhooks"
 import { db } from "@/lib/db"
-import { pusherServer } from "@/lib/pusher"
 
-// Meta WhatsApp Webhook Verification
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
   const mode = searchParams.get("hub.mode")
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "nexlin_whatsapp_token_2026"
+  const verifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN || "nexlin_meta_webhook_secret_2026"
 
-  if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    return new Response(challenge, { status: 200 })
+  if (mode === "subscribe" && token === verifyToken) {
+    console.log("Meta WhatsApp Webhook Verified Successfully!")
+    return new NextResponse(challenge, { status: 200 })
   }
 
-  return new Response("Forbidden", { status: 403 })
+  return NextResponse.json({ error: "Verification token mismatch" }, { status: 403 })
 }
 
-// Inbound WhatsApp Cloud API Webhook
-export async function POST(request: Request) {
-  try {
-    const body = await request.json()
+export async function POST(req: NextRequest) {
+  const startTime = Date.now()
+  let bodyText = ""
 
-    if (body.object === "whatsapp_business_account") {
-      for (const entry of body.entry || []) {
+  try {
+    bodyText = await req.text()
+    const signature = req.headers.get("x-hub-signature-256")
+    const appSecret = process.env.META_APP_SECRET
+
+    // Enforce HMAC signature check when META_APP_SECRET is configured
+    if (appSecret && !verifyMetaSignature(bodyText, signature, appSecret)) {
+      await logWebhookDelivery({
+        event: "whatsapp.inbound.rejected",
+        payload: { reason: "Invalid HMAC signature" },
+        statusCode: 401,
+        error: "Signature verification failed"
+      })
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
+    }
+
+    const payload = JSON.parse(bodyText)
+
+    // Process WhatsApp Entry Payload
+    if (payload.entry) {
+      for (const entry of payload.entry) {
         for (const change of entry.changes || []) {
           const value = change.value
-          if (value && value.messages) {
+          if (value?.messages) {
             for (const msg of value.messages) {
-              const fromPhone = msg.from // Sender phone
-              const textBody = msg.text?.body || "Media message"
+              const fromNumber = msg.from // e.g. "+14155550192"
+              const textContent = msg.text?.body || msg.caption || "[Media Message]"
 
-              // Find contact or fallback
-              const contact = await db.contact.findFirst({
-                where: { phone: { contains: fromPhone.slice(-10) } }
+              // Find or create contact
+              let contact = await db.contact.findFirst({
+                where: { OR: [{ phone: fromNumber }, { phone: `+${fromNumber}` }] }
               })
 
+              if (!contact) {
+                // Assign to default first agency if unmapped
+                const defaultAgency = await db.agency.findFirst()
+                if (defaultAgency) {
+                  contact = await db.contact.create({
+                    data: {
+                      agencyId: defaultAgency.id,
+                      firstName: value.contacts?.[0]?.profile?.name || "WhatsApp",
+                      lastName: "User",
+                      phone: fromNumber.startsWith("+") ? fromNumber : `+${fromNumber}`
+                    }
+                  })
+                }
+              }
+
               if (contact) {
-                let conversation = await db.conversation.findFirst({
+                // Find or create conversation
+                let conv = await db.conversation.findFirst({
                   where: { contactId: contact.id, channel: "whatsapp" }
                 })
 
-                if (!conversation) {
-                  conversation = await db.conversation.create({
+                if (!conv) {
+                  conv = await db.conversation.create({
                     data: {
                       agencyId: contact.agencyId,
                       contactId: contact.id,
@@ -52,20 +86,20 @@ export async function POST(request: Request) {
                   })
                 }
 
-                const newMsg = await db.message.create({
+                // Ingest message into thread
+                await db.message.create({
                   data: {
-                    conversationId: conversation.id,
-                    content: textBody,
+                    conversationId: conv.id,
+                    content: textContent,
                     isOutbound: false,
                     status: "delivered"
                   }
                 })
 
-                try {
-                  await pusherServer.trigger(`conversation-${conversation.id}`, "new-message", newMsg)
-                } catch (e) {
-                  console.error("Pusher trigger failed:", e)
-                }
+                await db.conversation.update({
+                  where: { id: conv.id },
+                  data: { updatedAt: new Date() }
+                })
               }
             }
           }
@@ -73,9 +107,21 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ status: "success" })
-  } catch (error) {
-    console.error("WhatsApp Webhook Error:", error)
-    return NextResponse.json({ error: "Webhook Error" }, { status: 500 })
+    await logWebhookDelivery({
+      event: "whatsapp.inbound.processed",
+      payload,
+      statusCode: 200
+    })
+
+    return NextResponse.json({ status: "success" }, { status: 200 })
+  } catch (error: any) {
+    console.error("WhatsApp Webhook Ingestion Error:", error)
+    await logWebhookDelivery({
+      event: "whatsapp.inbound.error",
+      payload: bodyText,
+      statusCode: 500,
+      error: error.message
+    })
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

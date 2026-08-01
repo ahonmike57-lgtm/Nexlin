@@ -1,70 +1,51 @@
 "use server"
 
-import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getOrCreateAgency } from "./agency"
+import { withAgency } from "@/lib/tenant"
 import { getActiveSubAccountId } from "./subaccounts"
 import { generateAiReply } from "./ai"
 
-import { getSession } from "@/lib/auth"
+export const getDeals = withAgency(async ({ db, userId, userRole }) => {
+  const subAgencyId = await getActiveSubAccountId()
 
-export async function getDeals() {
-  try {
-    const agencyId = await getOrCreateAgency()
-    const subAgencyId = await getActiveSubAccountId()
-    const session = await getSession()
-    
-    const whereClause: any = { agencyId }
-    if (subAgencyId) {
-      whereClause.subAgencyId = subAgencyId
-    }
-
-    // Server-side Tenant User Scoping: If user is staff/rep (not owner/admin), scope strictly to deals assigned to them
-    const userRole = (session?.user as any)?.role
-    const userId = (session?.user as any)?.id
-    if (userId && userRole && !userRole.toLowerCase().includes("owner") && !userRole.toLowerCase().includes("admin")) {
-      whereClause.assignedRepId = userId
-    }
-
-    const deals = await db.deal.findMany({
-      where: whereClause,
-      include: { contact: true, assignedRep: { select: { id: true, name: true, email: true } } },
-      orderBy: { updatedAt: 'desc' }
-    })
-    return { success: true, data: deals }
-  } catch (error) {
-    console.error("Failed to fetch deals:", error)
-    return { success: false, error: "Failed to fetch deals" }
+  const whereClause: any = {}
+  if (subAgencyId) {
+    whereClause.subAgencyId = subAgencyId
   }
-}
 
-export async function updateDealStage(dealId: string, newStage: string) {
-  try {
-    const agencyId = await getOrCreateAgency()
+  // Server-side Tenant User Scoping: If user is staff/rep (not owner/admin), scope strictly to deals assigned to them
+  const isStaffOnly = userId && userRole && !userRole.toLowerCase().includes("owner") && !userRole.toLowerCase().includes("admin")
+  if (isStaffOnly) {
+    whereClause.assignedRepId = userId
+  }
 
-    // Scope the update to agencyId — prevents IDOR if a user supplies another tenant's dealId
+  return db.deal.findMany({
+    where: whereClause,
+    include: { contact: true, assignedRep: { select: { id: true, name: true, email: true } } },
+    orderBy: { updatedAt: 'desc' }
+  })
+})
+
+export const updateDealStage = withAgency(
+  async ({ db }, dealId: string, newStage: string) => {
     const deal = await db.deal.updateMany({
-      where: { id: dealId, agencyId },
+      where: { id: dealId },
       data: { stage: newStage }
     })
 
     if (deal.count === 0) {
-      return { success: false, error: "Deal not found or access denied" }
+      throw new Error("Deal not found or access denied")
     }
 
     revalidatePath("/crm/deals")
-    return { success: true }
-  } catch (error) {
-    console.error("Failed to update deal:", error)
-    return { success: false, error: "Failed to update deal" }
+    return { id: dealId, stage: newStage }
   }
-}
+)
 
-export async function createDeal(data: { title: string, value: number, stage: string, contactId?: string }) {
-  try {
-    const agencyId = await getOrCreateAgency()
+export const createDeal = withAgency(
+  async ({ db, agencyId }, data: { title: string, value: number, stage: string, contactId?: string }) => {
     const subAgencyId = await getActiveSubAccountId()
-    
+
     const deal = await db.deal.create({
       data: {
         agencyId,
@@ -72,18 +53,15 @@ export async function createDeal(data: { title: string, value: number, stage: st
         ...data
       }
     })
-    
-    revalidatePath("/crm/deals")
-    return { success: true, data: deal }
-  } catch (error: any) {
-    console.error("Failed to create deal:", error)
-    return { success: false, error: error.message || "Failed to create deal" }
-  }
-}
 
-export async function generateDealInsights(dealId: string) {
-  try {
-    const deal = await db.deal.findUnique({
+    revalidatePath("/crm/deals")
+    return deal
+  }
+)
+
+export const generateDealInsights = withAgency(
+  async ({ db }, dealId: string) => {
+    const deal = await db.deal.findFirst({
       where: { id: dealId },
       include: {
         contact: {
@@ -103,7 +81,7 @@ export async function generateDealInsights(dealId: string) {
 
     if (!deal) throw new Error("Deal not found")
 
-    // Compile the context for the AI
+    // Compile context for AI
     const history: string[] = []
     if (deal.contact?.conversations) {
       deal.contact.conversations.forEach(conv => {
@@ -132,7 +110,6 @@ ${history.length > 0 ? history.join("\n") : "No recent communications."}
 
     let parsed
     try {
-      // Clean up potential markdown formatting if the model leaked it
       let rawJson = aiRes.data.replace(/```json/gi, '').replace(/```/g, '').trim()
       parsed = JSON.parse(rawJson)
     } catch (e) {
@@ -140,9 +117,6 @@ ${history.length > 0 ? history.join("\n") : "No recent communications."}
       throw new Error("AI returned invalid JSON format")
     }
 
-    return { success: true, data: parsed }
-  } catch (error: any) {
-    console.error("AI Insights Error:", error)
-    return { success: false, error: error.message || "Failed to generate insights" }
+    return parsed
   }
-}
+)

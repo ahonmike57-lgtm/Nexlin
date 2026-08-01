@@ -27,7 +27,7 @@ export default function DealDetailsSheet({ deal, onClose }: DealDetailsSheetProp
     if (res.success && res.data) {
       setInsights(res.data)
     } else {
-      setError(res.error || "Failed to generate insights.")
+      setError('error' in res ? res.error : "Failed to generate insights.")
     }
     setIsGenerating(false)
   }

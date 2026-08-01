@@ -1,8 +1,7 @@
 "use server"
 
-import { db } from "@/lib/db"
-import { getOrCreateAgency } from "./agency"
 import { revalidatePath } from "next/cache"
+import { withAgency } from "@/lib/tenant"
 import { getActiveSubAccountId } from "./subaccounts"
 import { generateAiReply } from "./ai"
 import Pusher from "pusher"
@@ -45,19 +44,82 @@ export async function resolveMetaWhatsappError(errorCodeStr: string) {
   }
 }
 
-export async function getConversations() {
-  try {
-    const agencyId = await getOrCreateAgency()
-    const subAgencyId = await getActiveSubAccountId()
-    
-    const whereClause: any = { agencyId }
-    if (subAgencyId) {
-      whereClause.subAgencyId = subAgencyId
+export const getConversations = withAgency(async ({ db, agencyId }) => {
+  const subAgencyId = await getActiveSubAccountId()
+
+  const whereClause: any = {}
+  if (subAgencyId) {
+    whereClause.subAgencyId = subAgencyId
+  }
+
+  let conversations = await db.conversation.findMany({
+    where: whereClause,
+    include: {
+      contact: true,
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      }
+    },
+    orderBy: { updatedAt: 'desc' }
+  })
+
+  // If no conversations exist yet, auto-provision sample WhatsApp, SMS, and Email conversations
+  if (conversations.length === 0) {
+    let contact = await db.contact.findFirst({ where: {} })
+    if (!contact) {
+      contact = await db.contact.create({
+        data: {
+          agencyId,
+          firstName: "Alex",
+          lastName: "Morgan",
+          email: "alex.morgan@acmedental.com",
+          phone: "+14155550192",
+          company: "Acme Dental",
+          leadScore: 85
+        }
+      })
     }
 
-    let conversations = await db.conversation.findMany({
+    // Create WhatsApp conversation
+    const waConv = await db.conversation.create({
+      data: {
+        agencyId,
+        subAgencyId,
+        contactId: contact.id,
+        channel: "whatsapp"
+      }
+    })
+    await db.message.create({
+      data: {
+        conversationId: waConv.id,
+        content: "Hi! Thanks for reaching out via WhatsApp. How can we help Acme Dental today?",
+        isOutbound: false,
+        status: "delivered"
+      }
+    })
+
+    // Create SMS conversation
+    const smsConv = await db.conversation.create({
+      data: {
+        agencyId,
+        subAgencyId,
+        contactId: contact.id,
+        channel: "sms"
+      }
+    })
+    await db.message.create({
+      data: {
+        conversationId: smsConv.id,
+        content: "SMS Alert: Your appointment is confirmed for tomorrow at 10:00 AM.",
+        isOutbound: true,
+        status: "delivered"
+      }
+    })
+
+    conversations = await db.conversation.findMany({
       where: whereClause,
-      include: { 
+      include: {
         contact: true,
         messages: {
           orderBy: { createdAt: 'desc' },
@@ -66,100 +128,22 @@ export async function getConversations() {
       },
       orderBy: { updatedAt: 'desc' }
     })
-
-    // If no conversations exist yet, auto-provision sample WhatsApp, SMS, and Email conversations
-    if (conversations.length === 0) {
-      let contact = await db.contact.findFirst({ where: { agencyId } })
-      if (!contact) {
-        contact = await db.contact.create({
-          data: {
-            agencyId,
-            firstName: "Alex",
-            lastName: "Morgan",
-            email: "alex.morgan@acmedental.com",
-            phone: "+14155550192",
-            company: "Acme Dental",
-            leadScore: 85
-          }
-        })
-      }
-
-      // Create WhatsApp conversation
-      const waConv = await db.conversation.create({
-        data: {
-          agencyId,
-          subAgencyId,
-          contactId: contact.id,
-          channel: "whatsapp"
-        }
-      })
-      await db.message.create({
-        data: {
-          conversationId: waConv.id,
-          content: "Hi! Thanks for reaching out via WhatsApp. How can we help Acme Dental today?",
-          isOutbound: false,
-          status: "delivered"
-        }
-      })
-
-      // Create SMS conversation
-      const smsConv = await db.conversation.create({
-        data: {
-          agencyId,
-          subAgencyId,
-          contactId: contact.id,
-          channel: "sms"
-        }
-      })
-      await db.message.create({
-        data: {
-          conversationId: smsConv.id,
-          content: "SMS Alert: Your appointment is confirmed for tomorrow at 10:00 AM.",
-          isOutbound: true,
-          status: "delivered"
-        }
-      })
-
-      conversations = await db.conversation.findMany({
-        where: whereClause,
-        include: { 
-          contact: true,
-          messages: {
-            orderBy: { createdAt: 'desc' },
-            take: 1
-          }
-        },
-        orderBy: { updatedAt: 'desc' }
-      })
-    }
-
-    return { success: true, data: conversations }
-  } catch (error) {
-    console.error("Failed to fetch conversations:", error)
-    return { success: false, error: "Failed to fetch conversations" }
   }
-}
 
-export async function getMessages(conversationId: string) {
-  try {
-    await getOrCreateAgency()
-    
-    const messages = await db.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' }
-    })
-    return { success: true, data: messages }
-  } catch (error) {
-    console.error("Failed to fetch messages:", error)
-    return { success: false, error: "Failed to fetch messages" }
-  }
-}
+  return conversations
+})
 
-export async function sendMessage(conversationId: string, content: string, isOutbound: boolean = true) {
-  try {
-    await getOrCreateAgency()
+export const getMessages = withAgency(async ({ db }, conversationId: string) => {
+  const messages = await db.message.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'asc' }
+  })
+  return messages
+})
 
-    const conv = await db.conversation.findUnique({
+export const sendMessage = withAgency(
+  async ({ db, agencyId }, conversationId: string, content: string, isOutbound: boolean = true) => {
+    const conv = await db.conversation.findFirst({
       where: { id: conversationId },
       include: { contact: true }
     })
@@ -168,14 +152,12 @@ export async function sendMessage(conversationId: string, content: string, isOut
     let channelTag = conv?.channel || "whatsapp"
 
     // Automated Meta Error 3538221404 Bypasser:
-    // If channel is WhatsApp and outbound message is dispatched outside 24h window, automatically format as Meta Approved Utility Template
     if (channelTag === "whatsapp" && isOutbound) {
-      // Append Meta Template Metadata signature to bypass Error 3538221404
       if (!content.includes("[Meta Approved Template]")) {
         messageContent = `${content}\n\n[Meta Approved Utility Template • Bypass 3538221404]`
       }
     }
-    
+
     const message = await db.message.create({
       data: {
         conversationId,
@@ -184,9 +166,8 @@ export async function sendMessage(conversationId: string, content: string, isOut
         status: "delivered"
       }
     })
-    
-    // Update conversation updatedAt timestamp
-    await db.conversation.update({
+
+    await db.conversation.updateMany({
       where: { id: conversationId },
       data: { updatedAt: new Date() }
     })
@@ -202,7 +183,7 @@ export async function sendMessage(conversationId: string, content: string, isOut
         createdAt: message.createdAt,
       }).catch((err) => console.warn("Pusher trigger failed:", err))
     }
-    
+
     revalidatePath("/chat")
 
     // --- AI AUTO-RESPONDER LOGIC ---
@@ -213,20 +194,16 @@ export async function sendMessage(conversationId: string, content: string, isOut
         }
       }).catch(err => console.error("AI AutoReply Error:", err))
     }
-    
-    return { success: true, data: message }
-  } catch (error: any) {
-    console.error("Failed to send message:", error)
-    return { success: false, error: error.message || "Failed to send message" }
-  }
-}
 
-export async function createConversation(contactId: string, channel: string = "sms") {
-  try {
-    const agencyId = await getOrCreateAgency()
+    return message
+  }
+)
+
+export const createConversation = withAgency(
+  async ({ db, agencyId }, contactId: string, channel: string = "sms") => {
     const subAgencyId = await getActiveSubAccountId()
-    
-    const whereClause: any = { agencyId, contactId, channel }
+
+    const whereClause: any = { contactId, channel }
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId
     }
@@ -235,7 +212,7 @@ export async function createConversation(contactId: string, channel: string = "s
       where: whereClause,
       include: { contact: true, messages: { orderBy: { createdAt: 'desc' }, take: 1 } }
     })
-    
+
     if (!conversation) {
       const created = await db.conversation.create({
         data: {
@@ -246,23 +223,19 @@ export async function createConversation(contactId: string, channel: string = "s
         }
       })
 
-      conversation = await db.conversation.findUnique({
+      conversation = await db.conversation.findFirst({
         where: { id: created.id },
         include: { contact: true, messages: { orderBy: { createdAt: 'desc' }, take: 1 } }
       })
     }
-    
-    revalidatePath("/chat")
-    return { success: true, data: conversation }
-  } catch (error: any) {
-    console.error("Failed to create conversation:", error)
-    return { success: false, error: error.message || "Failed to create conversation" }
-  }
-}
 
-export async function createQuickContactAndConversation(name: string, phoneOrEmail: string, channel: string) {
-  try {
-    const agencyId = await getOrCreateAgency()
+    revalidatePath("/chat")
+    return conversation
+  }
+)
+
+export const createQuickContactAndConversation = withAgency(
+  async ({ db, agencyId }, name: string, phoneOrEmail: string, channel: string) => {
     const subAgencyId = await getActiveSubAccountId()
 
     const names = name.trim().split(" ")
@@ -272,7 +245,6 @@ export async function createQuickContactAndConversation(name: string, phoneOrEma
 
     let contact = await db.contact.findFirst({
       where: {
-        agencyId,
         OR: [
           { phone: phoneOrEmail },
           { email: phoneOrEmail }
@@ -294,25 +266,18 @@ export async function createQuickContactAndConversation(name: string, phoneOrEma
     }
 
     const convRes = await createConversation(contact.id, channel)
-    return convRes
-  } catch (error: any) {
-    return { success: false, error: error.message }
+    return convRes.success ? convRes.data : null
   }
-}
+)
 
-export async function toggleAiAutoReply(conversationId: string, enabled: boolean) {
-  try {
-    await getOrCreateAgency()
-    
-    const updated = await db.conversation.update({
+export const toggleAiAutoReply = withAgency(
+  async ({ db }, conversationId: string, enabled: boolean) => {
+    await db.conversation.updateMany({
       where: { id: conversationId },
       data: { aiAutoReply: enabled }
     })
-    
+
     revalidatePath("/chat")
-    return { success: true, data: updated }
-  } catch (error: any) {
-    console.error("Failed to toggle AI Auto Reply:", error)
-    return { success: false, error: error.message || "Failed to toggle AI Auto Reply" }
+    return { id: conversationId, enabled }
   }
-}
+)

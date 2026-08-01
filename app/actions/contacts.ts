@@ -1,48 +1,35 @@
 "use server"
 
-import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getOrCreateAgency } from "./agency"
+import { withAgency } from "@/lib/tenant"
 import { triggerWorkflows } from "./workflow-engine"
 import { getActiveSubAccountId } from "./subaccounts"
 
-import { getSession } from "@/lib/auth"
+export const getContacts = withAgency(async ({ db, userId, userRole }) => {
+  const subAgencyId = await getActiveSubAccountId()
 
-export async function getContacts() {
-  try {
-    const agencyId = await getOrCreateAgency()
-    const subAgencyId = await getActiveSubAccountId()
-    const session = await getSession()
-    
-    const whereClause: any = { agencyId }
-    if (subAgencyId) {
-      whereClause.subAgencyId = subAgencyId
-    }
-
-    // Server-side Tenant User Scoping: If user is staff/rep (not owner/admin), scope strictly to leads assigned to them
-    const userRole = (session?.user as any)?.role
-    const userId = (session?.user as any)?.id
-    if (userId && userRole && !userRole.toLowerCase().includes("owner") && !userRole.toLowerCase().includes("admin")) {
-      whereClause.assignedRepId = userId
-    }
-
-    const contacts = await db.contact.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      include: { assignedRep: { select: { id: true, name: true, email: true } } }
-    })
-    return { success: true, data: contacts }
-  } catch (error) {
-    console.error("Failed to fetch contacts:", error)
-    return { success: false, error: "Failed to fetch contacts" }
+  const whereClause: any = {}
+  if (subAgencyId) {
+    whereClause.subAgencyId = subAgencyId
   }
-}
 
-export async function createContact(data: { firstName: string, lastName?: string, email?: string, phone?: string, company?: string }) {
-  try {
-    const agencyId = await getOrCreateAgency()
+  // Server-side Tenant User Scoping: If user is staff/rep (not owner/admin), scope strictly to leads assigned to them
+  const isStaffOnly = userId && userRole && !userRole.toLowerCase().includes("owner") && !userRole.toLowerCase().includes("admin")
+  if (isStaffOnly) {
+    whereClause.assignedRepId = userId
+  }
+
+  return db.contact.findMany({
+    where: whereClause,
+    orderBy: { createdAt: 'desc' },
+    include: { assignedRep: { select: { id: true, name: true, email: true } } }
+  })
+})
+
+export const createContact = withAgency(
+  async ({ db, agencyId }, data: { firstName: string, lastName?: string, email?: string, phone?: string, company?: string }) => {
     const subAgencyId = await getActiveSubAccountId()
-    
+
     const contact = await db.contact.create({
       data: {
         agencyId,
@@ -50,43 +37,27 @@ export async function createContact(data: { firstName: string, lastName?: string
         ...data
       }
     })
-    
+
     // Trigger any active workflows for contact creation
     await triggerWorkflows(agencyId, "contact_created", { contactId: contact.id })
-    
+
     revalidatePath("/crm/contacts")
-    return { success: true, data: contact }
-  } catch (error: any) {
-    console.error("Failed to create contact:", error)
-    return { success: false, error: error.message || "Failed to create contact" }
+    return contact
   }
-}
+)
 
-export async function deleteContact(id: string) {
-  try {
-    const agencyId = await getOrCreateAgency()
-    const { checkPermission } = await import("@/lib/permissions")
-    
-    // Require Agency Admin or higher to delete contacts
-    const isAllowed = await checkPermission(agencyId, "Agency Admin")
-    if (!isAllowed) {
-      return { success: false, error: "Insufficient permissions to delete contacts" }
-    }
-
-    // agencyId scoped — ensures this agency owns the contact before deleting
+export const deleteContact = withAgency(
+  async ({ db }, id: string) => {
     const deleted = await db.contact.deleteMany({
-      where: { id, agencyId }
+      where: { id }
     })
 
     if (deleted.count === 0) {
-      return { success: false, error: "Contact not found or access denied" }
+      throw new Error("Contact not found or access denied")
     }
-    
-    revalidatePath("/crm/contacts")
-    return { success: true }
-  } catch (error: any) {
-    console.error("Failed to delete contact:", error)
-    return { success: false, error: error.message || "Failed to delete contact" }
-  }
-}
 
+    revalidatePath("/crm/contacts")
+    return { id }
+  },
+  { role: "admin" }
+)

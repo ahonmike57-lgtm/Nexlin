@@ -1,4 +1,4 @@
-﻿export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 import { getContacts } from "@/app/actions/contacts"
 import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
@@ -11,11 +11,8 @@ export default async function ContactsPage() {
     redirect("/login")
   }
 
-  // getContacts now dynamically provisions and fetches via the session context on the server
-  
   const contactsResponse = await getContacts() 
-  const contacts = contactsResponse.data || []
+  const contacts = 'data' in contactsResponse && contactsResponse.data ? contactsResponse.data : []
 
   return <ContactsClient initialContacts={contacts} />
 }
-

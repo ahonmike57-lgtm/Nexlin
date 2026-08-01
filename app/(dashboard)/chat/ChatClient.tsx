@@ -446,13 +446,28 @@ export default function ChatClient({ initialConversations }: { initialConversati
 
   async function handleSend() {
     if (!newMessage.trim() || !selected) return
+    const textToSend = newMessage.trim()
+    setNewMessage("")
+
+    const optimisticMsg = {
+      id: `temp-${Date.now()}`,
+      conversationId: selected.id,
+      content: textToSend,
+      isOutbound: true,
+      status: "sending",
+      createdAt: new Date().toISOString(),
+    }
+
+    setMessages(prev => [...prev, optimisticMsg])
     setIsSending(true)
-    const res = await sendMessage(selected.id, newMessage)
+
+    const res = await sendMessage(selected.id, textToSend)
     if (res.success && res.data) {
-      setMessages(prev => [...prev, res.data])
-      setNewMessage("")
+      setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? res.data : m))
     } else {
-      toast.error(res.error || "Failed to send")
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
+      setNewMessage(textToSend)
+      toast.error('error' in res ? res.error : "Failed to send message")
     }
     setIsSending(false)
   }
@@ -497,7 +512,7 @@ export default function ChatClient({ initialConversations }: { initialConversati
       setNewName(""); setNewPhone("")
       toast.success(`${newChannel.toUpperCase()} conversation started`)
     } else {
-      toast.error(res.error || "Failed")
+      toast.error('error' in res ? res.error : "Failed")
     }
     setIsCreating(false)
   }
