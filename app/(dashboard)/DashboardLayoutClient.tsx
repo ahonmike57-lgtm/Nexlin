@@ -29,13 +29,17 @@ import {
   FolderOpen,
   Store,
   LayoutTemplate,
-  Sparkles
+  Sparkles,
+  FileText,
+  GitMerge
 } from "lucide-react"
 
 const sidebarLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/crm/contacts", label: "Contacts", icon: Users },
+  { href: "/crm/contacts/dedupe", label: "Lead Hygiene", icon: GitMerge },
   { href: "/crm/deals", label: "Pipeline", icon: Kanban },
+  { href: "/crm/invoices", label: "Proposals & CPQ", icon: FileText },
   { href: "/chat", label: "Inbox", icon: MessageSquare },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/automations", label: "Automations", icon: Zap },
