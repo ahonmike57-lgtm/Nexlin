@@ -35,14 +35,14 @@ export default function ReputationClient({ initialData, contacts, agencyId }: { 
     }
     
     setSending(true)
-    const res = await sendReviewRequest(agencyId, selectedContact, selectedChannel)
+    const res = await sendReviewRequest(selectedContact, selectedChannel)
     setSending(false)
     
     if (res.success) {
       toast.success(`Review request sent via ${selectedChannel}`)
       setIsOpen(false)
     } else {
-      toast.error(res.error || "Failed to send request")
+      toast.error('error' in res ? res.error : "Failed to send request")
     }
   }
 

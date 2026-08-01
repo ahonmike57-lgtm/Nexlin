@@ -1,53 +1,45 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { db as prisma } from "@/lib/db"
+import { withAgency } from "@/lib/tenant"
 import { Resend } from "resend"
 import twilio from "twilio"
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy")
 
-export async function getReputationData(agencyId: string) {
-  try {
-    const reviews = await prisma.review.findMany({
-      where: { agencyId },
-      orderBy: { createdAt: "desc" },
-    })
+export const getReputationData = withAgency(async ({ db }) => {
+  const reviews = await db.review.findMany({
+    orderBy: { createdAt: "desc" },
+  })
 
-    const requests = await prisma.reviewRequest.findMany({
-      where: { agencyId },
-      include: { contact: true },
-      orderBy: { createdAt: "desc" },
-    })
+  const requests = await db.reviewRequest.findMany({
+    include: { contact: true },
+    orderBy: { createdAt: "desc" },
+  })
 
-    const averageRating = reviews.length > 0
-      ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
-      : 0
+  const averageRating = reviews.length > 0
+    ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
+    : 0
 
-    return {
-      success: true,
-      reviews,
-      requests,
-      stats: {
-        totalReviews: reviews.length,
-        averageRating: averageRating.toFixed(1),
-        requestsSent: requests.length,
-      }
+  return {
+    reviews,
+    requests,
+    stats: {
+      totalReviews: reviews.length,
+      averageRating: averageRating.toFixed(1),
+      requestsSent: requests.length,
     }
-  } catch (error: any) {
-    return { success: false, error: error.message }
   }
-}
+})
 
-export async function sendReviewRequest(agencyId: string, contactId: string, channel: string) {
-  try {
-    const contact = await prisma.contact.findUnique({ where: { id: contactId } })
+export const sendReviewRequest = withAgency(
+  async ({ db, agencyId }, contactId: string, channel: string) => {
+    const contact = await db.contact.findFirst({ where: { id: contactId } })
     if (!contact) throw new Error("Contact not found")
 
-    const agency = await prisma.agency.findUnique({ where: { id: agencyId } })
+    const agency = await db.agency.findFirst({ where: { id: agencyId } })
     const agencyName = agency?.name || "Our Business"
 
-    // Build a review link (in production this would be a real Google/Yelp link)
     const reviewLink = `${process.env.NEXT_PUBLIC_APP_URL || "https://nexlin.vercel.app"}/review/${agencyId}`
     const contactName = `${contact.firstName} ${contact.lastName || ""}`.trim()
 
@@ -69,8 +61,6 @@ export async function sendReviewRequest(agencyId: string, contactId: string, cha
             </div>
           `
         })
-      } else {
-        console.warn("[Reputation] No RESEND_API_KEY — review request email skipped (mock mode)")
       }
     }
 
@@ -82,12 +72,10 @@ export async function sendReviewRequest(agencyId: string, contactId: string, cha
           from: process.env.TWILIO_PHONE_NUMBER || "",
           to: contact.phone,
         })
-      } else {
-        console.warn("[Reputation] No Twilio credentials — review request SMS skipped (mock mode)")
       }
     }
 
-    const request = await prisma.reviewRequest.create({
+    const request = await db.reviewRequest.create({
       data: {
         agencyId,
         contactId,
@@ -97,9 +85,6 @@ export async function sendReviewRequest(agencyId: string, contactId: string, cha
     })
 
     revalidatePath("/reputation")
-    return { success: true, request }
-  } catch (error: any) {
-    console.error("[Reputation] sendReviewRequest failed:", error)
-    return { success: false, error: error.message }
+    return request
   }
-}
+)
