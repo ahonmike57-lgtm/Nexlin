@@ -22,7 +22,7 @@ function MockCheckoutContent() {
     // Simulate network delay for realistic feel
     await new Promise(resolve => setTimeout(resolve, 1500))
     
-    const res = await processMockSubscription("agency-1", plan)
+    const res = await processMockSubscription(plan)
     
     if (res.success) {
       setIsSuccess(true)

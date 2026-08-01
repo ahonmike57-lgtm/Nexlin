@@ -1,95 +1,118 @@
-import { NextResponse } from "next/server"
-import Stripe from "stripe"
+import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { logWebhookDelivery } from "@/lib/webhooks"
+import Stripe from "stripe"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_dummy", {
-  apiVersion: "2026-06-24.dahlia",
-})
+export async function POST(req: NextRequest) {
+  const startTime = Date.now()
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
 
-export async function POST(req: Request) {
-  const body = await req.text()
-  const sig = req.headers.get("stripe-signature")
+  if (!stripeSecretKey) {
+    return NextResponse.json({ error: "Stripe credentials not configured" }, { status: 500 })
+  }
+
+  const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-06-24.dahlia" })
+  const bodyText = await req.text()
+  const signature = req.headers.get("stripe-signature")
 
   let event: Stripe.Event
 
   try {
-    if (!process.env.STRIPE_WEBHOOK_SECRET) {
-      throw new Error("Missing STRIPE_WEBHOOK_SECRET")
+    if (webhookSecret && signature) {
+      event = stripe.webhooks.constructEvent(bodyText, signature, webhookSecret)
+    } else {
+      // In development mode without webhook secret, parse payload directly
+      event = JSON.parse(bodyText) as Stripe.Event
     }
-    event = stripe.webhooks.constructEvent(body, sig!, process.env.STRIPE_WEBHOOK_SECRET)
   } catch (err: any) {
-    console.error(`Stripe Webhook Error: ${err.message}`)
-    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 })
+    console.error("Stripe Webhook Signature Verification Error:", err.message)
+    await logWebhookDelivery({
+      webhookId: "system-stripe-webhook",
+      event: "stripe.webhook.rejected",
+      payload: { reason: err.message },
+      statusCode: 400,
+      error: err.message
+    })
+    return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 })
   }
 
   try {
     switch (event.type) {
-      case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session
-        const agencyId = session.metadata?.agencyId
-        if (agencyId) {
-          const existing = await db.subscription.findFirst({ where: { agencyId } })
-          if (existing) {
-            await db.subscription.update({
-              where: { id: existing.id },
-              data: {
-                status: "active",
-                stripeCustomerId: session.customer as string,
-                stripeSubscriptionId: session.subscription as string,
-                currentPeriodStart: new Date(),
-                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-              }
-            })
-          } else {
-            await db.subscription.create({
-              data: {
-                agencyId,
-                paymentProcessor: "stripe",
-                stripeCustomerId: session.customer as string,
-                stripeSubscriptionId: session.subscription as string,
-                status: "active",
-                currentPeriodStart: new Date(),
-                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-              }
-            })
-          }
-          console.log(`[Stripe] Subscription activated for agency: ${agencyId}`)
-        }
-        break
-      }
-      case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice
-        // In Stripe SDK v22+, use any-cast to access subscription field
-        const subscriptionId = (invoice as any).subscription as string | undefined
-        if (subscriptionId) {
-          const sub = await db.subscription.findFirst({
-            where: { stripeSubscriptionId: subscriptionId }
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription
+        const customerId = subscription.customer as string
+
+        const agency = await db.agency.findFirst({
+          where: { stripeCustomerId: customerId }
+        })
+
+        if (agency) {
+          const status = subscription.status === "active" ? "active" :
+                        subscription.status === "trialing" ? "trialing" :
+                        subscription.status === "past_due" ? "past_due" : "suspended"
+
+          await db.agency.update({
+            where: { id: agency.id },
+            data: { status }
           })
-          if (sub) {
-            await db.subscription.update({ where: { id: sub.id }, data: { status: "past_due" } })
-            console.log(`[Stripe] Subscription past_due for: ${sub.agencyId}`)
-          }
         }
         break
       }
+
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription
-        const sub = await db.subscription.findFirst({
-          where: { stripeSubscriptionId: subscription.id }
+        const customerId = subscription.customer as string
+
+        const agency = await db.agency.findFirst({
+          where: { stripeCustomerId: customerId }
         })
-        if (sub) {
-          await db.subscription.update({ where: { id: sub.id }, data: { status: "cancelled" } })
-          console.log(`[Stripe] Subscription cancelled for: ${sub.agencyId}`)
+
+        if (agency) {
+          await db.agency.update({
+            where: { id: agency.id },
+            data: { status: "churned" }
+          })
         }
         break
       }
-      default:
-        console.log(`[Stripe] Unhandled event type: ${event.type}`)
+
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice
+        const customerId = invoice.customer as string
+
+        const agency = await db.agency.findFirst({
+          where: { stripeCustomerId: customerId }
+        })
+
+        if (agency) {
+          await db.agency.update({
+            where: { id: agency.id },
+            data: { status: "active" }
+          })
+        }
+        break
+      }
     }
 
-    return new NextResponse(null, { status: 200 })
-  } catch (error) {
-    console.error("[Stripe] Webhook handler error:", error)
-    return new NextResponse("Internal Server Error", { status: 500 })
+    await logWebhookDelivery({
+      webhookId: "system-stripe-webhook",
+      event: event.type,
+      payload: { id: event.id, type: event.type },
+      statusCode: 200
+    })
+
+    return NextResponse.json({ received: true }, { status: 200 })
+  } catch (error: any) {
+    console.error("Stripe Webhook Processing Error:", error)
+    await logWebhookDelivery({
+      webhookId: "system-stripe-webhook",
+      event: event.type || "stripe.error",
+      payload: bodyText,
+      statusCode: 500,
+      error: error.message
+    })
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 })
   }
 }

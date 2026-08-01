@@ -60,13 +60,12 @@ export default function BillingPage() {
 
   const handleSubscribe = async (plan: string, provider: "stripe" | "paystack") => {
     setIsLoading(`${plan}-${provider}`)
-    const res = await generateCheckoutSession(agencyId, provider)
+    const res = await generateCheckoutSession(provider)
     
-    if (res.success && res.url) {
-      router.push(res.url)
+    if (res.success && 'data' in res && res.data?.url) {
+      router.push(res.data.url)
     } else {
       setIsLoading(null)
-      // Error handling
     }
   }
 
