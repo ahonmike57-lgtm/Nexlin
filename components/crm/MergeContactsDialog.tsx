@@ -23,11 +23,11 @@ export function MergeContactsDialog({ onMerged }: { onMerged?: () => void }) {
   const handleScan = async () => {
     setScanning(true)
     const res = await findDuplicateContacts()
-    if (res.success && res.duplicates) {
-      setDuplicates(res.duplicates)
+    if (res.success && 'data' in res && res.data) {
+      setDuplicates(res.data)
       setScanned(true)
     } else {
-      toast.error(res.error || "Failed to scan for duplicates")
+      toast.error('error' in res ? res.error : "Failed to scan for duplicates")
     }
     setScanning(false)
   }
@@ -37,11 +37,10 @@ export function MergeContactsDialog({ onMerged }: { onMerged?: () => void }) {
     const res = await mergeContacts(targetId, sourceIds)
     if (res.success) {
       toast.success("Contacts merged successfully")
-      // Remove group from list
       setDuplicates(prev => prev.filter(g => !g.contacts.some((c: any) => c.id === targetId)))
       if (onMerged) onMerged()
     } else {
-      toast.error(res.error || "Merge failed")
+      toast.error('error' in res ? res.error : "Merge failed")
     }
     setMerging(false)
   }
