@@ -13,10 +13,8 @@ export default async function FunnelsPage() {
   }
 
   const agencyId = await getOrCreateAgency()
-
-  const funnelsResponse = await getFunnels(agencyId)
-  const funnels = funnelsResponse.data || []
+  const funnelsResponse = await getFunnels()
+  const funnels = 'data' in funnelsResponse && funnelsResponse.data ? funnelsResponse.data : []
 
   return <FunnelsClient initialFunnels={funnels} agencyId={agencyId} />
 }
-

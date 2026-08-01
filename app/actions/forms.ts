@@ -1,28 +1,18 @@
 "use server"
 
-import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
+import { withAgency } from "@/lib/tenant"
 import { generateAiReply } from "./ai"
 
-export async function getForms(agencyId: string) {
-  try {
-    const forms = await db.form.findMany({
-      where: { agencyId },
-      orderBy: { createdAt: "desc" }
-    })
-    return { success: true, data: forms }
-  } catch (error) {
-    console.error("Failed to fetch forms:", error)
-    return { success: false, error: "Failed to fetch forms", data: [] }
-  }
-}
+export const getForms = withAgency(async ({ db }) => {
+  return db.form.findMany({
+    where: {},
+    orderBy: { createdAt: "desc" }
+  })
+})
 
-export async function createForm(agencyId: string, name: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
+export const createForm = withAgency(
+  async ({ db, agencyId }, name: string) => {
     const form = await db.form.create({
       data: {
         agencyId,
@@ -32,45 +22,30 @@ export async function createForm(agencyId: string, name: string) {
     })
 
     revalidatePath("/forms")
-    return { success: true, data: form }
-  } catch (error) {
-    console.error("Failed to create form:", error)
-    return { success: false, error: "Failed to create form" }
+    return form
   }
-}
+)
 
-export async function deleteForm(id: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    await db.form.delete({ where: { id } })
+export const deleteForm = withAgency(
+  async ({ db }, id: string) => {
+    const deleted = await db.form.deleteMany({ where: { id } })
+    if (deleted.count === 0) throw new Error("Form not found or access denied")
     revalidatePath("/forms")
-    return { success: true }
-  } catch (error) {
-    console.error("Failed to delete form:", error)
-    return { success: false, error: "Failed to delete form" }
+    return { id }
   }
-}
+)
 
-export async function updateFormFields(id: string, fields: any[]) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    // Assuming the Form model exists in Prisma
-    await db.form.update({
+export const updateFormFields = withAgency(
+  async ({ db }, id: string, fields: any[]) => {
+    await db.form.updateMany({
       where: { id },
       data: { fields: JSON.stringify(fields) }
     })
-    
+
     revalidatePath(`/forms/${id}`)
-    return { success: true }
-  } catch (error) {
-    console.error("Failed to update form fields:", error)
-    return { success: false, error: "Failed to update form fields" }
+    return { id }
   }
-}
+)
 
 export async function generateFormFields(prompt: string) {
   try {

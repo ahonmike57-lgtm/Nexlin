@@ -10,7 +10,8 @@ export default async function WebsitesPage() {
   if (!session?.user?.id) redirect("/login")
 
   const agencyId = await getOrCreateAgency()
-  const funnelsResponse = await getFunnels(agencyId)
+  const funnelsResponse = await getFunnels()
+  const funnels = 'data' in funnelsResponse && funnelsResponse.data ? funnelsResponse.data : []
 
-  return <WebsitesClient initialWebsites={funnelsResponse.data || []} agencyId={agencyId} />
+  return <WebsitesClient initialWebsites={funnels} agencyId={agencyId} />
 }

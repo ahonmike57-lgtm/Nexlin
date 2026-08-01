@@ -27,16 +27,16 @@ export default function FormsClient({ initialForms, agencyId }: { initialForms: 
     }
 
     setCreating(true)
-    const res = await createForm(agencyId, newFormName)
+    const res = await createForm(newFormName)
     setCreating(false)
 
-    if (res.success) {
+    if (res.success && res.data) {
       toast.success("Form created successfully")
       setForms([res.data, ...forms])
       setIsOpen(false)
       setNewFormName("")
     } else {
-      toast.error(res.error || "Failed to create form")
+      toast.error('error' in res ? res.error : "Failed to create form")
     }
   }
 

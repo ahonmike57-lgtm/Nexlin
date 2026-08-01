@@ -1,6 +1,5 @@
 export const dynamic = 'force-dynamic';
 import { getSession } from "@/lib/auth"
-import { db as prisma } from "@/lib/db"
 import { getForms } from "@/app/actions/forms"
 import { getOrCreateAgency } from "@/app/actions/agency"
 import FormsClient from "./FormsClient"
@@ -11,9 +10,8 @@ export default async function FormsPage() {
   if (!session?.user?.id) redirect("/login")
 
   const agencyId = await getOrCreateAgency()
-
-  const res = await getForms(agencyId)
-  let initialForms = res.success && res.data ? res.data : []
+  const res = await getForms()
+  let initialForms = 'data' in res && res.data ? res.data : []
 
   // Mock some data if empty
   if (initialForms.length === 0) {
@@ -43,4 +41,3 @@ export default async function FormsPage() {
 
   return <FormsClient initialForms={initialForms} agencyId={agencyId} />
 }
-

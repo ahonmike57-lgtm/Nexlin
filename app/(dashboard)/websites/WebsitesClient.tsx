@@ -16,7 +16,7 @@ export default function WebsitesClient({ initialWebsites, agencyId }: { initialW
 
   const handleCreate = async () => {
     setIsCreating(true)
-    const res = await createFunnel(agencyId, "New Website")
+    const res = await createFunnel("New Website")
     if (res.success && res.data) {
       router.push(`/funnels/${res.data.id}`) // Using funnel builder route for now
     } else {

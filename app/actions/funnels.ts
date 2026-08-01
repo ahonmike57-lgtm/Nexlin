@@ -1,37 +1,27 @@
 "use server"
 
-import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
+import { withAgency } from "@/lib/tenant"
 import { getActiveSubAccountId } from "./subaccounts"
 
-export async function getFunnels(agencyId: string) {
-  try {
-    const subAgencyId = await getActiveSubAccountId()
-    const whereClause: any = { agencyId }
-    if (subAgencyId) {
-      whereClause.subAgencyId = subAgencyId
-    }
-
-    const funnels = await db.funnel.findMany({
-      where: whereClause,
-      include: {
-        steps: true
-      },
-      orderBy: { createdAt: "desc" }
-    })
-    return { success: true, data: funnels }
-  } catch (error) {
-    console.error("Failed to fetch funnels:", error)
-    return { success: false, error: "Failed to fetch funnels" }
+export const getFunnels = withAgency(async ({ db }) => {
+  const subAgencyId = await getActiveSubAccountId()
+  const whereClause: any = {}
+  if (subAgencyId) {
+    whereClause.subAgencyId = subAgencyId
   }
-}
 
-export async function createFunnel(agencyId: string, name: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  return db.funnel.findMany({
+    where: whereClause,
+    include: {
+      steps: true
+    },
+    orderBy: { createdAt: "desc" }
+  })
+})
 
+export const createFunnel = withAgency(
+  async ({ db, agencyId }, name: string) => {
     const subAgencyId = await getActiveSubAccountId()
 
     const funnel = await db.funnel.create({
@@ -50,48 +40,37 @@ export async function createFunnel(agencyId: string, name: string) {
     })
 
     revalidatePath("/funnels")
-    return { success: true, data: funnel }
-  } catch (error) {
-    console.error("Failed to create funnel:", error)
-    return { success: false, error: "Failed to create funnel" }
+    return funnel
   }
-}
+)
 
-export async function getFunnel(funnelId: string) {
-  try {
-    const funnel = await db.funnel.findUnique({
+export const getFunnel = withAgency(
+  async ({ db }, funnelId: string) => {
+    const funnel = await db.funnel.findFirst({
       where: { id: funnelId },
       include: { steps: { orderBy: { order: "asc" } } }
     })
-    return { success: true, data: funnel }
-  } catch (error) {
-    console.error("Failed to fetch funnel:", error)
-    return { success: false, error: "Failed to fetch funnel" }
+    if (!funnel) throw new Error("Funnel not found")
+    return funnel
   }
-}
+)
 
-export async function updateFunnelStepContent(stepId: string, content: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    const step = await db.funnelStep.update({
+export const updateFunnelStepContent = withAgency(
+  async ({ db }, stepId: string, content: string) => {
+    const step = await db.funnelStep.updateMany({
       where: { id: stepId },
       data: { content }
     })
 
-    return { success: true, data: step }
-  } catch (error) {
-    console.error("Failed to update step content:", error)
-    return { success: false, error: "Failed to update step" }
+    return { id: stepId, updated: step.count > 0 }
   }
-}
+)
 
 export async function getLiveFunnelStep(subdomain: string, slug: string) {
   try {
-    // Treat "home" or undefined slug as "/"
+    const { db } = await import("@/lib/db")
     const pathToMatch = !slug || slug === 'home' ? '/' : `/${slug}`
-    
+
     const funnel = await db.funnel.findUnique({
       where: { subdomain },
       include: {
@@ -114,6 +93,7 @@ export async function getLiveFunnelStep(subdomain: string, slug: string) {
 
 export async function submitLiveFunnelForm(subdomain: string, formData: any) {
   try {
+    const { db } = await import("@/lib/db")
     const funnel = await db.funnel.findUnique({
       where: { subdomain },
       select: { agencyId: true, subAgencyId: true }
@@ -121,7 +101,6 @@ export async function submitLiveFunnelForm(subdomain: string, formData: any) {
 
     if (!funnel) return { success: false, error: "Funnel not found" }
 
-    // 1. Create a contact
     const contact = await db.contact.create({
       data: {
         agencyId: funnel.agencyId,
@@ -131,9 +110,6 @@ export async function submitLiveFunnelForm(subdomain: string, formData: any) {
         phone: formData.phone || ""
       }
     })
-
-    // 2. We could trigger the workflow engine here for "contact_created" trigger
-    // await executeWorkflow(...)
 
     return { success: true, data: contact }
   } catch (error) {

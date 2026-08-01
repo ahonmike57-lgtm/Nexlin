@@ -70,3 +70,18 @@ export async function triggerWorkflows(agencyId: string, eventType: string, payl
     return { success: false }
   }
 }
+
+/**
+ * Native Trigger Handlers for Event Events
+ */
+export async function triggerFormSubmissionWorkflow(agencyId: string, formId: string, contactId: string, formData: any) {
+  return triggerWorkflows(agencyId, "form_submitted", { formId, contactId, formData })
+}
+
+export async function triggerDealStageChangedWorkflow(agencyId: string, dealId: string, newStage: string, contactId?: string) {
+  return triggerWorkflows(agencyId, "deal_stage_changed", { dealId, newStage, contactId })
+}
+
+export async function triggerReviewReceivedWorkflow(agencyId: string, rating: number, contactId?: string) {
+  return triggerWorkflows(agencyId, "review_received", { rating, contactId })
+}
