@@ -1,40 +1,29 @@
 "use server"
 
-import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
+import { withAgency } from "@/lib/tenant"
 import { getActiveSubAccountId } from "./subaccounts"
 import { generateAiReply } from "./ai"
 
-export async function getWorkflows(agencyId: string) {
-  try {
-    const subAgencyId = await getActiveSubAccountId()
-    
-    const whereClause: any = { agencyId }
-    if (subAgencyId) {
-      whereClause.subAgencyId = subAgencyId
-    }
-
-    const workflows = await db.workflow.findMany({
-      where: whereClause,
-      include: {
-        triggers: true,
-        actions: { orderBy: { order: "asc" } }
-      },
-      orderBy: { createdAt: "desc" }
-    })
-    return { success: true, data: workflows }
-  } catch (error) {
-    console.error("Failed to fetch workflows:", error)
-    return { success: false, error: "Failed to fetch workflows" }
+export const getWorkflows = withAgency(async ({ db }) => {
+  const subAgencyId = await getActiveSubAccountId()
+  const whereClause: any = {}
+  if (subAgencyId) {
+    whereClause.subAgencyId = subAgencyId
   }
-}
 
-export async function createWorkflow(agencyId: string, name: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  return db.workflow.findMany({
+    where: whereClause,
+    include: {
+      triggers: true,
+      actions: { orderBy: { order: "asc" } }
+    },
+    orderBy: { createdAt: "desc" }
+  })
+})
 
+export const createWorkflow = withAgency(
+  async ({ db, agencyId }, name: string) => {
     const subAgencyId = await getActiveSubAccountId()
 
     const workflow = await db.workflow.create({
@@ -53,178 +42,118 @@ export async function createWorkflow(agencyId: string, name: string) {
     })
 
     revalidatePath("/automations")
-    return { success: true, data: workflow }
-  } catch (error) {
-    console.error("Failed to create workflow:", error)
-    return { success: false, error: "Failed to create workflow" }
+    return workflow
   }
-}
+)
 
-export async function getWorkflow(id: string) {
-  try {
-    const workflow = await db.workflow.findUnique({
+export const getWorkflow = withAgency(
+  async ({ db }, id: string) => {
+    const workflow = await db.workflow.findFirst({
       where: { id },
       include: {
         triggers: true,
         actions: { orderBy: { order: "asc" } }
       }
     })
-    return { success: true, data: workflow }
-  } catch (error) {
-    console.error("Failed to fetch workflow:", error)
-    return { success: false, error: "Failed to fetch workflow" }
+    if (!workflow) throw new Error("Workflow not found")
+    return workflow
   }
-}
+)
 
-export async function addWorkflowTrigger(workflowId: string, type: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
+export const addWorkflowTrigger = withAgency(
+  async ({ db }, workflowId: string, type: string) => {
     const trigger = await db.workflowTrigger.create({
       data: { workflowId, type }
     })
     revalidatePath(`/automations/${workflowId}`)
-    return { success: true, data: trigger }
-  } catch (error) {
-    console.error("Failed to add trigger:", error)
-    return { success: false, error: "Failed to add trigger" }
+    return trigger
   }
-}
+)
 
-export async function addWorkflowAction(workflowId: string, type: string, order: number) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
+export const addWorkflowAction = withAgency(
+  async ({ db }, workflowId: string, type: string, order: number) => {
     const action = await db.workflowAction.create({
       data: { workflowId, type, order }
     })
     revalidatePath(`/automations/${workflowId}`)
-    return { success: true, data: action }
-  } catch (error) {
-    console.error("Failed to add action:", error)
-    return { success: false, error: "Failed to add action" }
+    return action
   }
-}
+)
 
-export async function deleteWorkflowTrigger(id: string, workflowId: string) {
-  try {
-    await db.workflowTrigger.delete({ where: { id } })
+export const deleteWorkflowTrigger = withAgency(
+  async ({ db }, id: string, workflowId: string) => {
+    await db.workflowTrigger.deleteMany({ where: { id, workflowId } })
     revalidatePath(`/automations/${workflowId}`)
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: "Failed to delete trigger" }
+    return { id }
   }
-}
+)
 
-export async function deleteWorkflowAction(id: string, workflowId: string) {
-  try {
-    await db.workflowAction.delete({ where: { id } })
+export const deleteWorkflowAction = withAgency(
+  async ({ db }, id: string, workflowId: string) => {
+    await db.workflowAction.deleteMany({ where: { id, workflowId } })
     revalidatePath(`/automations/${workflowId}`)
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: "Failed to delete action" }
+    return { id }
   }
-}
+)
 
-export async function updateWorkflowStatus(id: string, status: "draft" | "active") {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    const existing = await db.workflow.findUnique({ where: { id } })
-    if (!existing) throw new Error("Not found")
-
-    const { checkPermission } = await import("@/lib/permissions")
-    if (!(await checkPermission(existing.agencyId, "Agency Admin"))) {
-      return { success: false, error: "Insufficient permissions" }
-    }
-
-    const workflow = await db.workflow.update({
+export const updateWorkflowStatus = withAgency(
+  async ({ db }, id: string, status: "draft" | "active") => {
+    const workflow = await db.workflow.updateMany({
       where: { id },
       data: { status }
     })
-    
+
+    if (workflow.count === 0) throw new Error("Workflow not found")
+
     revalidatePath(`/automations/${id}`)
     revalidatePath("/automations")
-    return { success: true, data: workflow }
-  } catch (error) {
-    console.error("Failed to update status:", error)
-    return { success: false, error: "Failed to update status" }
-  }
-}
+    return { id, status }
+  },
+  { role: "admin" }
+)
 
-export async function updateWorkflow(id: string, data: { name?: string; description?: string }) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    const existing = await db.workflow.findUnique({ where: { id } })
-    if (!existing) throw new Error("Not found")
-
-    const { checkPermission } = await import("@/lib/permissions")
-    if (!(await checkPermission(existing.agencyId, "Agency Admin"))) {
-      return { success: false, error: "Insufficient permissions" }
-    }
-
-    const workflow = await db.workflow.update({
+export const updateWorkflow = withAgency(
+  async ({ db }, id: string, data: { name?: string; description?: string }) => {
+    const workflow = await db.workflow.updateMany({
       where: { id },
       data,
     })
 
+    if (workflow.count === 0) throw new Error("Workflow not found")
+
     revalidatePath(`/automations/${id}`)
     revalidatePath("/automations")
-    return { success: true, data: workflow }
-  } catch (error) {
-    console.error("Failed to update workflow:", error)
-    return { success: false, error: "Failed to update workflow" }
-  }
-}
+    return { id }
+  },
+  { role: "admin" }
+)
 
-export async function saveWorkflowNodes(workflowId: string, nodes: { id: string, isTrigger: boolean, config: any }[]) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    const existing = await db.workflow.findUnique({ where: { id: workflowId } })
-    if (!existing) throw new Error("Not found")
-
-    const { checkPermission } = await import("@/lib/permissions")
-    if (!(await checkPermission(existing.agencyId, "Agency Admin"))) {
-      return { success: false, error: "Insufficient permissions" }
-    }
-
-    // Update triggers and actions configs
+export const saveWorkflowNodes = withAgency(
+  async ({ db }, workflowId: string, nodes: { id: string, isTrigger: boolean, config: any }[]) => {
     await db.$transaction(
       nodes.map(node => {
         if (node.isTrigger) {
-          return db.workflowTrigger.update({
-            where: { id: node.id },
+          return db.workflowTrigger.updateMany({
+            where: { id: node.id, workflowId },
             data: { config: JSON.stringify(node.config) }
           })
         } else {
-          return db.workflowAction.update({
-            where: { id: node.id },
+          return db.workflowAction.updateMany({
+            where: { id: node.id, workflowId },
             data: { config: JSON.stringify(node.config) }
           })
         }
       })
     )
-    
+
     revalidatePath(`/automations/${workflowId}`)
-    return { success: true }
-  } catch (error) {
-    console.error("Failed to save nodes:", error)
-    return { success: false, error: "Failed to save workflow nodes" }
-  }
-}
+    return { id: workflowId }
+  },
+  { role: "admin" }
+)
 
-export async function generateWorkflowFromPrompt(agencyId: string, prompt: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
+export const generateWorkflowFromPrompt = withAgency(
+  async ({ db, agencyId }, prompt: string) => {
     const aiRes = await generateAiReply("workflow_generator", prompt)
     if (!aiRes.success || !aiRes.data) {
       throw new Error(aiRes.error || "Failed to generate workflow via AI")
@@ -240,11 +169,9 @@ export async function generateWorkflowFromPrompt(agencyId: string, prompt: strin
     }
 
     const subAgencyId = await getActiveSubAccountId()
-
     const triggerType = parsed.trigger || "contact_created"
     const actionsList = Array.isArray(parsed.actions) ? parsed.actions : [{ type: "send_email" }]
-    
-    // Map actions to match the prisma schema expected by create
+
     const mappedActions = actionsList.map((a: any, index: number) => ({
       type: a.type || "wait",
       order: index
@@ -266,9 +193,6 @@ export async function generateWorkflowFromPrompt(agencyId: string, prompt: strin
     })
 
     revalidatePath("/automations")
-    return { success: true, data: workflow }
-  } catch (error: any) {
-    console.error("Failed to generate workflow:", error)
-    return { success: false, error: error.message || "Failed to generate workflow" }
+    return workflow
   }
-}
+)

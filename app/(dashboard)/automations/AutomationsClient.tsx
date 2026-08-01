@@ -24,7 +24,7 @@ export default function AutomationsClient({ initialWorkflows, agencyId }: { init
 
   const handleCreate = async () => {
     setIsCreating(true)
-    const res = await createWorkflow(agencyId, "New Workflow")
+    const res = await createWorkflow("New Workflow")
     if (res.success && res.data) {
       router.push(`/automations/${res.data.id}`)
     } else {
@@ -127,11 +127,11 @@ export default function AutomationsClient({ initialWorkflows, agencyId }: { init
               onClick={async () => {
                 if (!aiPrompt.trim()) return;
                 setIsGenerating(true);
-                const res = await generateWorkflowFromPrompt(agencyId, aiPrompt);
+                const res = await generateWorkflowFromPrompt(aiPrompt);
                 if (res.success && res.data) {
                   router.push(`/automations/${res.data.id}`);
                 } else {
-                  alert(res.error || "Failed to generate workflow");
+                  alert('error' in res ? res.error : "Failed to generate workflow");
                   setIsGenerating(false);
                 }
               }}

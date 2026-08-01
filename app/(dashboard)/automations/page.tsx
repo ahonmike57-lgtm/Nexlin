@@ -13,10 +13,8 @@ export default async function AutomationsPage() {
   }
 
   const agencyId = await getOrCreateAgency()
-
-  const response = await getWorkflows(agencyId)
-  const workflows = response.data || []
+  const response = await getWorkflows()
+  const workflows = 'data' in response && response.data ? response.data : []
 
   return <AutomationsClient initialWorkflows={workflows} agencyId={agencyId} />
 }
-
