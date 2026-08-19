@@ -2,7 +2,8 @@
 
 import { useState, useRef } from "react"
 import { generateAiReply } from "@/app/actions/ai"
-import { savePromptTemplate, VIBECODE_PROMPTS } from "@/app/actions/prompts"
+import { savePromptTemplate } from "@/app/actions/prompts"
+import { VIBECODE_PROMPTS } from "@/lib/vibecode-prompts"
 import { toast } from "sonner"
 import {
   Code2, Copy, Save, Play, Loader2, Sparkles, CheckCheck, Mic, MicOff,

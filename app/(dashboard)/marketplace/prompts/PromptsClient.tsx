@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { VIBECODE_PROMPTS, listSavedPrompts, deletePromptTemplate } from "@/app/actions/prompts"
+import { VIBECODE_PROMPTS } from "@/lib/vibecode-prompts"
+import { listSavedPrompts, deletePromptTemplate } from "@/app/actions/prompts"
 import { toast } from "sonner"
 import { Library, Search, Trash2, Copy, ExternalLink, Star, User, ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"

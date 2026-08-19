@@ -16,7 +16,6 @@ import {
   Settings,
   Mic,
   Search,
-  Bell,
   Mail,
   Calendar,
   Zap,
@@ -39,38 +38,50 @@ import {
   PenLine
 } from "lucide-react"
 
-const sidebarLinks = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/crm/contacts", label: "Contacts", icon: Users },
-  { href: "/crm/contacts/dedupe", label: "Lead Hygiene", icon: GitMerge },
-  { href: "/crm/deals", label: "Pipeline", icon: Kanban },
-  { href: "/crm/invoices", label: "Proposals & CPQ", icon: FileText },
-  { href: "/crm/roleplay", label: "Sales Roleplay", icon: Bot },
-  { href: "/chat", label: "Inbox", icon: MessageSquare },
-  { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/automations", label: "Automations", icon: Zap },
-  { href: "/marketing/emails/builder", label: "Email Builder", icon: PenLine },
-  { href: "/marketing/emails", label: "Email Marketing", icon: Mail },
-  { href: "/affiliates", label: "Affiliate Manager", icon: Users },
-  { href: "/social", label: "Social Planner", icon: Share2 },
-  { href: "/ads", label: "Ads Manager", icon: Megaphone },
-  { href: "/reputation", label: "Reputation", icon: Star },
-  { href: "/forge/vibecode", label: "Vibecode Lab", icon: Code2 },
-  { href: "/forge", label: "Forge AI Builder", icon: Sparkles },
-  { href: "/websites", label: "Websites", icon: LayoutTemplate },
-  { href: "/websites/blogs", label: "Blogs & CMS", icon: BookOpen },
-  { href: "/funnels", label: "Funnels", icon: Workflow },
-  { href: "/forms", label: "Forms & Surveys", icon: FileSignature },
-  { href: "/media", label: "Media Library", icon: FolderOpen },
-  { href: "/marketplace/prompts", label: "Prompt Library", icon: Library },
-  { href: "/marketplace", label: "App Marketplace", icon: Store },
-  { href: "/reporting", label: "Reporting", icon: BarChart3 },
-  { href: "/support", label: "Help Desk", icon: LifeBuoy },
-  { href: "/support/knowledge-base", label: "Knowledge Base", icon: BookOpen },
-  { href: "/voice/test", label: "Voice Agent Test", icon: Mic },
-  { href: "/voice", label: "Voice AI", icon: Mic },
-  { href: "/settings/domains/check", label: "Domain Checker", icon: Globe },
-  { href: "/settings", label: "Settings", icon: Settings },
+type SidebarLink = {
+  href: string
+  label: string
+  icon: React.ElementType
+  /**
+   * When true, the link is only highlighted if the path matches exactly.
+   * Use for parent routes that have explicit child entries in the sidebar
+   * so the parent doesn't glow when a child is active.
+   */
+  exact?: boolean
+}
+
+const sidebarLinks: SidebarLink[] = [
+  { href: "/dashboard",                    label: "Dashboard",        icon: LayoutDashboard },
+  { href: "/crm/contacts",                 label: "Contacts",         icon: Users,       exact: true },
+  { href: "/crm/contacts/dedupe",          label: "Lead Hygiene",     icon: GitMerge },
+  { href: "/crm/deals",                    label: "Pipeline",         icon: Kanban },
+  { href: "/crm/invoices",                 label: "Proposals & CPQ",  icon: FileText },
+  { href: "/crm/roleplay",                 label: "Sales Roleplay",   icon: Bot },
+  { href: "/chat",                         label: "Inbox",            icon: MessageSquare },
+  { href: "/calendar",                     label: "Calendar",         icon: Calendar },
+  { href: "/automations",                  label: "Automations",      icon: Zap },
+  { href: "/marketing/emails/builder",     label: "Email Builder",    icon: PenLine },
+  { href: "/marketing/emails",            label: "Email Marketing",   icon: Mail,        exact: true },
+  { href: "/affiliates",                   label: "Affiliate Manager",icon: Users },
+  { href: "/social",                       label: "Social Planner",   icon: Share2 },
+  { href: "/ads",                          label: "Ads Manager",      icon: Megaphone },
+  { href: "/reputation",                   label: "Reputation",       icon: Star },
+  { href: "/forge/vibecode",               label: "Vibecode Lab",     icon: Code2 },
+  { href: "/forge",                        label: "Forge AI Builder", icon: Sparkles,    exact: true },
+  { href: "/websites",                     label: "Websites",         icon: LayoutTemplate, exact: true },
+  { href: "/websites/blogs",               label: "Blogs & CMS",      icon: BookOpen },
+  { href: "/funnels",                      label: "Funnels",          icon: Workflow },
+  { href: "/forms",                        label: "Forms & Surveys",  icon: FileSignature },
+  { href: "/media",                        label: "Media Library",    icon: FolderOpen },
+  { href: "/marketplace/prompts",          label: "Prompt Library",   icon: Library },
+  { href: "/marketplace",                  label: "App Marketplace",  icon: Store,       exact: true },
+  { href: "/reporting",                    label: "Reporting",        icon: BarChart3 },
+  { href: "/support",                      label: "Help Desk",        icon: LifeBuoy,    exact: true },
+  { href: "/support/knowledge-base",       label: "Knowledge Base",   icon: BookOpen },
+  { href: "/voice/test",                   label: "Voice Agent Test", icon: Mic },
+  { href: "/voice",                        label: "Voice AI",         icon: Mic,         exact: true },
+  { href: "/settings/domains/check",       label: "Domain Checker",   icon: Globe },
+  { href: "/settings",                     label: "Settings",         icon: Settings,    exact: true },
 ]
 
 const LINK_FEATURE_MAP: Record<string, string> = {
@@ -130,7 +141,13 @@ export default function DashboardLayoutClient({ children, agency, featureFlags =
             const allowedTiers = flag?.enabledTiers ? flag.enabledTiers.split(",").map((t: string) => t.trim().toLowerCase()) : []
             const isTierLocked = flag && allowedTiers.length > 0 && !allowedTiers.includes(agencyTier)
 
-            const isActive = pathname.startsWith(link.href)
+            // Fix: exact links only highlight on precise match; others also
+            // highlight for sub-paths (but NOT when a more-specific sibling link
+            // is already in the sidebar and would match — handled by exact flag).
+            const isActive = link.exact
+              ? pathname === link.href
+              : pathname === link.href || pathname.startsWith(link.href + "/")
+
             const Icon = link.icon
             
             return (
@@ -190,9 +207,6 @@ export default function DashboardLayoutClient({ children, agency, featureFlags =
           </div>
           
           <div className="flex items-center gap-4">
-            <button className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center text-text-secondary hover:text-primary transition-colors">
-              <Mic className="w-5 h-5" />
-            </button>
             <NotificationBell />
           </div>
         </header>
@@ -205,3 +219,5 @@ export default function DashboardLayoutClient({ children, agency, featureFlags =
     </div>
   )
 }
+
+

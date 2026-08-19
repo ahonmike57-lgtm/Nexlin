@@ -69,15 +69,14 @@ async function checkDomain(domain: string): Promise<CheckResult> {
       }
     }
 
-    // 3. SSL check via crt.sh (public CT log)
-    const crtRes = await fetch(
-      `https://crt.sh/?q=${cleanDomain}&output=json`
-    )
+    // 3. SSL check via /api/ssl-check proxy (crt.sh has no CORS headers,
+    //    so we must call it server-side and proxy the result to the browser)
+    const crtRes = await fetch(`/api/ssl-check?domain=${encodeURIComponent(cleanDomain)}`)
     if (crtRes.ok) {
-      const certs: any[] = await crtRes.json()
+      const { certs = [] } = await crtRes.json()
       if (certs.length > 0) {
         // Most recent cert
-        const latest = certs.sort((a, b) => new Date(b.not_after).getTime() - new Date(a.not_after).getTime())[0]
+        const latest = (certs as any[]).sort((a, b) => new Date(b.not_after).getTime() - new Date(a.not_after).getTime())[0]
         const expiresAt = new Date(latest.not_after)
         const daysLeft = Math.ceil((expiresAt.getTime() - Date.now()) / 86400000)
         result.ssl = {
@@ -92,7 +91,7 @@ async function checkDomain(domain: string): Promise<CheckResult> {
       }
     }
   } catch (e: any) {
-    result.error = e.message ?? "Network error — check browser CORS or domain name"
+    result.error = e.message ?? "Network error — check domain name"
   }
 
   return result
