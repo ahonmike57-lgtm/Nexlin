@@ -263,7 +263,7 @@ export default function EmailBuilderPage() {
                 {block.type === "divider" ? (
                   <hr className="border-border" />
                 ) : block.type === "button" ? (
-                  <div className={`text-${block.styles?.align ?? "left"}`}>
+                  <div className={block.styles?.align === "center" ? "text-center" : block.styles?.align === "right" ? "text-right" : "text-left"}>
                     <span
                       className="inline-block px-4 py-2 rounded-lg text-white text-sm font-medium"
                       style={{ background: block.styles?.color ?? "#6366f1" }}
@@ -272,7 +272,7 @@ export default function EmailBuilderPage() {
                     </span>
                   </div>
                 ) : block.type === "image" ? (
-                  <div className={`text-${block.styles?.align ?? "left"} text-xs text-text-secondary`}>
+                  <div className={`${block.styles?.align === "center" ? "text-center" : block.styles?.align === "right" ? "text-right" : "text-left"} text-xs text-text-secondary`}>
                     {block.content ? (
                       <img src={block.content} alt="" className="max-w-full rounded-lg max-h-24 object-cover" />
                     ) : (
@@ -282,9 +282,9 @@ export default function EmailBuilderPage() {
                     )}
                   </div>
                 ) : block.type === "header" ? (
-                  <h2 className={`text-xl font-bold text-text-primary text-${block.styles?.align}`}>{block.content}</h2>
+                  <h2 className={`text-xl font-bold text-text-primary ${block.styles?.align === "center" ? "text-center" : block.styles?.align === "right" ? "text-right" : "text-left"}`}>{block.content}</h2>
                 ) : (
-                  <p className={`text-sm text-text-secondary text-${block.styles?.align} whitespace-pre-wrap`}>{block.content}</p>
+                  <p className={`text-sm text-text-secondary ${block.styles?.align === "center" ? "text-center" : block.styles?.align === "right" ? "text-right" : "text-left"} whitespace-pre-wrap`}>{block.content}</p>
                 )}
 
                 {/* Inline Editor */}

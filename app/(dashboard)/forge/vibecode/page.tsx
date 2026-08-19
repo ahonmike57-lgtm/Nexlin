@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { generateAiReply } from "@/app/actions/ai"
 import { savePromptTemplate } from "@/app/actions/prompts"
 import { VIBECODE_PROMPTS } from "@/lib/vibecode-prompts"
@@ -18,12 +19,21 @@ declare global {
   }
 }
 
-export default function VibecodePage() {
-  const [prompt, setPrompt] = useState("")
+function VibecodeLabInner() {
+  const searchParams = useSearchParams()
+  const initialPrompt = searchParams.get("prompt") || ""
+
+  const [prompt, setPrompt] = useState(initialPrompt)
   const [generatedCode, setGeneratedCode] = useState("")
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [listening, setListening] = useState(false)
+
+  useEffect(() => {
+    if (initialPrompt) {
+      setPrompt(initialPrompt)
+    }
+  }, [initialPrompt])
 
   // Save modal state
   const [saveOpen, setSaveOpen] = useState(false)
@@ -31,7 +41,6 @@ export default function VibecodePage() {
   const [saveCategory, setSaveCategory] = useState("Landing Pages")
   const [saving, setSaving] = useState(false)
 
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   const recognitionRef = useRef<any>(null)
 
   const handleGenerate = async () => {
@@ -75,13 +84,6 @@ ${code}
         }
 
         setGeneratedCode(code)
-        // Render into sandboxed iframe
-        if (iframeRef.current?.contentDocument) {
-          const doc = iframeRef.current.contentDocument
-          doc.open()
-          doc.write(code)
-          doc.close()
-        }
         toast.success("Code generated!")
       } else {
         toast.error("Generation failed — check your AI settings")
@@ -268,7 +270,7 @@ ${code}
               </div>
             ) : (
               <iframe
-                ref={iframeRef}
+                srcDoc={generatedCode}
                 className="w-full h-full"
                 title="vibecode-preview"
                 sandbox="allow-scripts allow-same-origin"
@@ -329,3 +331,13 @@ ${code}
     </div>
   )
 }
+
+export default function VibecodePage() {
+  return (
+    <Suspense>
+      <VibecodeLabInner />
+    </Suspense>
+  )
+}
+
+
