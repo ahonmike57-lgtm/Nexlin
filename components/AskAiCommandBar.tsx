@@ -1,28 +1,78 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Sparkles, Command, Loader2, Send } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Sparkles, Loader2, Send, Mic, MicOff } from "lucide-react"
 import { generateAiReply } from "@/app/actions/ai"
 import { createContact } from "@/app/actions/contacts"
 import { toast } from "sonner"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 
+declare global {
+  interface Window {
+    SpeechRecognition: any
+    webkitSpeechRecognition: any
+  }
+}
+
 export function AskAiCommandBar() {
   const [open, setOpen] = useState(false)
   const [prompt, setPrompt] = useState("")
   const [loading, setLoading] = useState(false)
+  const [listening, setListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
 
-  // Listen for Cmd+K or Ctrl+K shortcut
+  // ⌘K / Ctrl+K shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault()
-        setOpen(prev => !prev)
+        setOpen((prev) => !prev)
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
+
+  // Stop listening when dialog closes
+  useEffect(() => {
+    if (!open && listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+    }
+  }, [open, listening])
+
+  const toggleVoice = () => {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRec) {
+      toast.error("Speech recognition not supported in this browser")
+      return
+    }
+
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+      return
+    }
+
+    const rec = new SpeechRec()
+    rec.lang = "en-US"
+    rec.continuous = false
+    rec.interimResults = false
+    rec.onresult = (e: any) => {
+      const transcript: string = e.results[0][0].transcript
+      setPrompt((prev) => (prev ? prev + " " + transcript : transcript))
+      toast.success(`Voice captured: "${transcript}"`)
+    }
+    rec.onerror = () => {
+      toast.error("Voice recognition error")
+      setListening(false)
+    }
+    rec.onend = () => setListening(false)
+    rec.start()
+    recognitionRef.current = rec
+    setListening(true)
+    toast.info("Listening… speak now")
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,7 +92,7 @@ export function AskAiCommandBar() {
           if (parsed.action === "create_contact" && parsed.data) {
             const res = await createContact(parsed.data)
             if (res.success) {
-              toast.success(`Created contact ${parsed.data.firstName || 'Lead'}`)
+              toast.success(`Created contact ${parsed.data.firstName || "Lead"}`)
             }
           } else {
             toast.info(parsed.message || "Command processed")
@@ -53,7 +103,7 @@ export function AskAiCommandBar() {
       }
       setPrompt("")
       setOpen(false)
-    } catch (err: any) {
+    } catch {
       toast.error("Failed to execute command")
     }
     setLoading(false)
@@ -61,7 +111,7 @@ export function AskAiCommandBar() {
 
   return (
     <>
-      {/* Trigger Chip in Header / Navigation */}
+      {/* Trigger Chip */}
       <button
         onClick={() => setOpen(true)}
         className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-bg-secondary/70 hover:bg-bg-secondary border border-border rounded-lg text-xs text-text-secondary transition-colors"
@@ -77,11 +127,24 @@ export function AskAiCommandBar() {
             <Sparkles className="w-5 h-5 text-primary ml-2 flex-shrink-0" />
             <input
               className="flex-1 px-3 py-2 text-sm bg-transparent border-none focus:outline-none text-text-primary placeholder:text-text-secondary"
-              placeholder="e.g. Create a contact named Sarah Jenkins with email sarah@acme.com..."
+              placeholder="e.g. Create contact Sarah Jenkins, email sarah@acme.com..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               autoFocus
             />
+            {/* Voice-to-Vibe mic button */}
+            <button
+              type="button"
+              onClick={toggleVoice}
+              title={listening ? "Stop listening" : "Voice input (Voice-to-Vibe)"}
+              className={`p-2 rounded-lg mr-1 transition-colors ${
+                listening
+                  ? "bg-error/10 text-error animate-pulse"
+                  : "text-text-secondary hover:text-primary hover:bg-primary/10"
+              }`}
+            >
+              {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
             <button
               type="submit"
               disabled={loading || !prompt.trim()}
@@ -91,8 +154,11 @@ export function AskAiCommandBar() {
             </button>
           </form>
           <div className="p-3 bg-bg-secondary/50 text-[11px] text-text-secondary flex justify-between items-center">
-            <span>Type any command in plain English to execute platform actions</span>
-            <span className="font-mono">Press ESC to close</span>
+            <span>Type or speak any command in plain English</span>
+            <span className="flex items-center gap-3">
+              <span className="flex items-center gap-1"><Mic className="w-3 h-3" /> Voice-to-Vibe</span>
+              <span className="font-mono">ESC to close</span>
+            </span>
           </div>
         </DialogContent>
       </Dialog>
