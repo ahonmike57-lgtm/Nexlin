@@ -18,6 +18,22 @@ export async function POST(req: Request) {
 
   try {
     const event = JSON.parse(body)
+    const eventId = event.data?.id ? String(event.data.id) : (event.data?.reference ? `paystack-${event.data.reference}` : null)
+
+    if (eventId) {
+      const existingEvent = await db.processedEvent.findUnique({
+        where: { eventId }
+      })
+      if (existingEvent) {
+        console.log(`[Paystack Webhook Idempotency] Event ${eventId} already processed. Returning cached success.`)
+        return NextResponse.json({ received: true, deduplicated: true }, { status: 200 })
+      }
+
+      await db.processedEvent.create({
+        data: { eventId, source: "paystack" }
+      }).catch(() => {})
+    }
+
     switch (event.event) {
       case "charge.success": {
         const data = event.data

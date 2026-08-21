@@ -137,6 +137,8 @@ model Contact {
   leadScore     Int        @default(0)
   assignedRepId String?
   assignedRep   User?      @relation("AssignedContacts", fields: [assignedRepId], references: [id], onDelete: SetNull)
+  dndEnabled    Boolean    @default(false)
+  deletedAt     DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -171,6 +173,7 @@ model Deal {
   stage         String // Legacy string stage for backward compatibility
   assignedRepId String?
   assignedRep   User?          @relation("AssignedDeals", fields: [assignedRepId], references: [id], onDelete: SetNull)
+  deletedAt     DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -372,11 +375,19 @@ model Workflow {
   subAgencyId String?
   subAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
   status      String     @default("draft") // draft, active
+  deletedAt   DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   triggers WorkflowTrigger[]
   actions  WorkflowAction[]
+}
+
+model ProcessedEvent {
+  id        String   @id @default(cuid())
+  eventId   String   @unique
+  source    String   // "stripe", "paystack", "shopify"
+  createdAt DateTime @default(now())
 }
 
 model WorkflowTrigger {

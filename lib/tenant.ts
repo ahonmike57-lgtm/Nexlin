@@ -16,6 +16,8 @@ const AGENCY_SCOPED_MODELS = new Set([
   "WebhookDelivery", "ForgeSite",
 ])
 
+const SOFT_DELETE_MODELS = new Set(["Contact", "Deal", "Workflow"])
+
 // Operations whose `where` is a unique selector — agencyId cannot be merged in,
 // so reads are verified after the fact and writes are refused.
 const UNIQUE_READS = new Set(["findUnique", "findUniqueOrThrow"])
@@ -28,11 +30,10 @@ const FILTERABLE = new Set([
 ])
 
 /**
- * A Prisma client locked to a single agency.
+ * A Prisma client locked to a single agency with automatic soft-delete filtering.
  *
  * Every filterable query gains `where.agencyId`, and every create gains
- * `data.agencyId`. A forgotten filter therefore returns nothing rather than
- * another tenant's rows — the failure mode is empty, not a leak.
+ * `data.agencyId`. Soft-deletable models automatically filter `deletedAt: null`.
  */
 export function tenantDb(agencyId: string) {
   return db.$extends({
@@ -43,8 +44,18 @@ export function tenantDb(agencyId: string) {
             return query(args)
           }
 
+          const isSoftDelete = SOFT_DELETE_MODELS.has(model)
+          const softDeleteFilter = isSoftDelete && args.where?.deletedAt === undefined ? { deletedAt: null } : {}
+
           if (FILTERABLE.has(operation)) {
-            return query({ ...args, where: { ...(args.where ?? {}), agencyId } })
+            return query({
+              ...args,
+              where: {
+                ...(args.where ?? {}),
+                agencyId,
+                ...softDeleteFilter
+              }
+            })
           }
 
           if (operation === "create") {
@@ -57,9 +68,10 @@ export function tenantDb(agencyId: string) {
           }
 
           if (UNIQUE_READS.has(operation)) {
-            // Fetch, then confirm ownership before handing the row back.
+            // Fetch, then confirm ownership and non-deleted status
             const result = await query(args)
             if (result && result.agencyId !== agencyId) return null
+            if (result && isSoftDelete && result.deletedAt && args.where?.deletedAt === undefined) return null
             return result
           }
 

@@ -1,8 +1,23 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { sendSMS } from "@/app/actions/telephony"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(request: Request) {
+  // IP / Header Rate Limiting (60 requests per minute per IP)
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown-ip"
+  const rateLimit = checkRateLimit(`forge-submit:${clientIp}`, { maxRequests: 60, windowSeconds: 60 })
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again shortly." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.resetInSeconds) }
+      }
+    )
+  }
+
   try {
     const body = await request.json()
     const { funnelId, siteId, fullName, email, phone, monthlyIncome, formName } = body

@@ -59,6 +59,25 @@ export async function POST(req: NextRequest) {
       console.log(`[Twilio] Created new contact for inbound SMS from: ${from}`)
     }
 
+    // A2P 10DLC & TCPA Carrier DND Compliance Interceptor
+    const normalizedBody = body.trim().toUpperCase()
+    const optOutKeywords = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"])
+    const optInKeywords = new Set(["START", "UNSTOP", "YES"])
+
+    if (optOutKeywords.has(normalizedBody)) {
+      await db.contact.update({
+        where: { id: contact.id },
+        data: { dndEnabled: true }
+      })
+      console.log(`[Twilio Compliance] Contact ${contact.id} (${from}) opted out. Set dndEnabled = true`)
+    } else if (optInKeywords.has(normalizedBody)) {
+      await db.contact.update({
+        where: { id: contact.id },
+        data: { dndEnabled: false }
+      })
+      console.log(`[Twilio Compliance] Contact ${contact.id} (${from}) opted in. Set dndEnabled = false`)
+    }
+
     // Find or create open conversation
     let conversation = await db.conversation.findFirst({
       where: { agencyId, contactId: contact.id, channel: "sms", status: "open" }

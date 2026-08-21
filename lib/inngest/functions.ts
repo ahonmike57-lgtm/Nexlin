@@ -2,6 +2,7 @@ import { inngest } from "./client"
 import { db } from "@/lib/db"
 import { interpolateMergeTags } from "@/lib/merge-tags"
 import { pusherServer } from "@/lib/pusher"
+import { logWebhookDelivery } from "@/lib/webhooks"
 
 export const executeWorkflowEngine = (inngest.createFunction as any)(
   { id: "execute-workflow-engine", event: "workflow.execute" },
@@ -74,6 +75,10 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
       } 
       else if (action.type === "send_sms") {
         await step.run(`send-sms-${action.id}`, async () => {
+          if (contact?.dndEnabled) {
+            console.warn(`[Workflow Engine Compliance] Contact ${contact.id} (${contact.phone}) has DND enabled. Skipping automated SMS.`)
+            return { skipped: true, reason: "DND_ENABLED" }
+          }
           const rawText = config.message || "Hi {{contact.firstName | 'there'}}, this is a quick update from {{agency.name}}!"
           const personalizedMessage = interpolateMergeTags(rawText, context)
           console.log(`[Workflow Engine] Sending SMS to ${contact?.phone || contactId}: "${personalizedMessage}"`)
@@ -107,20 +112,36 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
       else if (action.type === "post_webhook") {
         await step.run(`post-webhook-${action.id}`, async () => {
           if (config.webhookUrl) {
+            const payload = {
+              event: "workflow.action",
+              workflowId: wf.id,
+              workflowName: wf.name,
+              contact,
+              timestamp: new Date().toISOString()
+            }
             try {
-              await fetch(config.webhookUrl, {
+              const res = await fetch(config.webhookUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  event: "workflow.action",
-                  workflowId: wf.id,
-                  workflowName: wf.name,
-                  contact,
-                  timestamp: new Date().toISOString()
-                })
+                body: JSON.stringify(payload)
               })
-            } catch (err) {
-              console.warn(`Outbound webhook failed to ${config.webhookUrl}:`, err)
+              await logWebhookDelivery({
+                url: config.webhookUrl,
+                event: "workflow.action",
+                payload,
+                statusCode: res.status,
+                agencyId: wf.agencyId
+              }).catch(() => {})
+            } catch (err: any) {
+              console.warn(`[Workflow Engine] Outbound webhook failed to ${config.webhookUrl}:`, err)
+              await logWebhookDelivery({
+                url: config.webhookUrl,
+                event: "workflow.action",
+                payload,
+                statusCode: 500,
+                error: err.message || "Network timeout / connection refused",
+                agencyId: wf.agencyId
+              }).catch(() => {})
             }
           }
         })

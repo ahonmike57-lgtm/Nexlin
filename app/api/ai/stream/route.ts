@@ -1,11 +1,22 @@
 import { NextRequest } from "next/server"
 import { getSession } from "@/lib/auth"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user) {
       return new Response("Unauthorized", { status: 401 })
+    }
+
+    const userId = session.user.id || (session.user as any).email || "unknown-user"
+    const rateLimit = checkRateLimit(`ai-stream:${userId}`, { maxRequests: 30, windowSeconds: 60 })
+
+    if (!rateLimit.allowed) {
+      return new Response("Rate limit exceeded. Please wait a moment before sending more AI requests.", {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.resetInSeconds) }
+      })
     }
 
     const { prompt, systemInstruction } = await req.json()

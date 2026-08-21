@@ -38,6 +38,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Payment Webhook Idempotency Layer
+    const existingEvent = await db.processedEvent.findUnique({
+      where: { eventId: event.id }
+    })
+
+    if (existingEvent) {
+      console.log(`[Stripe Webhook Idempotency] Event ${event.id} already processed. Returning cached success.`)
+      return NextResponse.json({ received: true, deduplicated: true }, { status: 200 })
+    }
+
+    await db.processedEvent.create({
+      data: { eventId: event.id, source: "stripe" }
+    })
+
     switch (event.type) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {

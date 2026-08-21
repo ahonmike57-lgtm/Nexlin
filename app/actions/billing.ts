@@ -140,14 +140,25 @@ export const logUsageAndBill = withAgency(
       }
     })
 
-    let newBalance = wallet.balance - finalCharge
+    // 1. Atomic SQL Decrement to eliminate race conditions
+    await db.billingWallet.updateMany({
+      where: { id: wallet.id },
+      data: { balance: { decrement: finalCharge } }
+    })
 
-    // Auto-Recharge Trigger Engine
+    let currentBalance = wallet.balance - finalCharge
+
+    // 2. Auto-Recharge Trigger Engine with atomic increment
     let autoRecharged = false
-    if (wallet.autoRechargeEnabled && newBalance <= wallet.autoRechargeThreshold) {
+    if (wallet.autoRechargeEnabled && currentBalance <= wallet.autoRechargeThreshold) {
       const topUpAmount = wallet.autoRechargeAmount || 50.0
-      newBalance += topUpAmount
+      currentBalance += topUpAmount
       autoRecharged = true
+
+      await db.billingWallet.updateMany({
+        where: { id: wallet.id },
+        data: { balance: { increment: topUpAmount } }
+      })
 
       // Log the credit recharge into usage logs
       await db.usageLog.create({
@@ -162,12 +173,7 @@ export const logUsageAndBill = withAgency(
       }).catch(() => {})
     }
 
-    await db.billingWallet.updateMany({
-      where: { id: wallet.id },
-      data: { balance: newBalance }
-    })
-
-    return { log, newBalance, autoRecharged }
+    return { log, newBalance: currentBalance, autoRecharged }
   }
 )
 
