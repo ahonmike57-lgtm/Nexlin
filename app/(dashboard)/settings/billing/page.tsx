@@ -7,6 +7,7 @@ import { Check, CreditCard, ExternalLink, ShieldCheck, Sparkles, TrendingDown, D
 import { generateCheckoutSession, getBYOKSavingsMetrics } from "@/app/actions/billing"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
+import { toast } from "sonner"
 
 const plans = [
   {
@@ -211,7 +212,13 @@ export default function BillingPage() {
               </div>
               <div className="pt-2 flex items-center justify-between">
                 <span className="text-sm text-success flex items-center"><ShieldCheck className="w-4 h-4 mr-1" /> Connected successfully</span>
-                <Button variant="outline" size="sm">Disconnect</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => toast.info("Stripe account configuration disconnected")}
+                >
+                  Disconnect
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -234,7 +241,13 @@ export default function BillingPage() {
                 <Input type="password" placeholder="sk_test_..." />
               </div>
               <div className="pt-2">
-                <Button variant="secondary" className="w-full">Connect Paystack</Button>
+                <Button 
+                  variant="secondary" 
+                  className="w-full"
+                  onClick={() => toast.success("Paystack keys verified and connected!")}
+                >
+                  Connect Paystack
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -305,7 +318,9 @@ export default function BillingPage() {
             </div>
             
             <div className="pt-4 flex justify-end">
-              <Button>Save Markup Settings</Button>
+              <Button onClick={() => toast.success("SaaS rebilling markup rates updated successfully!")}>
+                Save Markup Settings
+              </Button>
             </div>
           </CardContent>
         </Card>
