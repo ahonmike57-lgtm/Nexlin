@@ -4,7 +4,10 @@ import {
   executeWorkflowEngine, 
   cronReviewRequests, 
   cronUsageRebillingSync,
-  bulkImportContactsJob
+  bulkImportContactsJob,
+  cronPublishScheduledSocialPosts,
+  cronDailyDunningChecker,
+  cronMonthlyTrashPruning
 } from "@/lib/inngest/functions"
 
 export const { GET, POST, PUT } = serve({
@@ -13,6 +16,9 @@ export const { GET, POST, PUT } = serve({
     executeWorkflowEngine,
     cronReviewRequests,
     cronUsageRebillingSync,
-    bulkImportContactsJob
+    bulkImportContactsJob,
+    cronPublishScheduledSocialPosts,
+    cronDailyDunningChecker,
+    cronMonthlyTrashPruning
   ],
 })
