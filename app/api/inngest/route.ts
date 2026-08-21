@@ -3,7 +3,8 @@ import { inngest } from "@/lib/inngest/client"
 import { 
   executeWorkflowEngine, 
   cronReviewRequests, 
-  cronUsageRebillingSync 
+  cronUsageRebillingSync,
+  bulkImportContactsJob
 } from "@/lib/inngest/functions"
 
 export const { GET, POST, PUT } = serve({
@@ -11,6 +12,7 @@ export const { GET, POST, PUT } = serve({
   functions: [
     executeWorkflowEngine,
     cronReviewRequests,
-    cronUsageRebillingSync
+    cronUsageRebillingSync,
+    bulkImportContactsJob
   ],
 })

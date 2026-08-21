@@ -36,6 +36,7 @@ model Agency {
   planTier          String   @default("basic")
   status            String   @default("active") // trialing, active, past_due, suspended, churned
   stripeCustomerId  String?
+  stripeConnectAccountId String?
   
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -77,6 +78,7 @@ model Agency {
   apiKeys           ApiKey[]
   webhookDeliveries WebhookDelivery[]
   forgeSites        ForgeSite[]
+  suppressions      SuppressionList[]
 }
 
 model SubAgency {
@@ -104,13 +106,16 @@ model User {
   email            String?    @unique
   passwordHash     String?
   name             String?
-  role             String     @default("Business Owner") // Super Admin, Agency Owner, Business Owner, Team Member
+  role             String     @default("Business Owner") // Super Admin, Agency Owner, Business Owner, Team Member, sales_rep
   country          String?
   isAfricaUser     Boolean    @default(false)
   agencyId         String?
   agency           Agency?    @relation(fields: [agencyId], references: [id])
   subAgencyId      String?
   subAgency        SubAgency? @relation(fields: [subAgencyId], references: [id])
+  twoFactorEnabled Boolean    @default(false)
+  twoFactorSecret  String?
+  backupCodes      String?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   emailVerified    DateTime?
@@ -131,6 +136,7 @@ model Contact {
   lastName      String?
   email         String?
   phone         String?
+  tags          String?
   company       String?
   subAgencyId   String?
   subAgency     SubAgency? @relation(fields: [subAgencyId], references: [id])
@@ -138,6 +144,8 @@ model Contact {
   assignedRepId String?
   assignedRep   User?      @relation("AssignedContacts", fields: [assignedRepId], references: [id], onDelete: SetNull)
   dndEnabled    Boolean    @default(false)
+  emailSuppressed Boolean  @default(false)
+  timezone      String?
   deletedAt     DateTime?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -942,4 +950,16 @@ model ForgeLead {
   contact     Contact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
   payload     String      // JSON submitted form payload
   submittedAt DateTime    @default(now())
+}
+
+model SuppressionList {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  email     String
+  reason    String   // "hard_bounce", "complaint", "unsubscribe"
+  createdAt DateTime @default(now())
+
+  @@unique([agencyId, email])
+  @@index([agencyId, email])
 }

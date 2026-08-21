@@ -287,3 +287,89 @@ export const getBYOKSavingsMetrics = withAgency(
   }
 )
 
+/**
+ * Stripe Connect Express Bank Account Onboarding for Sub-Accounts & Agencies
+ */
+export const createStripeConnectOnboardingLink = withAgency(
+  async ({ db, agencyId }, returnUrl?: string) => {
+    const agency = await db.agency.findFirst({ where: { id: agencyId } })
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+
+    if (!stripeSecretKey) {
+      // Return mock link if key not configured locally
+      return {
+        url: `${returnUrl || "/settings/billing"}?connect=mock_success`,
+        accountId: "acct_mock_express_12345"
+      }
+    }
+
+    const Stripe = require("stripe")
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-06-24.dahlia" })
+
+    let accountId = agency?.stripeConnectAccountId
+
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: "express",
+        country: "US",
+        email: agency?.name ? `${agency.subdomain}@nexlin.site` : undefined,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+      })
+      accountId = account.id
+
+      await db.agency.updateMany({
+        where: { id: agencyId },
+        data: { stripeConnectAccountId: accountId }
+      })
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${returnUrl || "http://localhost:3000/settings/billing"}?connect=refresh`,
+      return_url: `${returnUrl || "http://localhost:3000/settings/billing"}?connect=success`,
+      type: "account_onboarding",
+    })
+
+    return { url: accountLink.url, accountId }
+  },
+  { role: "admin" }
+)
+
+/**
+ * Get Stripe Connect Payouts Status
+ */
+export const getStripeConnectStatus = withAgency(
+  async ({ db, agencyId }) => {
+    const agency = await db.agency.findFirst({ where: { id: agencyId } })
+    const accountId = agency?.stripeConnectAccountId
+
+    if (!accountId) {
+      return { connected: false, payoutsEnabled: false, chargesEnabled: false }
+    }
+
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+    if (!stripeSecretKey) {
+      return { connected: true, payoutsEnabled: true, chargesEnabled: true, accountId }
+    }
+
+    try {
+      const Stripe = require("stripe")
+      const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-06-24.dahlia" })
+      const account = await stripe.accounts.retrieve(accountId)
+
+      return {
+        connected: true,
+        payoutsEnabled: !!account.payouts_enabled,
+        chargesEnabled: !!account.charges_enabled,
+        accountId
+      }
+    } catch {
+      return { connected: false, payoutsEnabled: false, chargesEnabled: false }
+    }
+  }
+)
+
+

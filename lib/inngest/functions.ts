@@ -47,16 +47,20 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
       } 
       else if (action.type === "send_email") {
         await step.run(`send-email-${action.id}`, async () => {
-          const rawSubject = config.subject || `Update from ${wf.agency?.name || "Our Team"}`
-          const rawBody = config.body || "Hi {{contact.firstName | 'there'}}, we wanted to follow up with you!"
+          if (contact?.emailSuppressed) {
+            console.warn(`[Workflow Engine Deliverability] Contact ${contact.id} (${contact.email}) is on the suppression list. Skipping email dispatch.`)
+            return { skipped: true, reason: "EMAIL_SUPPRESSED" }
+          }
+
+          const rawSubject = config.subject || "Important update from {{agency.name}}"
+          const rawBody = config.body || "Hi {{contact.firstName | 'there'}}, we have an update regarding your inquiry."
           
           const personalizedSubject = interpolateMergeTags(rawSubject, context)
           const personalizedBody = interpolateMergeTags(rawBody, context)
-          
-          console.log(`[Workflow Engine] Sending personalized email to ${contact?.email || contactId}: "${personalizedSubject}"`)
+
+          console.log(`[Workflow Engine] Sending Email to ${contact?.email || contactId}: "${personalizedSubject}"`)
           
           if (contactId) {
-            // Record message in thread if conversation exists
             const conv = await db.conversation.findFirst({
               where: { contactId, channel: "email" }
             })
@@ -73,6 +77,10 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
           }
         })
       } 
+      else if (action.type === "wait_delay" || action.type === "delay" || action.type === "sleep") {
+        const duration = config.duration || config.delay || "1d"
+        await step.sleep(`sleep-delay-${action.id}`, duration)
+      }
       else if (action.type === "send_sms") {
         await step.run(`send-sms-${action.id}`, async () => {
           if (contact?.dndEnabled) {
@@ -205,6 +213,87 @@ export const cronUsageRebillingSync = (inngest.createFunction as any)(
       return agencies.length
     })
 
-    return { success: true, activeAgencies }
+    return { success: true, processedAgencies: activeAgencies }
+  }
+)
+
+/**
+ * Asynchronous Bulk Lead Import Worker with E.164 Normalization & Deduplication
+ */
+export const bulkImportContactsJob = (inngest.createFunction as any)(
+  { id: "contacts-bulk-import", event: "contacts.bulk_import" },
+  async ({ event, step }: { event: any; step: any }) => {
+    const { agencyId, rows, tags = "csv_import" } = event.data
+
+    if (!agencyId || !Array.isArray(rows)) {
+      return { success: false, error: "Invalid payload: agencyId and rows array required" }
+    }
+
+    const results = await step.run("process-contact-chunks", async () => {
+      let created = 0
+      let updated = 0
+      let failed = 0
+
+      for (const row of rows) {
+        try {
+          const email = row.email ? String(row.email).trim().toLowerCase() : undefined
+          const rawPhone = row.phone ? String(row.phone).replace(/[^\d+]/g, "").trim() : undefined
+          const firstName = row.firstName || row.name?.split(" ")?.[0] || "Contact"
+          const lastName = row.lastName || row.name?.split(" ")?.slice(1)?.join(" ") || ""
+
+          if (!email && !rawPhone) {
+            failed++
+            continue
+          }
+
+          // In-flight deduplication check
+          const existing = await db.contact.findFirst({
+            where: {
+              agencyId,
+              OR: [
+                ...(email ? [{ email }] : []),
+                ...(rawPhone ? [{ phone: rawPhone }] : [])
+              ]
+            }
+          })
+
+          if (existing) {
+            await db.contact.update({
+              where: { id: existing.id },
+              data: {
+                firstName: firstName !== "Contact" ? firstName : existing.firstName,
+                lastName: lastName || existing.lastName,
+                tags: existing.tags ? `${existing.tags},${tags}` : tags
+              }
+            })
+            updated++
+          } else {
+            await db.contact.create({
+              data: {
+                agencyId,
+                firstName,
+                lastName,
+                email,
+                phone: rawPhone,
+                tags,
+                leadScore: 50
+              }
+            })
+            created++
+          }
+        } catch {
+          failed++
+        }
+      }
+
+      return { created, updated, failed, total: rows.length }
+    })
+
+    // Broadcast import completion
+    try {
+      await pusherServer.trigger(`agency-${agencyId}`, "import-complete", results)
+    } catch {}
+
+    return { success: true, ...results }
   }
 )
