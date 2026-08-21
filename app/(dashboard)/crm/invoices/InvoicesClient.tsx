@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Plus, FileText, CheckCircle, Clock, Send, ShieldAlert, DollarSign } from "lucide-react"
-import { createCPQQuote, approveCPQQuote } from "@/app/actions/cpq"
+import { Plus, FileText, CheckCircle, Clock, Send, ShieldAlert, DollarSign, PenTool, ShieldCheck } from "lucide-react"
+import { createCPQQuote, approveCPQQuote, signCPQQuote } from "@/app/actions/cpq"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import SignaturePad from "@/components/SignaturePad"
 import { toast } from "sonner"
 
 export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[] }) {
@@ -15,6 +16,10 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
   const [amount, setAmount] = useState(1500)
   const [discount, setDiscount] = useState(0)
   const [isCreating, setIsCreating] = useState(false)
+
+  // Signing Modal State
+  const [signingQuote, setSigningQuote] = useState<any | null>(null)
+  const [isSigning, setIsSigning] = useState(false)
 
   const handleCreateQuote = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,12 +63,37 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
     }
   }
 
+  const handleSaveSignature = async (signatureDataUrl: string, signerName: string) => {
+    if (!signingQuote) return
+    setIsSigning(true)
+    const res = await signCPQQuote({
+      quoteId: signingQuote.id,
+      signatureDataUrl,
+      signerName,
+    })
+    setIsSigning(false)
+
+    if (res.success && res.data) {
+      toast.success(`Proposal signed legally! Certificate: ${res.data.certificateId}`)
+      setQuotes(prev => prev.map(q => q.id === signingQuote.id ? {
+        ...q,
+        status: "signed",
+        certificateId: res.data.certificateId,
+        signedAt: res.data.signedAt,
+        signerName
+      } : q))
+      setSigningQuote(null)
+    } else {
+      toast.error('error' in res ? res.error : "Failed to record signature")
+    }
+  }
+
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Proposals & CPQ Invoices</h1>
-          <p className="text-sm text-text-secondary">Generate quotes, configure pricing, and collect signatures.</p>
+          <p className="text-sm text-text-secondary">Generate quotes, configure pricing, and collect legally binding e-signatures.</p>
         </div>
         <Button onClick={() => setIsOpen(true)} className="gap-2">
           <Plus className="w-4 h-4" /> Create Proposal
@@ -82,22 +112,22 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-text-secondary">Pending Manager Approval</CardTitle>
+            <CardTitle className="text-sm font-medium text-text-secondary">Signed & Executed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-500">
-              {quotes.filter(q => q.status === "pending_approval").length}
+            <div className="text-2xl font-bold text-success">
+              {quotes.filter(q => q.status === "signed").length}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-text-secondary">Approved Value</CardTitle>
+            <CardTitle className="text-sm font-medium text-text-secondary">Approved / Active Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-success">
-              ${quotes.filter(q => q.status === "approved").reduce((sum, q) => sum + (q.total || 0), 0).toLocaleString()}
+            <div className="text-2xl font-bold text-primary">
+              ${quotes.filter(q => q.status === "approved" || q.status === "signed").reduce((sum, q) => sum + (q.total || 0), 0).toLocaleString()}
             </div>
           </CardContent>
         </Card>
@@ -106,7 +136,7 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent Quotes & Invoices</CardTitle>
-          <CardDescription>View, approve, and send deals CPQ quotes.</CardDescription>
+          <CardDescription>View, approve, and collect digital signatures on CPQ quotes.</CardDescription>
         </CardHeader>
         <CardContent>
           {quotes.length === 0 ? (
@@ -119,12 +149,15 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
               {quotes.map(q => (
                 <div key={q.id} className="py-3.5 flex items-center justify-between text-sm">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                      <FileText className="w-4 h-4" />
+                    <div className={`p-2 rounded-lg ${q.status === "signed" ? "bg-success/10 text-success" : "bg-primary/10 text-primary"}`}>
+                      {q.status === "signed" ? <ShieldCheck className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
                     </div>
                     <div>
                       <p className="font-semibold">{q.title || "CPQ Quote"}</p>
-                      <p className="text-xs text-text-secondary font-mono">{new Date(q.createdAt || Date.now()).toLocaleDateString()}</p>
+                      <p className="text-xs text-text-secondary font-mono">
+                        {new Date(q.createdAt || Date.now()).toLocaleDateString()}
+                        {q.certificateId && ` · Cert: ${q.certificateId}`}
+                      </p>
                     </div>
                   </div>
 
@@ -139,10 +172,19 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
                           Approve
                         </Button>
                       </div>
-                    ) : (
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-success/10 text-success font-semibold flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> Approved
+                    ) : q.status === "signed" ? (
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-success/10 text-success font-semibold flex items-center gap-1 border border-success/20">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Signed & Certified
                       </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-500 font-semibold flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" /> Approved
+                        </span>
+                        <Button size="sm" onClick={() => setSigningQuote(q)} className="h-7 text-xs gap-1">
+                          <PenTool className="w-3 h-3" /> Sign
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -152,6 +194,7 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
         </CardContent>
       </Card>
 
+      {/* Create Proposal Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -197,6 +240,17 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Signature Modal */}
+      {signingQuote && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <SignaturePad
+            onSave={handleSaveSignature}
+            onCancel={() => setSigningQuote(null)}
+          />
+        </div>
+      )}
     </div>
   )
 }
+

@@ -35,7 +35,8 @@ import {
   Globe,
   Bot,
   Library,
-  PenLine
+  PenLine,
+  PhoneMissed
 } from "lucide-react"
 
 type SidebarLink = {
@@ -80,6 +81,7 @@ const sidebarLinks: SidebarLink[] = [
   { href: "/support/knowledge-base",       label: "Knowledge Base",   icon: BookOpen },
   { href: "/voice/test",                   label: "Voice Agent Test", icon: Mic },
   { href: "/voice",                        label: "Voice AI",         icon: Mic,         exact: true },
+  { href: "/settings/missed-call",         label: "Missed-Call SMS",  icon: PhoneMissed },
   { href: "/settings/domains/check",       label: "Domain Checker",   icon: Globe },
   { href: "/settings",                     label: "Settings",         icon: Settings,    exact: true },
 ]

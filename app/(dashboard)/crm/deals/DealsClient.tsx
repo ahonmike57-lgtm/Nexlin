@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Settings2, Search, Filter, MoreHorizontal, Clock, DollarSign, Grip, Flame } from "lucide-react"
+import { Plus, Settings2, Search, Filter, MoreHorizontal, Clock, DollarSign, Grip, Flame, AlertTriangle, TrendingUp, Activity } from "lucide-react"
 import { useState, useEffect } from "react"
 import { updateDealStage } from "@/app/actions/deals"
 import AddDealModal from "./AddDealModal"
@@ -50,7 +50,7 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
     // Optimistic UI update
     setDeals(prevDeals => 
       prevDeals.map(deal => 
-        deal.id === dealId ? { ...deal, stage: newStageId } : deal
+        deal.id === dealId ? { ...deal, stage: newStageId, updatedAt: new Date() } : deal
       )
     )
 
@@ -59,8 +59,6 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
   }
 
   // Filter deals to only show ones in the current pipeline stages
-  // If we are on default pipeline, show deals whose stage is in DEFAULT_STAGES
-  // If we are on custom pipeline, show deals whose stage is in currentPipeline.stages
   const currentStageIds = stages.map((s: any) => s.id)
   const visibleDeals = deals.filter(d => currentStageIds.includes(d.stage))
 
@@ -72,13 +70,31 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
   }, {})
 
   const totalValue = visibleDeals.reduce((sum: number, deal: any) => sum + (deal.value || 0), 0)
-  
+
+  // Calculate Pipeline Velocity & Rotting Metrics
+  const now = Date.now()
+  let rottingCount = 0
+  let staleCount = 0
+  let totalDays = 0
+
+  visibleDeals.forEach((d: any) => {
+    const days = Math.max(0, Math.floor((now - new Date(d.updatedAt || d.createdAt).getTime()) / (1000 * 60 * 60 * 24)))
+    totalDays += days
+    if (d.stage !== "won" && d.stage !== "lost") {
+      if (days >= 14) rottingCount++
+      else if (days >= 7) staleCount++
+    }
+  })
+
+  const avgVelocityDays = visibleDeals.length > 0 ? Math.round(totalDays / visibleDeals.length) : 0
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div className="h-full flex flex-col space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Sales Pipeline</h1>
-          <p className="text-text-secondary">Drag and drop deals across stages.</p>
+          <p className="text-text-secondary">Drag and drop deals with real-time velocity & stagnation tracking.</p>
         </div>
         <div className="flex gap-2">
           {pipelines.length > 0 && (
@@ -102,21 +118,62 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
         </div>
       </div>
 
+      {/* Velocity Intelligence Stats Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-bg-primary border border-border rounded-xl p-3 shadow-sm">
+        <div className="flex items-center gap-3 px-3 py-1">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <DollarSign className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary">Total Value</p>
+            <p className="text-sm font-bold text-text-primary">${totalValue.toLocaleString()}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-border">
+          <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+            <TrendingUp className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary">Avg Stage Velocity</p>
+            <p className="text-sm font-bold text-text-primary">{avgVelocityDays} days</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-border">
+          <div className="p-2 rounded-lg bg-warning/10 text-warning">
+            <Clock className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary">Stale Deals (&gt;7d)</p>
+            <p className="text-sm font-bold text-warning">{staleCount}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 px-3 py-1 border-t sm:border-t-0 sm:border-l border-border">
+          <div className={`p-2 rounded-lg ${rottingCount > 0 ? "bg-red-500/10 text-red-500 animate-pulse" : "bg-success/10 text-success"}`}>
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="text-xs text-text-secondary">Rotting Deals (&gt;14d)</p>
+            <p className={`text-sm font-bold ${rottingCount > 0 ? "text-red-500" : "text-success"}`}>
+              {rottingCount} {rottingCount > 0 ? "Alerts" : "Healthy"}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Filters Toolbar */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4">
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
           <input 
             type="text" 
-            placeholder="Search deals..." 
+            placeholder="Search deals by title or contact..." 
             className="w-full pl-9 pr-4 py-2 bg-bg-primary border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
         <Button variant="outline" className="bg-bg-primary"><Filter className="w-4 h-4 mr-2" /> Filter</Button>
-        
-        <div className="ml-auto text-sm font-medium text-text-secondary flex items-center gap-4">
-          <span>Total Pipeline Value: <span className="text-text-primary font-bold">${totalValue.toLocaleString()}</span></span>
-        </div>
       </div>
 
       {/* Kanban Board */}
@@ -141,49 +198,76 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
               </div>
               
               <div className="flex-1 flex flex-col gap-3 bg-bg-primary/50 p-2 rounded-xl border border-border/50 overflow-y-auto">
-                {stageDeals.map((deal: any) => (
-                  <div 
-                    key={deal.id}
-                    className="bg-bg-primary p-4 rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing group relative"
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, deal.id)}
-                    onClick={() => setSelectedDeal(deal)}
-                  >
-                    {/* Make cursor a pointer on the whole card, but keep drag active */}
-                    <div className="absolute inset-0 cursor-pointer z-0"></div>
-                    <div className="relative z-10 flex justify-between items-start mb-2">
-                      <h4 className="font-semibold text-sm text-text-primary group-hover:text-primary transition-colors">{deal.title}</h4>
-                      <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity -mr-2 -mt-2">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    
-                    <p className="text-xs text-text-secondary mb-3">{deal.contact?.company || deal.contact?.firstName || "No Contact"}</p>
-                    
-                    {deal.contact && (
-                      <div className="flex items-center gap-1 mb-4">
-                        <Flame className={`w-3 h-3 ${deal.contact.leadScore >= 80 ? 'text-red-500' : deal.contact.leadScore >= 50 ? 'text-orange-500' : 'text-blue-500'}`} />
-                        <div className="w-full h-1 bg-bg-secondary rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full ${deal.contact.leadScore >= 80 ? 'bg-red-500' : deal.contact.leadScore >= 50 ? 'bg-orange-500' : 'bg-blue-500'}`} 
-                            style={{ width: `${Math.min(deal.contact.leadScore || 0, 100)}%` }}
-                          />
+                {stageDeals.map((deal: any) => {
+                  const daysInStage = Math.max(0, Math.floor((now - new Date(deal.updatedAt || deal.createdAt).getTime()) / (1000 * 60 * 60 * 24)))
+                  const isRotting = daysInStage >= 14 && stage.id !== "won" && stage.id !== "lost"
+                  const isStale = daysInStage >= 7 && !isRotting && stage.id !== "won" && stage.id !== "lost"
+
+                  return (
+                    <div 
+                      key={deal.id}
+                      className={`bg-bg-primary p-4 rounded-lg border shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group relative ${
+                        isRotting 
+                          ? "border-red-500/50 bg-red-500/[0.02]" 
+                          : isStale 
+                            ? "border-amber-500/40" 
+                            : "border-border"
+                      }`}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, deal.id)}
+                      onClick={() => setSelectedDeal(deal)}
+                    >
+                      {/* Make cursor a pointer on the whole card, but keep drag active */}
+                      <div className="absolute inset-0 cursor-pointer z-0"></div>
+                      <div className="relative z-10 flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-sm text-text-primary group-hover:text-primary transition-colors">{deal.title}</h4>
+                        <Button variant="ghost" size="icon" className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity -mr-2 -mt-2">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      
+                      <p className="text-xs text-text-secondary mb-2">{deal.contact?.company || deal.contact?.firstName || "No Contact"}</p>
+                      
+                      {/* Deal Rotting Alert Badge */}
+                      {isRotting && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-red-500/10 text-red-500 text-[11px] font-semibold mb-2 border border-red-500/20">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>Rotting: {daysInStage} days in stage</span>
+                        </div>
+                      )}
+
+                      {isStale && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 text-amber-600 text-[11px] font-semibold mb-2 border border-amber-500/20">
+                          <Clock className="w-3 h-3" />
+                          <span>Stale: {daysInStage} days in stage</span>
+                        </div>
+                      )}
+
+                      {deal.contact && (
+                        <div className="flex items-center gap-1 mb-4">
+                          <Flame className={`w-3 h-3 ${deal.contact.leadScore >= 80 ? 'text-red-500' : deal.contact.leadScore >= 50 ? 'text-orange-500' : 'text-blue-500'}`} />
+                          <div className="w-full h-1 bg-bg-secondary rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${deal.contact.leadScore >= 80 ? 'bg-red-500' : deal.contact.leadScore >= 50 ? 'bg-orange-500' : 'bg-blue-500'}`} 
+                              style={{ width: `${Math.min(deal.contact.leadScore || 0, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between pt-3 border-t border-border">
+                        <div className="flex items-center text-xs font-medium text-text-primary">
+                          <DollarSign className="w-3 h-3 text-success mr-1" />
+                          {deal.value?.toLocaleString() || "0"}
+                        </div>
+                        <div className="flex items-center text-xs text-text-secondary">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {daysInStage}d
                         </div>
                       </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between pt-3 border-t border-border">
-                      <div className="flex items-center text-xs font-medium text-text-primary">
-                        <DollarSign className="w-3 h-3 text-success mr-1" />
-                        {deal.value?.toLocaleString() || "0"}
-                      </div>
-                      <div className="flex items-center text-xs text-text-secondary">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {Math.floor((Date.now() - new Date(deal.updatedAt).getTime()) / (1000 * 60 * 60 * 24))} days
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )

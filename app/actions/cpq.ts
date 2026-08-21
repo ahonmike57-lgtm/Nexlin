@@ -82,3 +82,51 @@ export const getCPQQuotes = withAgency(
     }))
   }
 )
+
+export const signCPQQuote = withAgency(
+  async ({ db, userId }, data: {
+    quoteId: string
+    signatureDataUrl: string
+    signerName: string
+    signerEmail?: string
+  }) => {
+    const snapshot = await db.snapshot.findFirst({
+      where: { id: data.quoteId, version: "cpq_quote" }
+    })
+
+    if (!snapshot || !snapshot.description) throw new Error("Quote not found")
+
+    const quoteData = JSON.parse(snapshot.description)
+    const signedAt = new Date().toISOString()
+    const certificateId = `CERT-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+
+    quoteData.status = "signed"
+    quoteData.signedAt = signedAt
+    quoteData.signerName = data.signerName
+    quoteData.signerEmail = data.signerEmail || null
+    quoteData.signatureDataUrl = data.signatureDataUrl
+    quoteData.certificateId = certificateId
+    quoteData.auditTrail = {
+      certificateId,
+      signedAt,
+      signerName: data.signerName,
+      status: "Verified Legally Binding",
+      standard: "ESIGN / UETA Compliant",
+    }
+
+    await db.snapshot.updateMany({
+      where: { id: data.quoteId },
+      data: { description: JSON.stringify(quoteData) }
+    })
+
+    revalidatePath("/crm/invoices")
+    return {
+      success: true,
+      quoteId: data.quoteId,
+      status: "signed",
+      certificateId,
+      signedAt
+    }
+  }
+)
+

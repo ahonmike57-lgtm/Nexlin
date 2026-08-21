@@ -4,10 +4,13 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Filter, Download, MoreHorizontal, Mail, Phone, Flame } from "lucide-react"
+import { Search, Filter, Download, MoreHorizontal, Mail, Phone, Flame, Sparkles, Building2, Globe, Cpu, Users2, DollarSign, Target, CheckCircle2, Loader2 } from "lucide-react"
 import AddContactModal from "./AddContactModal"
 import { MergeContactsDialog } from "@/components/crm/MergeContactsDialog"
 import { PowerDialer } from "@/components/crm/PowerDialer"
+import { enrichContact, EnrichedFirmographics } from "@/app/actions/enrichment"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { toast } from "sonner"
 
 const getScoreColor = (score: number) => {
   if (score >= 80) return "text-red-500 bg-red-500/10 border-red-500/20";
@@ -17,9 +20,36 @@ const getScoreColor = (score: number) => {
 };
 
 export default function ContactsClient({ initialContacts }: { initialContacts: any[] }) {
+  const [contacts, setContacts] = useState(initialContacts)
   const [searchTerm, setSearchTerm] = useState("")
 
-  const filtered = initialContacts.filter((c) => {
+  // Enrichment Modal State
+  const [enrichingId, setEnrichingId] = useState<string | null>(null)
+  const [activeEnrichment, setActiveEnrichment] = useState<{
+    contact: any
+    data: EnrichedFirmographics
+  } | null>(null)
+
+  const handleEnrich = async (contact: any) => {
+    setEnrichingId(contact.id)
+    const res = await enrichContact(contact.id)
+    setEnrichingId(null)
+
+    if (res.success && res.data) {
+      toast.success(`Enriched firmographics for ${contact.firstName}!`)
+      setActiveEnrichment({
+        contact,
+        data: res.data.firmographics
+      })
+      if (res.data.firmographics.companyName && !contact.company) {
+        setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, company: res.data.firmographics.companyName } : c))
+      }
+    } else {
+      toast.error('error' in res ? res.error : "Enrichment failed")
+    }
+  }
+
+  const filtered = contacts.filter((c) => {
     if (!searchTerm) return true
     const q = searchTerm.toLowerCase()
     const fullName = `${c.firstName || ""} ${c.lastName || ""}`.trim()
@@ -35,10 +65,10 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Contacts</h1>
-          <p className="text-text-secondary">Manage your leads and customers ({initialContacts.length} total).</p>
+          <p className="text-text-secondary">Manage your leads with 1-click B2B firmographic enrichment ({contacts.length} total).</p>
         </div>
         <div className="flex gap-2 items-center">
-          <PowerDialer contacts={initialContacts} />
+          <PowerDialer contacts={contacts} />
           <MergeContactsDialog />
           <Button variant="outline"><Download className="w-4 h-4 mr-2" /> Export</Button>
           <AddContactModal />
@@ -75,7 +105,7 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
                 <th className="px-6 py-3 font-semibold">Contact Info</th>
                 <th className="px-6 py-3 font-semibold">Company</th>
                 <th className="px-6 py-3 font-semibold">Lead Score</th>
-                <th className="px-6 py-3 font-semibold">Last Active</th>
+                <th className="px-6 py-3 font-semibold">Enrichment</th>
                 <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
@@ -97,16 +127,18 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
                       <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
                         {contact.firstName?.charAt(0) || "U"}
                       </div>
-                      {contact.firstName} {contact.lastName}
+                      <div>
+                        <div>{contact.firstName} {contact.lastName}</div>
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1 text-text-secondary">
-                      <span className="flex items-center gap-1 hover:text-primary"><Mail className="w-3 h-3" /> {contact.email}</span>
+                      <span className="flex items-center gap-1 hover:text-primary"><Mail className="w-3 h-3" /> {contact.email || "-"}</span>
                       {contact.phone && <span className="flex items-center gap-1 hover:text-primary"><Phone className="w-3 h-3" /> {contact.phone}</span>}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-text-secondary">{contact.company || "-"}</td>
+                  <td className="px-6 py-4 text-text-secondary font-medium">{contact.company || "-"}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                        <Badge variant="outline" className={`font-medium ${getScoreColor(contact.leadScore || 0)}`}>
@@ -121,8 +153,24 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
                        </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-text-secondary whitespace-nowrap">
-                    {new Date(contact.updatedAt).toLocaleDateString()}
+                  <td className="px-6 py-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEnrich(contact)
+                      }}
+                      disabled={enrichingId === contact.id}
+                      className="h-7 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+                    >
+                      {enrichingId === contact.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3 h-3 text-primary" />
+                      )}
+                      {enrichingId === contact.id ? "Enriching..." : "Enrich"}
+                    </Button>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -137,7 +185,7 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
         
         {/* Pagination */}
         <div className="p-4 border-t border-border flex items-center justify-between text-sm text-text-secondary bg-bg-secondary/50">
-          <div>Showing {filtered.length} of {initialContacts.length} contacts{searchTerm ? ` matching "${searchTerm}"` : ""}</div>
+          <div>Showing {filtered.length} of {contacts.length} contacts{searchTerm ? ` matching "${searchTerm}"` : ""}</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" disabled>Previous</Button>
             <Button variant="outline" size="sm" className="bg-primary text-white border-primary">1</Button>
@@ -145,6 +193,81 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
           </div>
         </div>
       </div>
+
+      {/* Firmographics Drawer Dialog */}
+      {activeEnrichment && (
+        <Dialog open={!!activeEnrichment} onOpenChange={() => setActiveEnrichment(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                {activeEnrichment.data.companyName}
+              </DialogTitle>
+              <DialogDescription className="flex items-center gap-2 pt-1 font-mono text-xs">
+                <Globe className="w-3.5 h-3.5" /> {activeEnrichment.data.domain} · {activeEnrichment.data.industry}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 pt-2 text-sm">
+              {/* Firmographics Matrix */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-bg-secondary p-3 rounded-xl border border-border">
+                  <p className="text-xs text-text-secondary flex items-center gap-1">
+                    <Users2 className="w-3.5 h-3.5" /> Company Size
+                  </p>
+                  <p className="text-sm font-semibold mt-1 text-text-primary">
+                    {activeEnrichment.data.employeeRange}
+                  </p>
+                </div>
+
+                <div className="bg-bg-secondary p-3 rounded-xl border border-border">
+                  <p className="text-xs text-text-secondary flex items-center gap-1">
+                    <DollarSign className="w-3.5 h-3.5" /> Estimated Revenue
+                  </p>
+                  <p className="text-sm font-semibold mt-1 text-success">
+                    {activeEnrichment.data.estimatedRevenue}
+                  </p>
+                </div>
+              </div>
+
+              {/* Buyer Persona & Pain Points */}
+              <div className="bg-bg-secondary p-3.5 rounded-xl border border-border space-y-2">
+                <p className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
+                  <Target className="w-4 h-4 text-primary" /> Buyer Persona
+                </p>
+                <p className="text-xs text-text-secondary leading-relaxed">
+                  {activeEnrichment.data.buyerPersona}
+                </p>
+              </div>
+
+              {/* Tech Stack */}
+              <div>
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-1">
+                  <Cpu className="w-3.5 h-3.5" /> Detected Tech Stack
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeEnrichment.data.techStack?.map((tech, idx) => (
+                    <span key={idx} className="px-2.5 py-1 rounded-md bg-primary/10 text-primary border border-primary/20 text-xs font-medium">
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Suggested Pitch Hook */}
+              <div className="bg-primary/5 border border-primary/20 p-3.5 rounded-xl space-y-1">
+                <p className="text-xs font-bold text-primary flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5" /> AI Recommended Pitch
+                </p>
+                <p className="text-xs text-text-primary leading-relaxed">
+                  &ldquo;{activeEnrichment.data.suggestedPitch}&rdquo;
+                </p>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
+

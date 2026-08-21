@@ -120,3 +120,51 @@ ${history.length > 0 ? history.join("\n") : "No recent communications."}
     return parsed
   }
 )
+
+export const getPipelineVelocityMetrics = withAgency(
+  async ({ db, userId, userRole }) => {
+    const deals = await db.deal.findMany({
+      orderBy: { updatedAt: "desc" }
+    })
+
+    const now = Date.now()
+    const rottingThresholdDays = 14
+    const staleThresholdDays = 7
+
+    let rottingCount = 0
+    let staleCount = 0
+    let totalAgeDays = 0
+
+    const dealsWithMetrics = deals.map(deal => {
+      const daysInStage = Math.max(0, Math.floor((now - new Date(deal.updatedAt).getTime()) / (1000 * 60 * 60 * 24)))
+      totalAgeDays += daysInStage
+
+      const isRotting = daysInStage >= rottingThresholdDays && deal.stage !== "won" && deal.stage !== "lost"
+      const isStale = daysInStage >= staleThresholdDays && !isRotting && deal.stage !== "won" && deal.stage !== "lost"
+
+      if (isRotting) rottingCount++
+      if (isStale) staleCount++
+
+      return {
+        ...deal,
+        daysInStage,
+        isRotting,
+        isStale
+      }
+    })
+
+    const avgDaysInStage = deals.length > 0 ? Math.round(totalAgeDays / deals.length) : 0
+    const wonDeals = deals.filter(d => d.stage === "won" || d.stage?.toLowerCase().includes("won"))
+    const winRate = deals.length > 0 ? Math.round((wonDeals.length / deals.length) * 100) : 0
+
+    return {
+      totalDeals: deals.length,
+      rottingCount,
+      staleCount,
+      avgDaysInStage,
+      winRate,
+      deals: dealsWithMetrics
+    }
+  }
+)
+

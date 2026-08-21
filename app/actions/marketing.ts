@@ -69,7 +69,7 @@ export async function sendCampaign(campaignId: string) {
     // Fetch all contacts with valid emails
     const contacts = await db.contact.findMany({
       where: { agencyId: campaign.agencyId, email: { not: null } },
-      select: { email: true, firstName: true }
+      select: { id: true, email: true, firstName: true }
     })
 
     if (contacts.length === 0) {
@@ -78,7 +78,9 @@ export async function sendCampaign(campaignId: string) {
       return { success: true, count: 0 }
     }
 
-    // Send in batches of 50 (Resend batch limit)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nexlin.vercel.app"
+
+    // Send in batches of 50 (Resend batch limit) with 1x1 open tracking pixel
     const BATCH_SIZE = 50
     for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
       const batch = contacts.slice(i, i + BATCH_SIZE)
@@ -87,7 +89,13 @@ export async function sendCampaign(campaignId: string) {
           from: `${campaign.agency.name} <onboarding@resend.dev>`,
           to: [contact.email!],
           subject: campaign.subject,
-          html: `<p>Hi ${contact.firstName},</p><p>${campaign.content}</p>`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+              <p>Hi ${contact.firstName},</p>
+              <div>${campaign.content}</div>
+              <img src="${appUrl}/api/t/open/${campaignId}_${contact.id}" width="1" height="1" style="display:none;" alt="" />
+            </div>
+          `,
         }))
       )
     }
