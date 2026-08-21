@@ -75,6 +75,9 @@ export default function InvoicesClient({ initialQuotes }: { initialQuotes: any[]
 
     if (res.success && res.data) {
       toast.success(`Proposal signed legally! Certificate: ${res.data.certificateId}`)
+      if (res.data.dealWon) {
+        toast.success("Deal Closed Won! 🎉 Pipeline stage updated automatically.", { duration: 5000 })
+      }
       setQuotes(prev => prev.map(q => q.id === signingQuote.id ? {
         ...q,
         status: "signed",

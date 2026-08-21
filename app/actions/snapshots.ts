@@ -109,7 +109,13 @@ export async function deploySnapshot(snapshotId: string, targetSubAgencyId: stri
 
     // Deploy assets
     for (const asset of snapshot.assets) {
-      const data = JSON.parse(asset.data)
+      let data: any
+      try {
+        data = JSON.parse(asset.data)
+      } catch (e) {
+        console.warn(`deploySnapshot: skipping corrupt asset ${asset.id} (${asset.type}):`, e)
+        continue
+      }
 
       if (asset.type === "funnel") {
         const createdFunnel = await prisma.funnel.create({

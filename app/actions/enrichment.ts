@@ -68,7 +68,7 @@ Return a valid JSON object with the following exact keys:
 
     // Update contact record with company if empty
     if (!contact.company && firmographics.companyName) {
-      await db.contact.update({
+      await db.contact.updateMany({
         where: { id: contactId },
         data: { company: firmographics.companyName }
       })

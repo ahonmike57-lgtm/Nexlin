@@ -133,12 +133,16 @@ export const autoMergeAllDuplicates = withAgency(
 
         if (sources.length > 0) {
           for (const srcId of sources) {
-            await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-            await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-            await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-            await db.contact.deleteMany({ where: { id: srcId } })
-            processedIds.add(srcId)
-            mergedCount++
+            try {
+              await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+              await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+              await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+              await db.contact.deleteMany({ where: { id: srcId } })
+              processedIds.add(srcId)
+              mergedCount++
+            } catch (e) {
+              console.warn(`autoMerge: skipped source ${srcId} due to error:`, e)
+            }
           }
         }
       }
@@ -153,12 +157,16 @@ export const autoMergeAllDuplicates = withAgency(
 
         if (sources.length > 0) {
           for (const srcId of sources) {
-            await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-            await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-            await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-            await db.contact.deleteMany({ where: { id: srcId } })
-            processedIds.add(srcId)
-            mergedCount++
+            try {
+              await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+              await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+              await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+              await db.contact.deleteMany({ where: { id: srcId } })
+              processedIds.add(srcId)
+              mergedCount++
+            } catch (e) {
+              console.warn(`autoMerge: skipped source ${srcId} due to error:`, e)
+            }
           }
         }
       }
