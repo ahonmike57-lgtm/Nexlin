@@ -212,6 +212,118 @@ export async function getPlatformBlueprintSnapshots() {
   }
 }
 
+export async function getPlatformAgenciesList() {
+  const auth = await requirePlatformAuth(["owner", "developer", "support"])
+  if (!auth.authorized) return []
+  return db.agency.findMany({
+    select: { id: true, name: true, subdomain: true, planTier: true },
+    orderBy: { name: "asc" }
+  })
+}
+
+export async function createPlatformBlueprintSnapshot(data: {
+  name: string
+  industry: string
+  description: string
+  funnelsCount?: number
+  workflowsCount?: number
+  pipelinesCount?: number
+}) {
+  const auth = await requirePlatformAuth(["owner", "developer"])
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  const firstAgency = await db.agency.findFirst()
+  if (!firstAgency) {
+    return { success: false, error: "No agency found to anchor blueprint snapshot." }
+  }
+
+  const snapshot = await db.snapshot.create({
+    data: {
+      agencyId: firstAgency.id,
+      name: data.name.trim(),
+      description: data.description.trim(),
+      isPublic: true,
+      assets: {
+        create: [
+          { type: "funnel", sourceId: `fn_${Date.now()}`, data: JSON.stringify({ name: "Lead Funnel" }) },
+          { type: "workflow", sourceId: `wf_${Date.now()}`, data: JSON.stringify({ name: "Drip Workflow" }) },
+          { type: "pipeline", sourceId: `pl_${Date.now()}`, data: JSON.stringify({ name: "Sales Pipeline" }) }
+        ]
+      }
+    }
+  })
+
+  revalidatePath("/platform/snapshots")
+  return { success: true, data: snapshot }
+}
+
+export async function deploySnapshotToAgency(data: {
+  blueprintName: string
+  agencyId: string
+}) {
+  const auth = await requirePlatformAuth(["owner", "developer"])
+  if (!auth.authorized) {
+    return { success: false, error: auth.error }
+  }
+
+  const agency = await db.agency.findUnique({
+    where: { id: data.agencyId }
+  })
+
+  if (!agency) {
+    return { success: false, error: "Target agency workspace not found." }
+  }
+
+  // Create default pipeline for the agency
+  const pipeline = await db.pipeline.create({
+    data: {
+      agencyId: agency.id,
+      name: `${data.blueprintName} Sales Pipeline`,
+      stages: {
+        create: [
+          { name: "New Lead", order: 0 },
+          { name: "Discovery Call", order: 1 },
+          { name: "Proposal Sent", order: 2 },
+          { name: "Closed Won", order: 3 },
+        ]
+      }
+    }
+  })
+
+  // Create default funnel for the agency
+  const funnel = await db.funnel.create({
+    data: {
+      agencyId: agency.id,
+      name: `${data.blueprintName} Booking Funnel`,
+      subdomain: `${agency.subdomain || 'agency'}-booking`,
+      status: "published",
+      steps: {
+        create: [
+          { name: "Opt-in Landing Page", order: 0, path: "/optin" },
+          { name: "Calendar Schedule Page", order: 1, path: "/schedule" },
+          { name: "Confirmation Thank You", order: 2, path: "/thank-you" }
+        ]
+      }
+    }
+  })
+
+  // Create notification in agency workspace
+  await db.notification.create({
+    data: {
+      agencyId: agency.id,
+      type: "system",
+      title: `📦 Blueprint Deployed: ${data.blueprintName}`,
+      body: `Platform Admin has deployed the ${data.blueprintName} with ready-to-use Funnels and Pipelines into your workspace.`,
+      link: "/funnels"
+    }
+  })
+
+  revalidatePath("/platform/snapshots")
+  return { success: true, pipelineId: pipeline.id, funnelId: funnel.id }
+}
+
 /**
  * 4. Global In-App Announcements & System Banners (Access: Owner, Support)
  */
