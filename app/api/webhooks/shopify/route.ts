@@ -22,18 +22,58 @@ export async function POST(request: Request) {
 
     const cleanEmail = email.trim().toLowerCase()
 
-    const contact = await db.contact.findFirst({
+    let contact = await db.contact.findFirst({
       where: { email: cleanEmail }
     })
 
+    if (!contact) {
+      const agency = await db.agency.findFirst()
+      if (agency) {
+        contact = await db.contact.create({
+          data: {
+            agencyId: agency.id,
+            firstName: body.customer?.first_name || "Shopify",
+            lastName: body.customer?.last_name || "Customer",
+            email: cleanEmail,
+            phone: body.customer?.phone || body.phone,
+            tags: "shopify_customer",
+            leadScore: 50
+          }
+        })
+      }
+    }
+
     if (contact) {
-      if (topic === "orders/create") {
+      if (topic === "orders/create" || topic.includes("order")) {
         await db.contact.update({
           where: { id: contact.id },
           data: {
             leadScore: (contact.leadScore || 0) + 20
           }
         })
+
+        // Create deal for order volume
+        const pipeline = await db.pipeline.findFirst({
+          where: { agencyId: contact.agencyId },
+          include: { stages: { orderBy: { order: "asc" } } }
+        })
+
+        const stageId = pipeline?.stages?.[pipeline.stages.length - 1]?.id || pipeline?.stages?.[0]?.id
+
+        if (stageId && pipeline) {
+          const orderValue = parseFloat(body.total_price || body.current_total_price || "0") || 100
+          await db.deal.create({
+            data: {
+              agencyId: contact.agencyId,
+              contactId: contact.id,
+              pipelineId: pipeline.id,
+              stageId,
+              stage: pipeline.stages?.[pipeline.stages.length - 1]?.name || "Won",
+              title: `Shopify Order #${body.order_number || body.id}`,
+              value: orderValue
+            }
+          }).catch(() => {})
+        }
       }
     }
 
