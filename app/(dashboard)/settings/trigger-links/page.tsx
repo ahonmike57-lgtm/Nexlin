@@ -122,7 +122,12 @@ export default function TriggerLinksSettingsPage() {
       ) : (
         <div className="space-y-3">
           {links.map((link) => {
-            const data = link.description ? JSON.parse(link.description) : {}
+            let data: any = {}
+            try {
+              data = link.description ? JSON.parse(link.description) : {}
+            } catch {
+              data = {}
+            }
             return (
               <div key={link.id} className="p-4 rounded-xl border border-border bg-bg-primary flex items-center justify-between">
                 <div className="flex items-center gap-3">

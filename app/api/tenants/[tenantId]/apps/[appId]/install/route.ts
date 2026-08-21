@@ -39,12 +39,17 @@ export async function POST(
     // Mock Validation against configSchema 
     // In production, we'd use Zod or AJV to validate rawConfig against JSON.parse(app.configSchema)
     if (app.configSchema) {
-       const requiredKeys = Object.keys(JSON.parse(app.configSchema))
-       for (const key of requiredKeys) {
-         if (!(key in rawConfig)) {
-           return NextResponse.json({ error: `Missing required config field: ${key}` }, { status: 400 })
-         }
-       }
+      try {
+        const schema = JSON.parse(app.configSchema)
+        const requiredKeys = Object.keys(schema)
+        for (const key of requiredKeys) {
+          if (!(key in rawConfig)) {
+            return NextResponse.json({ error: `Missing required config field: ${key}` }, { status: 400 })
+          }
+        }
+      } catch (e) {
+        console.warn("Invalid app.configSchema format, skipping key validation:", e)
+      }
     }
 
     // Encrypt the config before it hits the database

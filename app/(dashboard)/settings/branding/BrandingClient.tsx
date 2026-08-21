@@ -9,9 +9,13 @@ import { updateAgencyBranding } from "@/app/actions/settings"
 import { useRouter } from "next/navigation"
 
 export default function BrandingClient({ initialBranding }: { initialBranding: any }) {
-  const [colors, setColors] = useState(
-    initialBranding.brandColors ? JSON.parse(initialBranding.brandColors) : { primary: "#000000" }
-  )
+  const [colors, setColors] = useState(() => {
+    try {
+      return initialBranding?.brandColors ? JSON.parse(initialBranding.brandColors) : { primary: "#000000" }
+    } catch {
+      return { primary: "#000000" }
+    }
+  })
   const [logoUrl, setLogoUrl] = useState(initialBranding.logoUrl || "")
   const [whiteLabelName, setWhiteLabelName] = useState(initialBranding.whiteLabelName || "")
   const [customDomain, setCustomDomain] = useState(initialBranding.customDomain || "")
