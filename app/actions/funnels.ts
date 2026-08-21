@@ -117,3 +117,40 @@ export async function submitLiveFunnelForm(subdomain: string, formData: any) {
     return { success: false, error: "Submission failed" }
   }
 }
+
+export const publishVibecodeToFunnel = withAgency(
+  async ({ db, agencyId }, data: { name: string; htmlContent: string }) => {
+    const subAgencyId = await getActiveSubAccountId()
+    const cleanSubdomain = (data.name.toLowerCase().replace(/[^a-z0-9]/g, "-") || "page") + "-" + Math.floor(100 + Math.random() * 900)
+
+    const funnel = await db.funnel.create({
+      data: {
+        agencyId,
+        subAgencyId,
+        name: data.name.trim() || "Vibecode Landing Page",
+        subdomain: cleanSubdomain,
+        status: "active",
+        steps: {
+          create: [
+            {
+              name: "Landing Page",
+              path: "/",
+              order: 0,
+              content: data.htmlContent,
+            }
+          ]
+        }
+      }
+    })
+
+    revalidatePath("/funnels")
+    revalidatePath("/forge/vibecode")
+    return {
+      success: true,
+      funnelId: funnel.id,
+      subdomain: funnel.subdomain,
+      liveUrl: `/f/${funnel.subdomain}`
+    }
+  }
+)
+

@@ -2,8 +2,10 @@
 
 import { useState, useRef } from "react"
 import { generateAiReply } from "@/app/actions/ai"
+import { generateRoleplayScorecard, RoleplayScorecard } from "@/app/actions/roleplay"
 import { toast } from "sonner"
-import { Bot, Send, Loader2, RefreshCcw, ChevronDown } from "lucide-react"
+import { Bot, Send, Loader2, RefreshCcw, Award, Trophy, CheckCircle2, Target, Sparkles } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 type Persona = {
   id: string
@@ -78,6 +80,10 @@ export default function RoleplayPage() {
   const [started, setStarted] = useState(false)
   const chatRef = useRef<HTMLDivElement>(null)
 
+  // Scorecard state
+  const [grading, setGrading] = useState(false)
+  const [scorecard, setScorecard] = useState<RoleplayScorecard | null>(null)
+
   const startSession = () => {
     setMessages([
       {
@@ -86,12 +92,14 @@ export default function RoleplayPage() {
       },
     ])
     setStarted(true)
+    setScorecard(null)
   }
 
   const resetSession = () => {
     setMessages([])
     setStarted(false)
     setInput("")
+    setScorecard(null)
   }
 
   const handleSend = async () => {
@@ -104,7 +112,6 @@ export default function RoleplayPage() {
     setLoading(true)
 
     try {
-      // Build conversation context
       const conversationHistory = newMessages
         .map((m) => `${m.role === "user" ? "Sales Rep" : selectedPersona.name}: ${m.content}`)
         .join("\n\n")
@@ -122,7 +129,6 @@ Respond as ${selectedPersona.name} (${selectedPersona.title}). Be realistic, cha
       if (res.success && res.data) {
         const reply = res.data.replace(/```/g, "").trim()
         setMessages((prev) => [...prev, { role: "assistant", content: reply }])
-        // Auto-scroll
         setTimeout(() => {
           chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" })
         }, 100)
@@ -135,6 +141,26 @@ Respond as ${selectedPersona.name} (${selectedPersona.title}). Be realistic, cha
     setLoading(false)
   }
 
+  const handleGradePitch = async () => {
+    if (messages.filter(m => m.role === "user").length === 0) {
+      toast.error("Please practice at least one pitch exchange before grading.")
+      return
+    }
+
+    setGrading(true)
+    const res = await generateRoleplayScorecard(selectedPersona.title, messages)
+    setGrading(false)
+
+    if (res.success && res.scorecard) {
+      setScorecard(res.scorecard)
+      toast.success("Executive Scorecard generated!")
+    } else {
+      toast.error(res.error || "Failed to grade pitch")
+    }
+  }
+
+  const userMessageCount = messages.filter(m => m.role === "user").length
+
   return (
     <div className="max-w-4xl mx-auto h-[calc(100vh-9rem)] flex flex-col gap-5">
       {/* Header */}
@@ -142,83 +168,86 @@ Respond as ${selectedPersona.name} (${selectedPersona.title}). Be realistic, cha
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
             <Bot className="w-6 h-6 text-primary" />
-            AI Sales Roleplay
+            AI Sales Roleplay & Pitch Coach
           </h1>
           <p className="text-sm text-text-secondary mt-0.5">
-            Practice your pitch against realistic AI buyer personas
+            Spar against realistic AI buyer personas with instant objective pitch scorecards
           </p>
         </div>
         {started && (
-          <button
-            onClick={resetSession}
-            className="flex items-center gap-2 text-sm text-text-secondary hover:text-error transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-error/50"
-          >
-            <RefreshCcw className="w-3.5 h-3.5" />
-            New Session
-          </button>
+          <div className="flex items-center gap-2">
+            {userMessageCount >= 1 && (
+              <button
+                onClick={handleGradePitch}
+                disabled={grading}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {grading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Award className="w-3.5 h-3.5" />}
+                {grading ? "Analyzing…" : "End Call & Grade Pitch"}
+              </button>
+            )}
+            <button
+              onClick={resetSession}
+              className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-error transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-error/50"
+            >
+              <RefreshCcw className="w-3.5 h-3.5" />
+              New Session
+            </button>
+          </div>
         )}
       </div>
 
       {!started ? (
-        /* Persona Selection */
-        <div className="flex-1 flex flex-col gap-5">
-          <div>
-            <p className="text-sm font-semibold text-text-primary mb-3">Choose your prospect persona</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {PERSONAS.map((persona) => (
-                <button
-                  key={persona.id}
-                  onClick={() => setSelectedPersona(persona)}
-                  className={`text-left p-4 rounded-xl border-2 transition-all ${
-                    selectedPersona.id === persona.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/40"
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center flex-shrink-0">
-                      {persona.avatar}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-text-primary text-sm">{persona.name}</p>
-                      <p className="text-xs text-primary font-medium">{persona.title}</p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-text-secondary leading-relaxed">{persona.description}</p>
-                  {selectedPersona.id === persona.id && (
-                    <div className="mt-3 flex items-center gap-1 text-xs text-primary font-medium">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      Selected
-                    </div>
-                  )}
-                </button>
-              ))}
+        /* Persona Selector Screen */
+        <div className="flex-1 flex flex-col items-center justify-center gap-8 bg-bg-primary border border-border rounded-2xl p-8 text-center min-h-0">
+          <div className="max-w-md space-y-2">
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
+              <Trophy className="w-8 h-8" />
             </div>
+            <h2 className="text-xl font-bold text-text-primary">Choose Your Sparring Persona</h2>
+            <p className="text-sm text-text-secondary">
+              Select a realistic decision maker persona to test your pitch, handle tough objections, and receive an AI evaluation.
+            </p>
           </div>
 
-          {/* Tips */}
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
-            <p className="text-sm font-semibold text-primary mb-2">💡 Roleplay Tips</p>
-            <ul className="text-xs text-text-secondary space-y-1 list-disc list-inside">
-              <li>State your value proposition clearly in your first message</li>
-              <li>Handle objections with empathy — acknowledge before reframing</li>
-              <li>Ask discovery questions to understand their specific pain points</li>
-              <li>Always offer a clear next step (demo, free trial, follow-up call)</li>
-            </ul>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl text-left">
+            {PERSONAS.map((p) => {
+              const isSelected = selectedPersona.id === p.id
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => setSelectedPersona(p)}
+                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    isSelected
+                      ? "border-primary bg-primary/5 shadow-md ring-2 ring-primary/30"
+                      : "border-border bg-bg-secondary/40 hover:border-primary/40 hover:bg-bg-secondary"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center">
+                      {p.avatar}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm text-text-primary">{p.name}</p>
+                      <p className="text-xs text-text-secondary">{p.title}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-text-secondary leading-relaxed">{p.description}</p>
+                </div>
+              )
+            })}
           </div>
 
           <button
             onClick={startSession}
-            className="self-start flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-colors"
+            className="px-6 py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition-colors shadow-lg flex items-center gap-2"
           >
-            Start Roleplay with {selectedPersona.name}
-            <Bot className="w-4 h-4" />
+            Start Call with {selectedPersona.name}
           </button>
         </div>
       ) : (
-        /* Chat Interface */
+        /* Active Roleplay Screen */
         <div className="flex-1 flex flex-col gap-3 min-h-0">
-          {/* Persona Bar */}
           <div className="flex items-center gap-3 px-4 py-3 bg-bg-primary border border-border rounded-xl flex-shrink-0">
             <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center">
               {selectedPersona.avatar}
@@ -229,11 +258,10 @@ Respond as ${selectedPersona.name} (${selectedPersona.title}). Be realistic, cha
             </div>
             <div className="ml-auto flex items-center gap-1.5 text-xs text-success font-medium">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-              In Session
+              In Session ({userMessageCount} pitches made)
             </div>
           </div>
 
-          {/* Messages */}
           <div
             ref={chatRef}
             className="flex-1 overflow-y-auto space-y-4 p-4 bg-bg-primary border border-border rounded-xl min-h-0"
@@ -276,7 +304,6 @@ Respond as ${selectedPersona.name} (${selectedPersona.title}). Be realistic, cha
             )}
           </div>
 
-          {/* Input */}
           <form
             onSubmit={(e) => { e.preventDefault(); handleSend() }}
             className="flex gap-3 flex-shrink-0"
@@ -297,6 +324,80 @@ Respond as ${selectedPersona.name} (${selectedPersona.title}). Be realistic, cha
             </button>
           </form>
         </div>
+      )}
+
+      {/* AI Scorecard Modal */}
+      {scorecard && (
+        <Dialog open={!!scorecard} onOpenChange={() => setScorecard(null)}>
+          <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                  <Trophy className="w-6 h-6 text-amber-500" />
+                  AI Executive Pitch Scorecard
+                </DialogTitle>
+                <span className="text-2xl font-black px-3 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20">
+                  {scorecard.grade}
+                </span>
+              </div>
+              <DialogDescription className="text-xs">
+                Performance audit for call with {selectedPersona.name} ({selectedPersona.title})
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-5 pt-2 text-sm">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="bg-bg-secondary p-3 rounded-xl border border-border">
+                  <p className="text-xs text-text-secondary">Objection Handling</p>
+                  <p className="text-xl font-bold mt-1 text-primary">{scorecard.objectionScore}/100</p>
+                </div>
+                <div className="bg-bg-secondary p-3 rounded-xl border border-border">
+                  <p className="text-xs text-text-secondary">Value Proposition</p>
+                  <p className="text-xl font-bold mt-1 text-emerald-500">{scorecard.valuePropScore}/100</p>
+                </div>
+                <div className="bg-bg-secondary p-3 rounded-xl border border-border">
+                  <p className="text-xs text-text-secondary">Closing Strategy</p>
+                  <p className="text-xl font-bold mt-1 text-amber-500">{scorecard.closingScore}/100</p>
+                </div>
+              </div>
+
+              <div className="bg-bg-secondary p-4 rounded-xl border border-border space-y-1.5">
+                <p className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" /> Executive Coach Assessment
+                </p>
+                <p className="text-xs text-text-secondary leading-relaxed">
+                  {scorecard.executiveSummary}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-success" /> Key Strengths
+                </p>
+                <ul className="space-y-1.5">
+                  {scorecard.keyStrengths?.map((s, idx) => (
+                    <li key={idx} className="text-xs text-text-secondary flex items-start gap-2 bg-success/5 border border-success/20 p-2.5 rounded-lg">
+                      <span className="text-success font-bold">✓</span> {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5 text-primary" /> 3 Adjustments to Win the Deal
+                </p>
+                <ul className="space-y-1.5">
+                  {scorecard.actionableTips?.map((tip, idx) => (
+                    <li key={idx} className="text-xs text-text-primary flex items-start gap-2 bg-primary/5 border border-primary/20 p-2.5 rounded-lg">
+                      <span className="text-primary font-bold">{idx + 1}.</span> {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

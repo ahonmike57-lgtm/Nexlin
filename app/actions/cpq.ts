@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { withAgency } from "@/lib/tenant"
+import { triggerDealStageChangedWorkflow, triggerWorkflows } from "./workflow-engine"
 
 export const createCPQQuote = withAgency(
   async ({ db, agencyId }, data: {
@@ -84,7 +85,7 @@ export const getCPQQuotes = withAgency(
 )
 
 export const signCPQQuote = withAgency(
-  async ({ db, userId }, data: {
+  async ({ db, userId, agencyId }, data: {
     quoteId: string
     signatureDataUrl: string
     signerName: string
@@ -119,14 +120,30 @@ export const signCPQQuote = withAgency(
       data: { description: JSON.stringify(quoteData) }
     })
 
+    let dealUpdated = false
+    // Quote-to-Cash Automation: Auto-advance linked deal to "won"
+    if (quoteData.dealId) {
+      await db.deal.updateMany({
+        where: { id: quoteData.dealId },
+        data: { stage: "won", updatedAt: new Date() }
+      })
+      await triggerDealStageChangedWorkflow(agencyId, quoteData.dealId, "won", quoteData.contactId).catch(() => {})
+      await triggerWorkflows(agencyId, "quote_signed", { quoteId: data.quoteId, dealId: quoteData.dealId, contactId: quoteData.contactId }).catch(() => {})
+      dealUpdated = true
+    }
+
     revalidatePath("/crm/invoices")
+    revalidatePath("/crm/deals")
+    revalidatePath("/dashboard")
     return {
       success: true,
       quoteId: data.quoteId,
       status: "signed",
       certificateId,
-      signedAt
+      signedAt,
+      dealWon: dealUpdated
     }
   }
 )
+
 

@@ -3,8 +3,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, GitMerge, CheckCircle, ArrowLeft, RefreshCw, ShieldCheck } from "lucide-react"
-import { mergeContacts, findDuplicateContacts } from "@/app/actions/contacts-dedupe"
+import { Users, GitMerge, CheckCircle, ArrowLeft, RefreshCw, ShieldCheck, Sparkles, Loader2 } from "lucide-react"
+import { mergeContacts, findDuplicateContacts, autoMergeAllDuplicates } from "@/app/actions/contacts-dedupe"
 import Link from "next/link"
 import { toast } from "sonner"
 
@@ -12,6 +12,7 @@ export default function DedupeClient({ initialDuplicates }: { initialDuplicates:
   const [duplicates, setDuplicates] = useState<any[]>(initialDuplicates)
   const [mergingId, setMergingId] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
+  const [isAutoMerging, setIsAutoMerging] = useState(false)
 
   const handleScan = async () => {
     setIsScanning(true)
@@ -36,9 +37,22 @@ export default function DedupeClient({ initialDuplicates }: { initialDuplicates:
     }
   }
 
+  const handleAutoMergeAll = async () => {
+    setIsAutoMerging(true)
+    const res = await autoMergeAllDuplicates()
+    setIsAutoMerging(false)
+
+    if (res.success && res.data) {
+      toast.success(`Auto-merged ${res.data.mergedCount} duplicate contacts across all deals & tasks!`)
+      setDuplicates([])
+    } else {
+      toast.error('error' in res ? res.error : "Auto-merge failed")
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link href="/crm/contacts" className="p-2 rounded-lg border border-border hover:bg-bg-secondary text-text-secondary">
             <ArrowLeft className="w-4 h-4" />
@@ -49,10 +63,22 @@ export default function DedupeClient({ initialDuplicates }: { initialDuplicates:
           </div>
         </div>
 
-        <Button onClick={handleScan} disabled={isScanning} className="gap-2">
-          <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-          {isScanning ? "Scanning..." : "Rescan Duplicates"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {duplicates.length > 0 && (
+            <Button
+              onClick={handleAutoMergeAll}
+              disabled={isAutoMerging}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            >
+              {isAutoMerging ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {isAutoMerging ? "Merging All…" : "Auto-Merge All Exact Matches"}
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleScan} disabled={isScanning} className="gap-2">
+            <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
+            {isScanning ? "Scanning..." : "Rescan Duplicates"}
+          </Button>
+        </div>
       </div>
 
       {duplicates.length === 0 ? (

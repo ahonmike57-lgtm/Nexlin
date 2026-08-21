@@ -91,3 +91,83 @@ export const mergeContacts = withAgency(
   },
   { role: "admin" }
 )
+
+export const autoMergeAllDuplicates = withAgency(
+  async ({ db, agencyId }) => {
+    const contacts = await db.contact.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+      }
+    })
+
+    const emailGroups: Record<string, typeof contacts> = {}
+    const phoneGroups: Record<string, typeof contacts> = {}
+
+    for (const c of contacts) {
+      if (c.email) {
+        const cleanEmail = c.email.trim().toLowerCase()
+        if (!emailGroups[cleanEmail]) emailGroups[cleanEmail] = []
+        emailGroups[cleanEmail].push(c)
+      }
+      if (c.phone) {
+        const cleanPhone = c.phone.replace(/[^0-9+]/g, "")
+        if (cleanPhone.length > 5) {
+          if (!phoneGroups[cleanPhone]) phoneGroups[cleanPhone] = []
+          phoneGroups[cleanPhone].push(c)
+        }
+      }
+    }
+
+    let mergedCount = 0
+    const processedIds = new Set<string>()
+
+    // Merge email groups
+    for (const [_, list] of Object.entries(emailGroups)) {
+      if (list.length > 1) {
+        const target = list[0]
+        const sources = list.slice(1).map(c => c.id).filter(id => !processedIds.has(id))
+
+        if (sources.length > 0) {
+          for (const srcId of sources) {
+            await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+            await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+            await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+            await db.contact.deleteMany({ where: { id: srcId } })
+            processedIds.add(srcId)
+            mergedCount++
+          }
+        }
+      }
+    }
+
+    // Merge phone groups
+    for (const [_, list] of Object.entries(phoneGroups)) {
+      const validList = list.filter(c => !processedIds.has(c.id))
+      if (validList.length > 1) {
+        const target = validList[0]
+        const sources = validList.slice(1).map(c => c.id).filter(id => !processedIds.has(id))
+
+        if (sources.length > 0) {
+          for (const srcId of sources) {
+            await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+            await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+            await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
+            await db.contact.deleteMany({ where: { id: srcId } })
+            processedIds.add(srcId)
+            mergedCount++
+          }
+        }
+      }
+    }
+
+    revalidatePath("/crm/contacts")
+    revalidatePath("/crm/contacts/dedupe")
+    return { success: true, mergedCount }
+  },
+  { role: "admin" }
+)
+

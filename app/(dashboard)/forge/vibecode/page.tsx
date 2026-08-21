@@ -4,10 +4,11 @@ import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { generateAiReply } from "@/app/actions/ai"
 import { savePromptTemplate } from "@/app/actions/prompts"
+import { publishVibecodeToFunnel } from "@/app/actions/funnels"
 import { VIBECODE_PROMPTS } from "@/lib/vibecode-prompts"
 import { toast } from "sonner"
 import {
-  Code2, Copy, Save, Play, Loader2, Sparkles, CheckCheck, Mic, MicOff,
+  Code2, Copy, Save, Play, Loader2, Sparkles, CheckCheck, Mic, MicOff, Rocket, ExternalLink
 } from "lucide-react"
 
 const CATEGORIES = ["Landing Pages", "CRM Widgets", "Email Templates", "Automations", "Forms", "Voice AI"]
@@ -41,12 +42,19 @@ function VibecodeLabInner() {
   const [saveCategory, setSaveCategory] = useState("Landing Pages")
   const [saving, setSaving] = useState(false)
 
+  // Publish to Funnel state
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [funnelName, setFunnelName] = useState("AI Landing Page")
+  const [publishing, setPublishing] = useState(false)
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
+
   const recognitionRef = useRef<any>(null)
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return
     setLoading(true)
     setGeneratedCode("")
+    setPublishedUrl(null)
     try {
       const res = await generateAiReply(
         "",
@@ -149,6 +157,23 @@ ${code}
     }
   }
 
+  const handlePublishFunnel = async () => {
+    if (!generatedCode) return
+    setPublishing(true)
+    const res = await publishVibecodeToFunnel({
+      name: funnelName,
+      htmlContent: generatedCode,
+    })
+    setPublishing(false)
+
+    if (res.success && res.data) {
+      setPublishedUrl(res.data.liveUrl)
+      toast.success(`Published live to Funnel: ${res.data.subdomain}!`)
+    } else {
+      toast.error('error' in res ? res.error : "Failed to publish funnel")
+    }
+  }
+
   return (
     <div className="h-[calc(100vh-9rem)] flex flex-col gap-4">
       {/* Header */}
@@ -159,7 +184,7 @@ ${code}
             Vibecode Lab
           </h1>
           <p className="text-sm text-text-secondary mt-0.5">
-            Describe a UI component — AI builds it live in the browser
+            Describe a UI component or landing page — AI generates and deploys it live in seconds.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-text-secondary">
@@ -199,13 +224,25 @@ ${code}
                 {listening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
               </button>
               {generatedCode && (
-                <button
-                  onClick={() => setSaveOpen(true)}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-border text-text-secondary hover:text-primary hover:border-primary/50 transition-colors"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  Save
-                </button>
+                <>
+                  <button
+                    onClick={() => setSaveOpen(true)}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-border text-text-secondary hover:text-primary hover:border-primary/50 transition-colors"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Save
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPublishedUrl(null)
+                      setPublishOpen(true)
+                    }}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                  >
+                    <Rocket className="w-3.5 h-3.5" />
+                    Publish to Funnel
+                  </button>
+                </>
               )}
               <button
                 onClick={handleGenerate}
@@ -225,7 +262,7 @@ ${code}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleGenerate()
             }}
-            placeholder={`Describe what you want to build...\n\ne.g. "Build a SaaS pricing table with 3 tiers and a monthly/annual toggle. Dark mode, Tailwind CSS."`}
+            placeholder={`Describe what you want to build...\n\ne.g. "Build a high-converting B2B SaaS landing page with dark mode, hero section, pricing tiers, and contact lead capture form."`}
             className="flex-1 resize-none bg-bg-secondary rounded-lg p-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono leading-relaxed min-h-0"
           />
 
@@ -282,7 +319,7 @@ ${code}
 
       {/* Save Modal */}
       {saveOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-bg-primary border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-lg font-semibold text-text-primary mb-1">Save Prompt Template</h3>
             <p className="text-sm text-text-secondary mb-5">Save this prompt to your reusable library</p>
@@ -328,6 +365,75 @@ ${code}
           </div>
         </div>
       )}
+
+      {/* Publish to Funnel Modal */}
+      {publishOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-bg-primary border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-emerald-500" />
+              Publish to Live Funnel
+            </h3>
+            <p className="text-xs text-text-secondary">
+              Deploy this generated landing page instantly to a live funnel URL.
+            </p>
+
+            {publishedUrl ? (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl space-y-3">
+                <p className="text-xs font-semibold text-emerald-500 flex items-center gap-1.5">
+                  🎉 Page is live and accessible on the web!
+                </p>
+                <div className="flex items-center justify-between bg-bg-primary p-2.5 rounded-lg border border-border text-xs font-mono">
+                  <span className="truncate">{publishedUrl}</span>
+                  <a
+                    href={publishedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline flex items-center gap-1 flex-shrink-0 ml-2"
+                  >
+                    Open <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <button
+                  onClick={() => setPublishOpen(false)}
+                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs font-medium text-text-secondary block mb-1.5">Funnel Page Name</label>
+                  <input
+                    value={funnelName}
+                    onChange={(e) => setFunnelName(e.target.value)}
+                    placeholder="e.g. Acme Dental Landing Page"
+                    className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setPublishOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl border border-border text-sm text-text-secondary hover:bg-bg-secondary transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePublishFunnel}
+                    disabled={publishing || !funnelName.trim()}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40 shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
+                    {publishing ? "Publishing…" : "Publish Now"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -339,5 +445,6 @@ export default function VibecodePage() {
     </Suspense>
   )
 }
+
 
 
