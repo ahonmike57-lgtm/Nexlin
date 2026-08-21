@@ -3,26 +3,64 @@
 import { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Palette, Globe, CreditCard, Link as LinkIcon, Building, ShieldCheck, Save, Users, Phone, Cpu, GitBranch, Settings, Sparkles } from "lucide-react"
+import {
+  Palette, Globe, CreditCard, Link as LinkIcon, Building2,
+  ShieldCheck, Users, Phone, Cpu, Settings, Sparkles, Key, FileText, Bot
+} from "lucide-react"
 
-const tabs = [
-  { id: "general", href: "/settings", label: "General", icon: Settings, exact: true },
-  { id: "trigger-links", href: "/settings/trigger-links", label: "Trigger Links", icon: LinkIcon },
-  { id: "custom-menu", href: "/settings/custom-menu", label: "Custom Menu iFrames", icon: Globe },
-  { id: "snapshots", href: "/settings/snapshots", label: "Snapshots", icon: GitBranch },
-  { id: "ai", href: "/settings/ai", label: "AI & Models", icon: Sparkles },
-  { id: "sub-accounts", href: "/settings/sub-accounts", label: "Sub-Accounts", icon: Building },
-  { id: "team", href: "/settings/team", label: "Team", icon: Users },
-  { id: "billing", href: "/settings/billing", label: "Billing", icon: CreditCard },
-  { id: "saas", href: "/settings/saas", label: "SaaS Configurator", icon: Building },
-  { id: "branding", href: "/settings/branding", label: "Branding", icon: Palette },
-  { id: "integrations", href: "/settings/integrations", label: "Integrations", icon: LinkIcon },
-  { id: "domains", href: "/settings/domains", label: "Domains", icon: Globe },
-  { id: "phone-numbers", href: "/settings/phone-numbers", label: "Phone Numbers", icon: Phone },
-  { id: "pipelines", href: "/settings/pipelines", label: "Pipelines", icon: GitBranch },
-  { id: "mcp", href: "/settings/mcp", label: "MCP Connections", icon: Cpu },
-  { id: "security", href: "/settings/security", label: "Security", icon: ShieldCheck },
+type SettingsNavGroup = {
+  title: string
+  items: {
+    id: string
+    href: string
+    label: string
+    icon: React.ElementType
+    exact?: boolean
+  }[]
+}
+
+const settingsGroups: SettingsNavGroup[] = [
+  {
+    title: "Agency & Workspace",
+    items: [
+      { id: "general", href: "/settings", label: "General Profile", icon: Settings, exact: true },
+      { id: "branding", href: "/settings/branding", label: "Branding & Theme", icon: Palette },
+      { id: "sub-accounts", href: "/settings/sub-accounts", label: "Sub-Accounts", icon: Building2 },
+      { id: "team", href: "/settings/team", label: "Team & Staff", icon: Users },
+    ]
+  },
+  {
+    title: "Billing & Plans",
+    items: [
+      { id: "billing", href: "/settings/billing", label: "Subscription Billing", icon: CreditCard },
+      { id: "saas", href: "/settings/saas", label: "SaaS Mode Config", icon: Sparkles },
+    ]
+  },
+  {
+    title: "Automations & Apps",
+    items: [
+      { id: "trigger-links", href: "/settings/trigger-links", label: "Trigger Links", icon: LinkIcon },
+      { id: "custom-menu", href: "/settings/custom-menu", label: "Custom Menu iFrames", icon: Globe },
+      { id: "integrations", href: "/settings/integrations", label: "Integrations & Webhooks", icon: LinkIcon },
+      { id: "ai", href: "/settings/ai", label: "AI & LLM Keys", icon: Bot },
+      { id: "api-keys", href: "/settings/api-keys", label: "API Keys", icon: Key },
+      { id: "mcp", href: "/settings/mcp", label: "MCP Connections", icon: Cpu },
+    ]
+  },
+  {
+    title: "Channels & Connectivity",
+    items: [
+      { id: "domains", href: "/settings/domains", label: "Domains & SSL", icon: Globe },
+      { id: "phone-numbers", href: "/settings/phone-numbers", label: "Phone Numbers", icon: Phone },
+    ]
+  },
+  {
+    title: "Security & Governance",
+    items: [
+      { id: "security", href: "/settings/security", label: "Security & 2FA", icon: ShieldCheck },
+      { id: "audit-logs", href: "/settings/audit-logs", label: "Audit Logs", icon: FileText },
+    ]
+  }
 ]
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
@@ -30,37 +68,48 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-          <p className="text-text-secondary">Manage your agency preferences and integrations.</p>
-        </div>
-        <Button><Save className="w-4 h-4 mr-2" /> Save Changes</Button>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+        <p className="text-text-secondary mt-1">Manage your agency preferences, integrations, billing, and team security.</p>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8 flex-1 overflow-hidden">
-        {/* Navigation Sidebar */}
-        <div className="w-full lg:w-64 flex-shrink-0 lg:overflow-y-auto pr-2">
-          <nav className="flex lg:flex-col gap-1 overflow-x-auto pb-4 lg:pb-0">
-            {tabs.map((tab) => {
-              const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href)
-              
-              return (
-                <Link
-                  key={tab.id}
-                  href={tab.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${isActive ? 'bg-bg-primary shadow-sm border border-border text-primary' : 'text-text-secondary hover:bg-bg-primary/50 hover:text-text-primary border border-transparent'}`}
-                >
-                  <tab.icon className="w-5 h-5" />
-                  {tab.label}
-                </Link>
-              )
-            })}
+        {/* Categorized Navigation Sidebar */}
+        <div className="w-full lg:w-64 flex-shrink-0 lg:overflow-y-auto pr-2 custom-scrollbar">
+          <nav className="space-y-6">
+            {settingsGroups.map((group) => (
+              <div key={group.title} className="space-y-1">
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-text-secondary/70 px-3 mb-2">
+                  {group.title}
+                </h3>
+                <div className="space-y-0.5">
+                  {group.items.map((tab) => {
+                    const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href)
+                    const Icon = tab.icon
+
+                    return (
+                      <Link
+                        key={tab.id}
+                        href={tab.href}
+                        className={`flex items-center gap-3 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                          isActive
+                            ? "bg-primary text-white shadow-sm shadow-primary/25 font-bold"
+                            : "text-text-secondary hover:bg-bg-primary hover:text-text-primary"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${isActive ? "text-white" : "text-text-secondary"}`} />
+                        <span>{tab.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto pb-8">
+        <div className="flex-1 overflow-y-auto pb-12 pr-1 custom-scrollbar">
           {children}
         </div>
       </div>

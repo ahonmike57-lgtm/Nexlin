@@ -305,15 +305,7 @@ export default function DashboardLayoutClient({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar */}
         <header className="h-16 bg-bg-primary border-b border-border flex items-center justify-between px-6 z-[50] relative">
-          <div className="flex-1 max-w-md flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-              <input
-                type="text"
-                placeholder="Search anything..."
-                className="w-full pl-9 pr-4 py-2 bg-bg-secondary border-none rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              />
-            </div>
+          <div className="flex-1 max-w-lg flex items-center">
             <AskAiCommandBar />
           </div>
 

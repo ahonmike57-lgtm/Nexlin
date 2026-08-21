@@ -144,13 +144,56 @@ export async function getAgencySettings() {
 
   try {
     const agency = await db.agency.findUnique({
-      where: { id: auth.agencyId },       // always from session
+      where: { id: auth.agencyId },
       select: {
+        id: true,
+        name: true,
+        subdomain: true,
+        customDomain: true,
+        whiteLabelName: true,
+        logoUrl: true,
+        brandColors: true,
+        planTier: true,
+        status: true,
         missedCallEnabled: true,
         missedCallMessage: true,
+        createdAt: true
       }
     })
     return { success: true, agency }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function updateAgencyProfile(data: {
+  name: string
+  whiteLabelName?: string
+  subdomain?: string
+  customDomain?: string
+  missedCallEnabled?: boolean
+  missedCallMessage?: string
+}) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    const updated = await db.agency.update({
+      where: { id: auth.agencyId },
+      data: {
+        name: data.name.trim(),
+        whiteLabelName: data.whiteLabelName?.trim() || null,
+        subdomain: data.subdomain?.trim().toLowerCase() || undefined,
+        customDomain: data.customDomain?.trim() || null,
+        missedCallEnabled: data.missedCallEnabled !== undefined ? data.missedCallEnabled : undefined,
+        missedCallMessage: data.missedCallMessage !== undefined ? data.missedCallMessage : undefined
+      }
+    })
+
+    revalidatePath("/settings")
+    return { success: true, agency: updated }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
@@ -164,7 +207,7 @@ export async function updateMissedCallTextBack(enabled: boolean, message: string
 
   try {
     await db.agency.update({
-      where: { id: auth.agencyId },       // always from session
+      where: { id: auth.agencyId },
       data: {
         missedCallEnabled: enabled,
         missedCallMessage: message,
