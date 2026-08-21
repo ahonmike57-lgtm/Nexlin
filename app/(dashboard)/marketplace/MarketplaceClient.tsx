@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -73,15 +74,22 @@ export default function MarketplaceClient({ initialApps, initialInstalls }: { in
             Supercharge your CRM with 30+ enterprise integrations. Connect payments, AI voices, telephony, and marketing automation tools instantly.
           </p>
         </div>
-        <div className="w-full md:w-auto relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
-          <Input 
-            type="text" 
-            placeholder="Search 30+ integrations..." 
-            className="w-full pl-10 py-6 text-lg rounded-xl border-border focus:ring-primary/50 bg-bg-primary"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <Link href="/marketplace/prompts">
+            <Button variant="outline" className="bg-bg-primary h-12">
+              <Sparkles className="w-4 h-4 mr-2 text-primary" /> Prompt Library
+            </Button>
+          </Link>
+          <div className="w-full md:w-auto relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
+            <Input 
+              type="text" 
+              placeholder="Search 30+ integrations..." 
+              className="w-full pl-10 py-6 text-sm rounded-xl border-border focus:ring-primary/50 bg-bg-primary"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

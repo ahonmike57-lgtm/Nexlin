@@ -60,9 +60,9 @@ const sidebarSections: SidebarSection[] = [
     title: "Overview",
     defaultOpen: true,
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/chat", label: "Omni-Inbox", icon: MessageSquare },
-      { href: "/calendar", label: "Calendar", icon: Calendar },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+      { href: "/chat", label: "Conversations", icon: MessageSquare },
+      { href: "/calendar", label: "Calendars", icon: Calendar },
       { href: "/reporting", label: "Reporting & Analytics", icon: BarChart3 },
     ]
   },
@@ -70,20 +70,18 @@ const sidebarSections: SidebarSection[] = [
     title: "CRM & Sales",
     defaultOpen: true,
     items: [
-      { href: "/crm/contacts", label: "Contacts & Leads", icon: Users, exact: true },
-      { href: "/crm/contacts/dedupe", label: "Lead Hygiene", icon: GitMerge },
-      { href: "/crm/deals", label: "Pipeline Kanban", icon: Kanban },
-      { href: "/crm/invoices", label: "Proposals & CPQ", icon: FileText },
-      { href: "/crm/roleplay", label: "Sales Roleplay Coach", icon: Bot },
+      { href: "/crm/contacts", label: "Contacts & Smart Lists", icon: Users },
+      { href: "/crm/deals", label: "Pipelines & Deals", icon: Kanban },
+      { href: "/crm/invoices", label: "Payments & Invoices", icon: FileText },
+      { href: "/crm/roleplay", label: "Sales AI Roleplay", icon: Bot },
     ]
   },
   {
     title: "Marketing & Reach",
     defaultOpen: true,
     items: [
-      { href: "/automations", label: "Automations & Drip", icon: Zap },
-      { href: "/marketing/emails", label: "Email Campaigns", icon: Mail, exact: true },
-      { href: "/marketing/emails/builder", label: "Email Drag Builder", icon: PenLine },
+      { href: "/automations", label: "Automations", icon: Zap },
+      { href: "/marketing/emails", label: "Email Marketing", icon: Mail },
       { href: "/social", label: "Social Planner", icon: Share2 },
       { href: "/ads", label: "Ads Manager", icon: Megaphone },
       { href: "/reputation", label: "Reputation & Reviews", icon: Star },
@@ -91,43 +89,29 @@ const sidebarSections: SidebarSection[] = [
     ]
   },
   {
-    title: "Sites & Funnels",
+    title: "Sites & Assets",
     defaultOpen: false,
     items: [
-      { href: "/forge", label: "Forge AI Builder", icon: Sparkles, exact: true },
-      { href: "/forge/vibecode", label: "Vibecode Lab", icon: Code2 },
-      { href: "/websites", label: "Websites", icon: LayoutTemplate, exact: true },
-      { href: "/websites/blogs", label: "Blogs & CMS", icon: BookOpen },
-      { href: "/funnels", label: "Funnels", icon: Workflow },
+      { href: "/funnels", label: "Funnels & Websites", icon: Workflow },
       { href: "/forms", label: "Forms & Surveys", icon: FileSignature },
       { href: "/media", label: "Media Library", icon: FolderOpen },
+      { href: "/forge", label: "Forge AI Builder", icon: Sparkles },
     ]
   },
   {
-    title: "Voice AI & Telephony",
+    title: "Voice & Apps",
     defaultOpen: false,
     items: [
-      { href: "/voice", label: "Voice AI Receptionist", icon: Mic, exact: true },
-      { href: "/voice/test", label: "Voice Agent Test", icon: PhoneCall },
-      { href: "/settings/missed-call", label: "Missed-Call Text-Back", icon: PhoneMissed },
+      { href: "/voice", label: "Voice AI", icon: Mic },
+      { href: "/marketplace", label: "App Marketplace", icon: Store },
+      { href: "/support", label: "Help Desk & Support", icon: LifeBuoy },
     ]
   },
   {
-    title: "Apps & Support",
+    title: "System",
     defaultOpen: false,
     items: [
-      { href: "/marketplace", label: "App Marketplace", icon: Store, exact: true },
-      { href: "/marketplace/prompts", label: "Prompt Library", icon: Library },
-      { href: "/support", label: "Help Desk", icon: LifeBuoy, exact: true },
-      { href: "/support/knowledge-base", label: "Knowledge Base", icon: BookOpen },
-    ]
-  },
-  {
-    title: "System & Settings",
-    defaultOpen: false,
-    items: [
-      { href: "/settings/domains/check", label: "Domain & SSL Health", icon: Globe },
-      { href: "/settings", label: "Agency Settings", icon: Settings, exact: true },
+      { href: "/settings", label: "Agency Settings", icon: Settings },
     ]
   }
 ]

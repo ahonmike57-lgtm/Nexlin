@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Filter, MessageSquare, AlertCircle, CheckCircle2, Clock, Inbox } from "lucide-react"
+import { Search, Plus, Filter, MessageSquare, AlertCircle, CheckCircle2, Clock, Inbox, BookOpen } from "lucide-react"
 import { createTicket, updateTicketStatus } from "@/app/actions/support"
 import { toast } from "sonner"
 import {
@@ -83,10 +84,16 @@ export default function SupportClient({ initialTickets, agencyId }: { initialTic
           <p className="text-text-secondary">Manage customer support inquiries and tickets.</p>
         </div>
         
-        <Dialog open={isNewTicketOpen} onOpenChange={setIsNewTicketOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="w-4 h-4 mr-2" /> New Ticket</Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Link href="/support/knowledge-base">
+            <Button variant="outline">
+              <BookOpen className="w-4 h-4 mr-2" /> Knowledge Base
+            </Button>
+          </Link>
+          <Dialog open={isNewTicketOpen} onOpenChange={setIsNewTicketOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="w-4 h-4 mr-2" /> New Ticket</Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create Support Ticket</DialogTitle>
@@ -131,6 +138,7 @@ export default function SupportClient({ initialTickets, agencyId }: { initialTic
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="bg-bg-secondary border border-border rounded-xl flex-1 flex flex-col overflow-hidden">

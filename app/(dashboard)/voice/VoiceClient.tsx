@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +52,11 @@ export default function VoiceClient({ initialAgents, agencyId }: { initialAgents
           <p className="text-text-secondary">Configure an AI assistant to handle incoming calls 24/7.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/voice/test">
+            <Button variant="outline">
+              <Mic className="w-4 h-4 mr-2" /> Test Simulator
+            </Button>
+          </Link>
           <Button variant="outline" onClick={async () => {
             setIsSaving(true)
             toast.loading("Simulating missed call...", { id: "sim" })

@@ -32,7 +32,11 @@ export default function WebsitesClient({ initialWebsites, agencyId }: { initialW
           <p className="text-text-secondary">Build full-featured, multi-page websites with AI.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="border-primary text-primary"><Sparkles className="w-4 h-4 mr-2" /> Generate with AI</Button>
+          <Link href="/websites/blogs">
+            <Button variant="outline">
+              <Globe className="w-4 h-4 mr-2" /> Blogs & CMS
+            </Button>
+          </Link>
           <Button onClick={handleCreate} disabled={isCreating}>
             <Plus className="w-4 h-4 mr-2" /> {isCreating ? "Creating..." : "Create Website"}
           </Button>

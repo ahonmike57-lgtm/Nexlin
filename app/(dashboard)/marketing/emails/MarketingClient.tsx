@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -126,7 +127,11 @@ export default function MarketingClient({ initialCampaigns, agencyId }: { initia
           <p className="text-text-secondary">Create, send, and analyze your email & SMS campaigns.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline"><Settings className="w-4 h-4 mr-2" /> Settings</Button>
+          <Link href="/marketing/emails/builder">
+            <Button variant="outline">
+              <Edit className="w-4 h-4 mr-2" /> Visual Drag Builder
+            </Button>
+          </Link>
           <Button onClick={handleCreate} disabled={isCreating}>
             {isCreating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
             {isCreating ? "Creating..." : "New Campaign"}

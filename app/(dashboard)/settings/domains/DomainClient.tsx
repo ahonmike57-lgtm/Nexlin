@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Globe, Link as LinkIcon, CheckCircle2, AlertCircle } from "lucide-react"
+import { Globe, Link as LinkIcon, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react"
 import { updateFunnelDomain } from "@/app/actions/domains"
 
 export default function DomainClient({ initialFunnels, agencyId }: { initialFunnels: any[], agencyId: string }) {
@@ -39,9 +40,16 @@ export default function DomainClient({ initialFunnels, agencyId }: { initialFunn
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold mb-1">Custom Domains</h2>
-        <p className="text-text-secondary">Connect custom domains to your funnels and websites.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold mb-1">Custom Domains</h2>
+          <p className="text-text-secondary">Connect custom domains to your funnels and websites.</p>
+        </div>
+        <Link href="/settings/domains/check">
+          <Button variant="outline">
+            <ShieldCheck className="w-4 h-4 mr-2 text-primary" /> Live SSL & DNS Health Tool
+          </Button>
+        </Link>
       </div>
 
       <div className="bg-bg-primary border border-border rounded-xl p-6 shadow-sm">
