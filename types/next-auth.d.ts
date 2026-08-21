@@ -9,6 +9,9 @@ declare module "next-auth" {
       image?: string | null
       role?: string
       isAfricaUser?: boolean
+      agencyId?: string | null
+      isPlatformAdmin?: boolean
+      isImpersonating?: boolean
     }
   }
 }

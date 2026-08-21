@@ -17,28 +17,32 @@ export default async function MarketplacePage() {
   
   if (apps.length < 30) {
     for (const appData of TOP_30_MARKETPLACE_APPS) {
-      await db.app.upsert({
-        where: { id: appData.id },
-        update: {
-          name: appData.name,
-          category: appData.category,
-          tagline: appData.tagline,
-          description: appData.description,
-          installType: appData.installType,
-          badge: appData.badge,
-          sortOrder: appData.sortOrder
-        },
-        create: {
-          id: appData.id,
-          name: appData.name,
-          category: appData.category,
-          tagline: appData.tagline,
-          description: appData.description,
-          installType: appData.installType,
-          badge: appData.badge,
-          sortOrder: appData.sortOrder
-        }
-      })
+      try {
+        await db.app.upsert({
+          where: { id: appData.id },
+          update: {
+            name: appData.name,
+            category: appData.category,
+            tagline: appData.tagline,
+            description: appData.description,
+            installType: appData.installType,
+            badge: appData.badge,
+            sortOrder: appData.sortOrder
+          },
+          create: {
+            id: appData.id,
+            name: appData.name,
+            category: appData.category,
+            tagline: appData.tagline,
+            description: appData.description,
+            installType: appData.installType,
+            badge: appData.badge,
+            sortOrder: appData.sortOrder
+          }
+        })
+      } catch (e) {
+        console.warn(`Marketplace seed: skipped app ${appData.id}:`, e)
+      }
     }
     apps = await db.app.findMany({ orderBy: { sortOrder: "asc" } })
   }

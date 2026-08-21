@@ -3,10 +3,16 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
+import { getSession } from "@/lib/auth"
+
 export async function getTickets(agencyId: string) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     const tickets = await db.ticket.findMany({
-      where: { agencyId },
+      where: { agencyId: targetAgencyId },
       include: { contact: true },
       orderBy: { createdAt: "desc" }
     })
@@ -18,10 +24,14 @@ export async function getTickets(agencyId: string) {
 
 export async function createTicket(agencyId: string, data: any) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     const ticket = await db.ticket.create({
       data: {
         ...data,
-        agencyId,
+        agencyId: targetAgencyId,
       }
     })
     revalidatePath("/support")
@@ -33,8 +43,14 @@ export async function createTicket(agencyId: string, data: any) {
 
 export async function updateTicketStatus(id: string, status: string) {
   try {
-    const ticket = await db.ticket.update({
-      where: { id },
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const ticket = await db.ticket.updateMany({
+      where: { 
+        id,
+        ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+      },
       data: { status }
     })
     revalidatePath("/support")
@@ -46,8 +62,12 @@ export async function updateTicketStatus(id: string, status: string) {
 
 export async function getArticles(agencyId: string) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     const articles = await db.knowledgeArticle.findMany({
-      where: { agencyId },
+      where: { agencyId: targetAgencyId },
       orderBy: { createdAt: "desc" }
     })
     return { success: true, articles }
@@ -58,10 +78,14 @@ export async function getArticles(agencyId: string) {
 
 export async function createArticle(agencyId: string, data: any) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     const article = await db.knowledgeArticle.create({
       data: {
         ...data,
-        agencyId,
+        agencyId: targetAgencyId,
       }
     })
     revalidatePath("/support")

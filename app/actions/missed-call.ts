@@ -39,7 +39,7 @@ export const updateMissedCallSettings = withAgency(
     workingHoursOnly?: boolean
   }) => {
     // 1. Update Agency level settings
-    await db.agency.update({
+    await db.agency.updateMany({
       where: { id: agencyId },
       data: {
         missedCallEnabled: data.enabled,
@@ -53,7 +53,7 @@ export const updateMissedCallSettings = withAgency(
     })
 
     if (existingAgent) {
-      await db.voiceAgent.update({
+      await db.voiceAgent.updateMany({
         where: { id: existingAgent.id },
         data: {
           missedCallEnabled: data.enabled,

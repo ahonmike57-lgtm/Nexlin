@@ -22,6 +22,20 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Missing required fields", { status: 400 })
   }
 
+  // Validate Twilio signature if auth token is present
+  const authToken = process.env.TWILIO_AUTH_TOKEN
+  const twilioSignature = req.headers.get("x-twilio-signature")
+  if (authToken && twilioSignature) {
+    const params: Record<string, string> = {}
+    formData.forEach((value, key) => {
+      params[key] = value.toString()
+    })
+    const isValid = twilio.validateRequest(authToken, twilioSignature, req.url, params)
+    if (!isValid) {
+      return new NextResponse("Invalid Twilio signature", { status: 401 })
+    }
+  }
+
   try {
     // Find the PhoneNumber record to get agencyId
     const phoneNumber = await db.phoneNumber.findFirst({ where: { number: to } })

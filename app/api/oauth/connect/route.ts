@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server"
+import { getSession } from "@/lib/auth"
 
 export async function GET(request: Request) {
+  const session = await getSession()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const platform = searchParams.get("platform")
   const agencyId = searchParams.get("agencyId")
 
   if (!platform || !agencyId) {
     return NextResponse.json({ error: "Missing platform or agencyId" }, { status: 400 })
+  }
+
+  // Verify the caller owns this agency
+  if (session.user.agencyId !== agencyId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/oauth/callback`

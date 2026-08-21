@@ -60,10 +60,14 @@ export const cronReviewRequests = (inngest.createFunction as any)(
       })
       
       for (const r of reviews) {
-        await db.reviewRequest.update({
-          where: { id: r.id },
-          data: { status: "sent" }
-        })
+        try {
+          await db.reviewRequest.updateMany({
+            where: { id: r.id },
+            data: { status: "sent" }
+          })
+        } catch (e) {
+          console.warn(`cronReviewRequests: failed to update review ${r.id}:`, e)
+        }
       }
 
       return reviews.length

@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { verifyShopifySignature } from "@/lib/webhooks"
 
 export async function POST(request: Request) {
   try {
+    const rawBody = await request.text()
+    const hmac = request.headers.get("x-shopify-hmac-sha256")
+    const secret = process.env.SHOPIFY_WEBHOOK_SECRET
+
+    if (secret && !verifyShopifySignature(rawBody, hmac, secret)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
+    }
+
     const topic = request.headers.get("x-shopify-topic") || "orders/create"
-    const body = await request.json()
+    const body = JSON.parse(rawBody)
 
     const email = body.email || body.customer?.email
     if (!email) {

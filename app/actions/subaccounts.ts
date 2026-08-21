@@ -70,8 +70,11 @@ export async function deleteSubAccount(subAgencyId: string) {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
-    await db.subAgency.delete({
-      where: { id: subAgencyId }
+    await db.subAgency.deleteMany({
+      where: { 
+        id: subAgencyId,
+        ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+      }
     })
 
     // Also clear cookie if this was the active sub-account

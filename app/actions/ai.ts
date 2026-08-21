@@ -157,9 +157,9 @@ RULES:
         include: { contact: true, agency: true }
       })
 
-      const knowledgeArticles = await db.knowledgeArticle.findMany({
-        where: { agencyId: conv?.agencyId }
-      })
+      const knowledgeArticles = conv ? await db.knowledgeArticle.findMany({
+        where: { agencyId: conv.agencyId }
+      }) : []
 
       let kbContext = ""
       if (knowledgeArticles.length > 0) {

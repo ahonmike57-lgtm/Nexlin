@@ -6,28 +6,34 @@ import { generateAiReply } from "./ai"
 import { getOrCreateAgency } from "./agency"
 import { getActiveSubAccountId } from "./subaccounts"
 
+import { getSession } from "@/lib/auth"
+
 export async function createSnapshot(agencyId: string, name: string, description?: string) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     // 1. Fetch all assets for this agency to snapshot
     const funnels = await prisma.funnel.findMany({
-      where: { agencyId, subAgencyId: null },
+      where: { agencyId: targetAgencyId, subAgencyId: null },
       include: { steps: true }
     })
     
     const workflows = await prisma.workflow.findMany({
-      where: { agencyId, subAgencyId: null },
+      where: { agencyId: targetAgencyId, subAgencyId: null },
       include: { triggers: true, actions: true }
     })
     
     const pipelines = await prisma.pipeline.findMany({
-      where: { agencyId, subAgencyId: null },
+      where: { agencyId: targetAgencyId, subAgencyId: null },
       include: { stages: true }
     })
 
     // 2. Create the Snapshot parent record
     const snapshot = await prisma.snapshot.create({
       data: {
-        agencyId,
+        agencyId: targetAgencyId,
         name,
         description,
         version: "1.0.0",
@@ -83,8 +89,12 @@ export async function createSnapshot(agencyId: string, name: string, description
 
 export async function getSnapshots(agencyId: string) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     const snapshots = await prisma.snapshot.findMany({
-      where: { agencyId },
+      where: { agencyId: targetAgencyId },
       include: { 
         _count: {
           select: { assets: true }
@@ -100,6 +110,9 @@ export async function getSnapshots(agencyId: string) {
 
 export async function deploySnapshot(snapshotId: string, targetSubAgencyId: string, targetAgencyId: string) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
     const snapshot = await prisma.snapshot.findUnique({
       where: { id: snapshotId },
       include: { assets: true }

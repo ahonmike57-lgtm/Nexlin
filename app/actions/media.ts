@@ -3,10 +3,15 @@
 import { revalidatePath } from "next/cache"
 import { db as prisma } from "@/lib/db"
 
+import { getSession } from "@/lib/auth"
+
 export async function getMediaFiles(agencyId: string) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
     const files = await prisma.mediaFile.findMany({
-      where: { agencyId },
+      where: { agencyId: session.user.agencyId || agencyId },
       orderBy: { createdAt: "desc" },
     })
 
@@ -18,11 +23,15 @@ export async function getMediaFiles(agencyId: string) {
 
 export async function uploadMockMedia(agencyId: string, name: string, size: number, type: string) {
   try {
-    const mockUrl = `https://storage.example.com/${agencyId}/${name}`
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
+    const mockUrl = `https://storage.example.com/${targetAgencyId}/${name}`
     
     const file = await prisma.mediaFile.create({
       data: {
-        agencyId,
+        agencyId: targetAgencyId,
         name,
         size,
         type,
@@ -39,8 +48,14 @@ export async function uploadMockMedia(agencyId: string, name: string, size: numb
 
 export async function deleteMediaFile(fileId: string) {
   try {
-    await prisma.mediaFile.delete({
-      where: { id: fileId }
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    await prisma.mediaFile.deleteMany({
+      where: { 
+        id: fileId,
+        ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+      }
     })
     
     revalidatePath("/media")

@@ -141,7 +141,7 @@ export const logUsageAndBill = withAgency(
     })
 
     const newBalance = wallet.balance - finalCharge
-    await db.billingWallet.update({
+    await db.billingWallet.updateMany({
       where: { id: wallet.id },
       data: { balance: newBalance }
     })

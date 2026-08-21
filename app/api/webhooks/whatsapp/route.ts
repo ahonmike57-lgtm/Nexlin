@@ -47,59 +47,63 @@ export async function POST(req: NextRequest) {
           const value = change.value
           if (value?.messages) {
             for (const msg of value.messages) {
-              const fromNumber = msg.from // e.g. "+14155550192"
-              const textContent = msg.text?.body || msg.caption || "[Media Message]"
+              try {
+                const fromNumber = msg.from // e.g. "+14155550192"
+                const textContent = msg.text?.body || msg.caption || "[Media Message]"
 
-              // Find or create contact
-              let contact = await db.contact.findFirst({
-                where: { OR: [{ phone: fromNumber }, { phone: `+${fromNumber}` }] }
-              })
-
-              if (!contact) {
-                // Assign to default first agency if unmapped
-                const defaultAgency = await db.agency.findFirst()
-                if (defaultAgency) {
-                  contact = await db.contact.create({
-                    data: {
-                      agencyId: defaultAgency.id,
-                      firstName: value.contacts?.[0]?.profile?.name || "WhatsApp",
-                      lastName: "User",
-                      phone: fromNumber.startsWith("+") ? fromNumber : `+${fromNumber}`
-                    }
-                  })
-                }
-              }
-
-              if (contact) {
-                // Find or create conversation
-                let conv = await db.conversation.findFirst({
-                  where: { contactId: contact.id, channel: "whatsapp" }
+                // Find or create contact
+                let contact = await db.contact.findFirst({
+                  where: { OR: [{ phone: fromNumber }, { phone: `+${fromNumber}` }] }
                 })
 
-                if (!conv) {
-                  conv = await db.conversation.create({
-                    data: {
-                      agencyId: contact.agencyId,
-                      contactId: contact.id,
-                      channel: "whatsapp"
-                    }
-                  })
-                }
-
-                // Ingest message into thread
-                await db.message.create({
-                  data: {
-                    conversationId: conv.id,
-                    content: textContent,
-                    isOutbound: false,
-                    status: "delivered"
+                if (!contact) {
+                  // Assign to default first agency if unmapped
+                  const defaultAgency = await db.agency.findFirst()
+                  if (defaultAgency) {
+                    contact = await db.contact.create({
+                      data: {
+                        agencyId: defaultAgency.id,
+                        firstName: value.contacts?.[0]?.profile?.name || "WhatsApp",
+                        lastName: "User",
+                        phone: fromNumber.startsWith("+") ? fromNumber : `+${fromNumber}`
+                      }
+                    })
                   }
-                })
+                }
 
-                await db.conversation.update({
-                  where: { id: conv.id },
-                  data: { updatedAt: new Date() }
-                })
+                if (contact) {
+                  // Find or create conversation
+                  let conv = await db.conversation.findFirst({
+                    where: { contactId: contact.id, channel: "whatsapp" }
+                  })
+
+                  if (!conv) {
+                    conv = await db.conversation.create({
+                      data: {
+                        agencyId: contact.agencyId,
+                        contactId: contact.id,
+                        channel: "whatsapp"
+                      }
+                    })
+                  }
+
+                  // Ingest message into thread
+                  await db.message.create({
+                    data: {
+                      conversationId: conv.id,
+                      content: textContent,
+                      isOutbound: false,
+                      status: "delivered"
+                    }
+                  })
+
+                  await db.conversation.update({
+                    where: { id: conv.id },
+                    data: { updatedAt: new Date() }
+                  })
+                }
+              } catch (msgError) {
+                console.warn("WhatsApp message processing error (skipped):", msgError)
               }
             }
           }

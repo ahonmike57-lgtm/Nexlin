@@ -3,10 +3,16 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
+import { getSession } from "@/lib/auth"
+
 export async function getVoiceAgents(agencyId: string) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     const agents = await db.voiceAgent.findMany({
-      where: { agencyId },
+      where: { agencyId: targetAgencyId },
       orderBy: { createdAt: "desc" }
     })
     return { success: true, agents }
@@ -18,10 +24,17 @@ export async function getVoiceAgents(agencyId: string) {
 
 export async function saveVoiceAgent(agencyId: string, data: any) {
   try {
+    const session = await getSession()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+    const targetAgencyId = session.user.agencyId || agencyId
+
     let agent;
     if (data.id) {
-      agent = await db.voiceAgent.update({
-        where: { id: data.id },
+      await db.voiceAgent.updateMany({
+        where: { 
+          id: data.id,
+          ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+        },
         data: {
           name: data.name,
           systemPrompt: data.systemPrompt,
@@ -33,10 +46,11 @@ export async function saveVoiceAgent(agencyId: string, data: any) {
           missedCallAIFollowUp: data.missedCallAIFollowUp
         }
       })
+      agent = await db.voiceAgent.findFirst({ where: { id: data.id } })
     } else {
       agent = await db.voiceAgent.create({
         data: {
-          agencyId,
+          agencyId: targetAgencyId,
           name: data.name,
           systemPrompt: data.systemPrompt,
           voiceId: data.voiceId,

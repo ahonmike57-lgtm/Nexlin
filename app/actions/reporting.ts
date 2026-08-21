@@ -102,8 +102,11 @@ export async function updateFormFields(formId: string, fields: any[]) {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
-    await db.form.update({
-      where: { id: formId },
+    await db.form.updateMany({
+      where: { 
+        id: formId,
+        ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+      },
       data: { fields: JSON.stringify(fields) }
     })
 
