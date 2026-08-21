@@ -13,7 +13,7 @@ const AGENCY_SCOPED_MODELS = new Set([
   "SocialPost", "AdCampaign", "Review", "ReviewRequest", "Form", "FormSubmission",
   "MediaFile", "Webhook", "McpConnection", "TenantApp", "Snapshot", "BillingWallet",
   "RebillingMarkup", "Affiliate", "AiSettings", "ImpersonationLog", "ApiKey",
-  "WebhookDelivery", "ForgeSite", "SuppressionList",
+  "WebhookDelivery", "ForgeSite", "SuppressionList", "Notification",
 ])
 
 const SOFT_DELETE_MODELS = new Set(["Contact", "Deal", "Workflow"])

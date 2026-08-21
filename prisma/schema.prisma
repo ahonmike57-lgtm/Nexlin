@@ -79,6 +79,7 @@ model Agency {
   webhookDeliveries WebhookDelivery[]
   forgeSites        ForgeSite[]
   suppressions      SuppressionList[]
+  notifications     Notification[]
 }
 
 model SubAgency {
@@ -962,4 +963,20 @@ model SuppressionList {
 
   @@unique([agencyId, email])
   @@index([agencyId, email])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  userId    String?
+  type      String   // "lead_created", "deal_won", "appointment_booked", "trigger_link_clicked", "system"
+  title     String
+  body      String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([agencyId, createdAt(sort: Desc)])
+  @@index([agencyId, read])
 }
