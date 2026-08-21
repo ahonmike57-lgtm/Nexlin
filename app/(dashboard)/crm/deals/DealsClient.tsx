@@ -9,6 +9,8 @@ import AddDealModal from "./AddDealModal"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import DealDetailsSheet from "./DealDetailsSheet"
+import { triggerConfetti } from "@/lib/confetti"
+import { toast } from "sonner"
 
 const DEFAULT_STAGES = [
   { id: "lead", name: "New Lead", amount: "$12,500", color: "bg-primary/20 text-primary border-primary/30" },
@@ -46,15 +48,49 @@ export default function DealsClient({ initialDeals, contacts = [], pipelines = [
   const handleDrop = async (e: React.DragEvent, newStageId: string) => {
     e.preventDefault()
     const dealId = e.dataTransfer.getData("dealId")
-    
+    if (!dealId) return
+
+    const previousDeal = deals.find((d) => d.id === dealId)
+    if (!previousDeal || previousDeal.stage === newStageId) return
+
     // Optimistic UI update
-    setDeals(prevDeals => 
-      prevDeals.map(deal => 
+    setDeals((prevDeals) =>
+      prevDeals.map((deal) =>
         deal.id === dealId ? { ...deal, stage: newStageId, updatedAt: new Date() } : deal
       )
     )
 
-    // Call server action (stage could be legacy string or new stageId)
+    // Trigger celebratory confetti if moved to "Won" stage
+    if (newStageId.toLowerCase().includes("won")) {
+      triggerConfetti()
+      toast.success("Deal Closed Won! 🎉 🚀", {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            setDeals((prev) =>
+              prev.map((d) => (d.id === dealId ? { ...d, stage: previousDeal.stage } : d))
+            )
+            await updateDealStage(dealId, previousDeal.stage)
+            toast.info("Deal stage restored")
+          }
+        }
+      })
+    } else {
+      toast.success(`Deal moved to ${newStageId.replace(/_/g, " ").toUpperCase()}`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            setDeals((prev) =>
+              prev.map((d) => (d.id === dealId ? { ...d, stage: previousDeal.stage } : d))
+            )
+            await updateDealStage(dealId, previousDeal.stage)
+            toast.info("Deal stage restored")
+          }
+        }
+      })
+    }
+
+    // Call server action in background
     await updateDealStage(dealId, newStageId)
   }
 

@@ -96,6 +96,7 @@ const LINK_FEATURE_MAP: Record<string, string> = {
 }
 
 import { AskAiCommandBar } from "@/components/AskAiCommandBar"
+import { OmniChatDrawer } from "@/components/OmniChatDrawer"
 
 export default function DashboardLayoutClient({ children, agency, featureFlags = [] }: { children: ReactNode, agency?: any, featureFlags?: any[] }) {
   const pathname = usePathname()
@@ -217,6 +218,9 @@ export default function DashboardLayoutClient({ children, agency, featureFlags =
         <main className="flex-1 overflow-y-auto p-8">
           {children}
         </main>
+
+        {/* Global Omni-Inbox Floating Drawer */}
+        <OmniChatDrawer />
       </div>
     </div>
   )

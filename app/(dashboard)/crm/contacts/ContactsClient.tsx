@@ -8,6 +8,7 @@ import { Search, Filter, Download, MoreHorizontal, Mail, Phone, Flame, Sparkles,
 import AddContactModal from "./AddContactModal"
 import { MergeContactsDialog } from "@/components/crm/MergeContactsDialog"
 import { PowerDialer } from "@/components/crm/PowerDialer"
+import { BatchActionBar } from "@/components/crm/BatchActionBar"
 import { enrichContact, EnrichedFirmographics } from "@/app/actions/enrichment"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { toast } from "sonner"
@@ -22,6 +23,7 @@ const getScoreColor = (score: number) => {
 export default function ContactsClient({ initialContacts }: { initialContacts: any[] }) {
   const [contacts, setContacts] = useState(initialContacts)
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   // Enrichment Modal State
   const [enrichingId, setEnrichingId] = useState<string | null>(null)
@@ -29,6 +31,38 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
     contact: any
     data: EnrichedFirmographics
   } | null>(null)
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filtered.map((c) => c.id))
+    }
+  }
+
+  const toggleSelectOne = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    )
+  }
+
+  const handleBatchDelete = (ids: string[]) => {
+    const deletedContacts = contacts.filter((c) => ids.includes(c.id))
+    // Optimistically remove from state
+    setContacts((prev) => prev.filter((c) => !ids.includes(c.id)))
+    setSelectedIds([])
+
+    toast.success(`Removed ${ids.length} contacts`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setContacts((prev) => [...deletedContacts, ...prev])
+          toast.info("Contacts restored")
+        }
+      }
+    })
+  }
 
   const handleEnrich = async (contact: any) => {
     setEnrichingId(contact.id)
@@ -98,8 +132,13 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
           <table className="w-full text-sm text-left">
             <thead className="text-xs text-text-secondary uppercase bg-bg-secondary/80 sticky top-0">
               <tr>
-                <th className="px-6 py-3 font-semibold">
-                  <input type="checkbox" className="rounded border-border" />
+                <th className="px-6 py-3 font-semibold w-12">
+                  <input
+                    type="checkbox"
+                    className="rounded border-border accent-primary cursor-pointer"
+                    checked={filtered.length > 0 && selectedIds.length === filtered.length}
+                    onChange={toggleSelectAll}
+                  />
                 </th>
                 <th className="px-6 py-3 font-semibold">Name</th>
                 <th className="px-6 py-3 font-semibold">Contact Info</th>
@@ -117,21 +156,33 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
                   </td>
                 </tr>
               )}
-              {filtered.map((contact) => (
-                <tr key={contact.id} className="hover:bg-bg-secondary/50 transition-colors cursor-pointer group">
-                  <td className="px-6 py-4">
-                    <input type="checkbox" className="rounded border-border" />
-                  </td>
-                  <td className="px-6 py-4 font-medium text-text-primary">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
-                        {contact.firstName?.charAt(0) || "U"}
+              {filtered.map((contact) => {
+                const isSelected = selectedIds.includes(contact.id)
+                return (
+                  <tr
+                    key={contact.id}
+                    className={`transition-colors cursor-pointer group ${
+                      isSelected ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-bg-secondary/50"
+                    }`}
+                  >
+                    <td className="px-6 py-4" onClick={(e) => toggleSelectOne(contact.id, e)}>
+                      <input
+                        type="checkbox"
+                        className="rounded border-border accent-primary cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => {}}
+                      />
+                    </td>
+                    <td className="px-6 py-4 font-medium text-text-primary">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                          {contact.firstName?.charAt(0) || "U"}
+                        </div>
+                        <div>
+                          <div>{contact.firstName} {contact.lastName}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div>{contact.firstName} {contact.lastName}</div>
-                      </div>
-                    </div>
-                  </td>
+                    </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1 text-text-secondary">
                       <span className="flex items-center gap-1 hover:text-primary"><Mail className="w-3 h-3" /> {contact.email || "-"}</span>
@@ -178,7 +229,7 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
                     </Button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -267,6 +318,16 @@ export default function ContactsClient({ initialContacts }: { initialContacts: a
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Floating Multi-Select Batch Action Dock */}
+      <BatchActionBar
+        selectedIds={selectedIds}
+        totalCount={filtered.length}
+        onClearSelection={() => setSelectedIds([])}
+        onSelectAll={() => setSelectedIds(filtered.map((c) => c.id))}
+        onBatchDelete={handleBatchDelete}
+        contacts={contacts}
+      />
     </div>
   )
 }
