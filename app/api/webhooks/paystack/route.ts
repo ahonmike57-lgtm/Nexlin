@@ -16,9 +16,8 @@ export async function POST(req: Request) {
     return new NextResponse("Invalid Signature", { status: 401 })
   }
 
-  const event = JSON.parse(body)
-
   try {
+    const event = JSON.parse(body)
     switch (event.event) {
       case "charge.success": {
         const data = event.data

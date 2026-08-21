@@ -53,7 +53,12 @@ export const approveCPQQuote = withAgency(
 
     if (!snapshot || !snapshot.description) throw new Error("Quote not found")
 
-    const data = JSON.parse(snapshot.description)
+    let data: any = {}
+    try {
+      data = JSON.parse(snapshot.description)
+    } catch {
+      data = {}
+    }
     data.status = "approved"
     data.approvedBy = userId
     data.approvedAt = new Date().toISOString()
@@ -76,11 +81,19 @@ export const getCPQQuotes = withAgency(
       orderBy: { createdAt: "desc" }
     })
 
-    return quotes.map(q => ({
-      id: q.id,
-      title: q.name,
-      ...(q.description ? JSON.parse(q.description) : {})
-    }))
+    return quotes.map(q => {
+      let descData: any = {}
+      if (q.description) {
+        try {
+          descData = JSON.parse(q.description)
+        } catch {}
+      }
+      return {
+        id: q.id,
+        title: q.name,
+        ...descData
+      }
+    })
   }
 )
 
@@ -97,7 +110,12 @@ export const signCPQQuote = withAgency(
 
     if (!snapshot || !snapshot.description) throw new Error("Quote not found")
 
-    const quoteData = JSON.parse(snapshot.description)
+    let quoteData: any = {}
+    try {
+      quoteData = JSON.parse(snapshot.description)
+    } catch {
+      quoteData = {}
+    }
     const signedAt = new Date().toISOString()
     const certificateId = `CERT-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
 

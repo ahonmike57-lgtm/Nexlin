@@ -10,10 +10,8 @@ import { getOrCreateAgency } from "./agency"
 
 export async function generateAiReply(context: string, prompt: string, requestedProviderAndModel?: string) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
-    const agencyId = await getOrCreateAgency()
+    const session = await getSession().catch(() => null)
+    const agencyId = (session?.user as any)?.agencyId || await getOrCreateAgency()
 
     // Check if the agency has custom AI Settings
     const aiSettings = await db.aiSettings.findMany({
@@ -206,7 +204,7 @@ RULES:
     // Deduct AI Token Usage
     if (usage && usage.totalTokens) {
       const { deductUsage } = await import("./saas")
-      await deductUsage(agencyId, (session.user as any).subAgencyId || null, "ai_tokens", usage.totalTokens)
+      await deductUsage(agencyId, (session?.user as any)?.subAgencyId || null, "ai_tokens", usage.totalTokens).catch(() => {})
     }
 
     return { success: true, data: text }

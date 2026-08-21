@@ -33,7 +33,13 @@ export async function getChannelCredentials() {
       }
     }
 
-    const decrypted = JSON.parse(decryptConfig(snapshot.description))
+    let decrypted: any = {}
+    try {
+      decrypted = JSON.parse(decryptConfig(snapshot.description))
+    } catch {
+      decrypted = {}
+    }
+
     return {
       success: true,
       data: {

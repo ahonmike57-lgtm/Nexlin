@@ -54,9 +54,13 @@ export async function getExpiringCertificates(withinDays = 30) {
 
     const expiring = certs.filter(c => {
       if (!c.description) return false
-      const data = JSON.parse(c.description)
-      const exp = new Date(data.expiresAt)
-      return exp > now && exp <= cutoff
+      try {
+        const data = JSON.parse(c.description)
+        const exp = new Date(data.expiresAt)
+        return exp > now && exp <= cutoff
+      } catch {
+        return false
+      }
     })
 
     return { success: true, certificates: expiring }

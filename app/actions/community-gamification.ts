@@ -18,11 +18,13 @@ export async function getCommunityLeaderboard() {
 
     for (const b of badges) {
       if (!b.description) continue
-      const data = JSON.parse(b.description)
-      const memberId = data.contactId || "anonymous"
-      if (!memberScores[memberId]) memberScores[memberId] = { points: 0, badgeCount: 0 }
-      memberScores[memberId].points += data.points || 50
-      memberScores[memberId].badgeCount += 1
+      try {
+        const data = JSON.parse(b.description)
+        const memberId = data.contactId || "anonymous"
+        if (!memberScores[memberId]) memberScores[memberId] = { points: 0, badgeCount: 0 }
+        memberScores[memberId].points += data.points || 50
+        memberScores[memberId].badgeCount += 1
+      } catch {}
     }
 
     const leaderboard = Object.entries(memberScores)

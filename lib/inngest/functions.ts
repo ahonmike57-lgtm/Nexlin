@@ -32,10 +32,10 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
         await step.run(`send-email-${action.id}`, async () => {
           console.log(`[Inngest] Executing send_email for contact ${contactId} in workflow ${workflow.name}`)
           if (contactId) {
-            await db.contact.update({
+            await db.contact.updateMany({
               where: { id: contactId },
               data: { company: "Emailed via Inngest Drip!" }
-            })
+            }).catch(() => {})
           }
         })
       } else if (action.type === "send_sms") {

@@ -40,6 +40,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     agency = await db.agency.findUnique({ where: { id: agencyId } })
   }
 
+  if (agency?.brandColors && !colors) {
+    try {
+      colors = JSON.parse(agency.brandColors)
+    } catch (e) {}
+  }
+
   const { flags } = await getFeatureFlags()
 
   return (
