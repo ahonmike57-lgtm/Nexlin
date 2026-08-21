@@ -148,6 +148,10 @@ model Contact {
   reviewRequests  ReviewRequest[]
   formSubmissions FormSubmission[]
   forgeLeads      ForgeLead[]
+
+  @@index([agencyId, createdAt(sort: Desc)])
+  @@index([agencyId, email])
+  @@index([agencyId, phone])
 }
 
 model Deal {
@@ -169,6 +173,9 @@ model Deal {
   assignedRep   User?          @relation("AssignedDeals", fields: [assignedRepId], references: [id], onDelete: SetNull)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+
+  @@index([agencyId, pipelineId, stageId])
+  @@index([agencyId, updatedAt(sort: Desc)])
 }
 
 model Pipeline {
@@ -327,6 +334,8 @@ model Conversation {
   updatedAt   DateTime   @updatedAt
 
   messages Message[]
+
+  @@index([agencyId, contactId, channel])
 }
 
 model Message {
@@ -337,6 +346,8 @@ model Message {
   content        String
   status         String       @default("sent") // sent, delivered, read, failed
   createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt(sort: Desc)])
 }
 
 model Campaign {
@@ -401,6 +412,8 @@ model Appointment {
   createdAt   DateTime   @default(now())
   SubAgency   SubAgency? @relation(fields: [subAgencyId], references: [id])
   subAgencyId String?
+
+  @@index([agencyId, startTime, endTime])
 }
 
 model PhoneNumber {
@@ -530,6 +543,8 @@ model Review {
   url        String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([agencyId, platform])
 }
 
 model ReviewRequest {
@@ -675,13 +690,16 @@ model SnapshotAsset {
 
 // 2. SaaS Mode & Re-billing
 model BillingWallet {
-  id          String   @id @default(cuid())
-  agencyId    String?
-  subAgencyId String?
-  balance     Float    @default(0.0) // Credits available
-  currency    String   @default("usd")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  agencyId              String?
+  subAgencyId           String?
+  balance               Float    @default(0.0) // Credits available
+  currency              String   @default("usd")
+  autoRechargeEnabled   Boolean  @default(false)
+  autoRechargeThreshold Float    @default(10.0) // Recharge when balance drops below this amount
+  autoRechargeAmount    Float    @default(50.0) // Amount to auto-charge via Stripe/Paystack
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   usageLogs   UsageLog[]
   
@@ -699,6 +717,8 @@ model UsageLog {
   markup      Float          // The cost charged to the sub-account (cost * agency markup)
   description String?
   createdAt   DateTime       @default(now())
+
+  @@index([walletId, createdAt(sort: Desc)])
 }
 
 model RebillingMarkup {

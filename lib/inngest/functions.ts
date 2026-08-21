@@ -1,51 +1,146 @@
 import { inngest } from "./client"
 import { db } from "@/lib/db"
+import { interpolateMergeTags } from "@/lib/merge-tags"
+import { pusherServer } from "@/lib/pusher"
 
 export const executeWorkflowEngine = (inngest.createFunction as any)(
   { id: "execute-workflow-engine", event: "workflow.execute" },
   async ({ event, step }: { event: any; step: any }) => {
     const { workflowId, contactId } = event.data
 
-    const workflow = await step.run("fetch-workflow", async () => {
-      return await db.workflow.findUnique({
+    const workflow = await step.run("fetch-workflow-and-contact", async () => {
+      const wf = await db.workflow.findUnique({
         where: { id: workflowId },
-        include: { actions: { orderBy: { order: "asc" } } }
+        include: { 
+          actions: { orderBy: { order: "asc" } },
+          agency: { select: { id: true, name: true, customDomain: true, subdomain: true } }
+        }
       })
+
+      const contact = contactId ? await db.contact.findUnique({
+        where: { id: contactId },
+        include: { deals: { take: 1, orderBy: { updatedAt: "desc" } } }
+      }) : null
+
+      return { wf, contact }
     })
 
-    if (!workflow) return { error: "Workflow not found" }
+    if (!workflow?.wf) return { error: "Workflow not found" }
 
-    for (const action of workflow.actions) {
+    const { wf, contact } = workflow
+    const context = {
+      contact: contact || undefined,
+      agency: wf.agency || undefined,
+      deal: contact?.deals?.[0] || undefined
+    }
+
+    for (const action of wf.actions) {
+      let config: any = {}
+      try {
+        if (action.config) config = JSON.parse(action.config)
+      } catch (e) {}
+
       if (action.type === "wait") {
-        let duration = "24h"
-        try {
-          if (action.config) {
-            const parsed = JSON.parse(action.config)
-            if (parsed.duration) {
-              duration = `${parsed.duration}h`
+        const duration = config.duration ? `${config.duration}h` : "24h"
+        await step.sleep(`wait-${action.id}`, duration)
+      } 
+      else if (action.type === "send_email") {
+        await step.run(`send-email-${action.id}`, async () => {
+          const rawSubject = config.subject || `Update from ${wf.agency?.name || "Our Team"}`
+          const rawBody = config.body || "Hi {{contact.firstName | 'there'}}, we wanted to follow up with you!"
+          
+          const personalizedSubject = interpolateMergeTags(rawSubject, context)
+          const personalizedBody = interpolateMergeTags(rawBody, context)
+          
+          console.log(`[Workflow Engine] Sending personalized email to ${contact?.email || contactId}: "${personalizedSubject}"`)
+          
+          if (contactId) {
+            // Record message in thread if conversation exists
+            const conv = await db.conversation.findFirst({
+              where: { contactId, channel: "email" }
+            })
+            if (conv) {
+              await db.message.create({
+                data: {
+                  conversationId: conv.id,
+                  isOutbound: true,
+                  content: `Subject: ${personalizedSubject}\n\n${personalizedBody}`,
+                  status: "delivered"
+                }
+              }).catch(() => {})
             }
           }
-        } catch (e) {}
-        
-        await step.sleep(`wait-${action.id}`, duration)
-      } else if (action.type === "send_email") {
-        await step.run(`send-email-${action.id}`, async () => {
-          console.log(`[Inngest] Executing send_email for contact ${contactId} in workflow ${workflow.name}`)
-          if (contactId) {
+        })
+      } 
+      else if (action.type === "send_sms") {
+        await step.run(`send-sms-${action.id}`, async () => {
+          const rawText = config.message || "Hi {{contact.firstName | 'there'}}, this is a quick update from {{agency.name}}!"
+          const personalizedMessage = interpolateMergeTags(rawText, context)
+          console.log(`[Workflow Engine] Sending SMS to ${contact?.phone || contactId}: "${personalizedMessage}"`)
+        })
+      }
+      else if (action.type === "assign_rep") {
+        await step.run(`assign-rep-${action.id}`, async () => {
+          if (contactId && config.userId) {
             await db.contact.updateMany({
               where: { id: contactId },
-              data: { company: "Emailed via Inngest Drip!" }
+              data: { assignedRepId: config.userId }
+            }).catch(() => {})
+            
+            await db.deal.updateMany({
+              where: { contactId },
+              data: { assignedRepId: config.userId }
             }).catch(() => {})
           }
         })
-      } else if (action.type === "send_sms") {
-        await step.run(`send-sms-${action.id}`, async () => {
-          console.log(`[Inngest] Executing send_sms for contact ${contactId} in workflow ${workflow.name}`)
+      }
+      else if (action.type === "update_deal_stage") {
+        await step.run(`update-stage-${action.id}`, async () => {
+          if (contactId && config.stage) {
+            await db.deal.updateMany({
+              where: { contactId },
+              data: { stage: config.stage }
+            }).catch(() => {})
+          }
+        })
+      }
+      else if (action.type === "post_webhook") {
+        await step.run(`post-webhook-${action.id}`, async () => {
+          if (config.webhookUrl) {
+            try {
+              await fetch(config.webhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  event: "workflow.action",
+                  workflowId: wf.id,
+                  workflowName: wf.name,
+                  contact,
+                  timestamp: new Date().toISOString()
+                })
+              })
+            } catch (err) {
+              console.warn(`Outbound webhook failed to ${config.webhookUrl}:`, err)
+            }
+          }
+        })
+      }
+      else if (action.type === "internal_notification") {
+        await step.run(`internal-notify-${action.id}`, async () => {
+          try {
+            const rawMsg = config.message || "Workflow notification: Contact {{contact.fullName}} progressed in {{workflow.name}}"
+            const message = interpolateMergeTags(rawMsg, { ...context, customValues: { "workflow.name": wf.name } })
+            await pusherServer.trigger(`agency-${wf.agencyId}`, "internal-alert", {
+              title: `Workflow: ${wf.name}`,
+              message,
+              contactId
+            })
+          } catch (e) {}
         })
       }
     }
 
-    return { success: true, completedActions: workflow.actions.length }
+    return { success: true, completedActions: wf.actions.length }
   }
 )
 

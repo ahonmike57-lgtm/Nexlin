@@ -140,14 +140,107 @@ export const logUsageAndBill = withAgency(
       }
     })
 
-    const newBalance = wallet.balance - finalCharge
+    let newBalance = wallet.balance - finalCharge
+
+    // Auto-Recharge Trigger Engine
+    let autoRecharged = false
+    if (wallet.autoRechargeEnabled && newBalance <= wallet.autoRechargeThreshold) {
+      const topUpAmount = wallet.autoRechargeAmount || 50.0
+      newBalance += topUpAmount
+      autoRecharged = true
+
+      // Log the credit recharge into usage logs
+      await db.usageLog.create({
+        data: {
+          walletId: wallet.id,
+          type: "auto_recharge",
+          amount: 1,
+          cost: topUpAmount,
+          markup: 0,
+          description: `Auto-recharge triggered (Threshold: $${wallet.autoRechargeThreshold.toFixed(2)}, Added: +$${topUpAmount.toFixed(2)})`
+        }
+      }).catch(() => {})
+    }
+
     await db.billingWallet.updateMany({
       where: { id: wallet.id },
       data: { balance: newBalance }
     })
 
-    return { log, newBalance }
+    return { log, newBalance, autoRecharged }
   }
+)
+
+export const updateWalletAutoRechargeSettings = withAgency(
+  async ({ db, agencyId }, data: { enabled: boolean; threshold: number; amount: number; subAgencyId?: string }) => {
+    const whereClause: any = data.subAgencyId ? { subAgencyId: data.subAgencyId } : { agencyId }
+
+    let wallet = await db.billingWallet.findFirst({ where: whereClause })
+    if (!wallet) {
+      wallet = await db.billingWallet.create({
+        data: {
+          agencyId,
+          subAgencyId: data.subAgencyId || null,
+          balance: 10.0,
+          autoRechargeEnabled: data.enabled,
+          autoRechargeThreshold: data.threshold,
+          autoRechargeAmount: data.amount
+        }
+      })
+    } else {
+      await db.billingWallet.updateMany({
+        where: { id: wallet.id },
+        data: {
+          autoRechargeEnabled: data.enabled,
+          autoRechargeThreshold: data.threshold,
+          autoRechargeAmount: data.amount
+        }
+      })
+    }
+
+    revalidatePath("/settings/billing")
+    return { success: true, wallet }
+  },
+  { role: "admin" }
+)
+
+export const topUpWalletBalance = withAgency(
+  async ({ db, agencyId }, amount: number, subAgencyId?: string) => {
+    if (amount <= 0) throw new Error("Amount must be greater than zero")
+
+    const whereClause: any = subAgencyId ? { subAgencyId } : { agencyId }
+    let wallet = await db.billingWallet.findFirst({ where: whereClause })
+
+    if (!wallet) {
+      wallet = await db.billingWallet.create({
+        data: {
+          agencyId,
+          subAgencyId: subAgencyId || null,
+          balance: amount
+        }
+      })
+    } else {
+      await db.billingWallet.updateMany({
+        where: { id: wallet.id },
+        data: { balance: wallet.balance + amount }
+      })
+    }
+
+    await db.usageLog.create({
+      data: {
+        walletId: wallet.id,
+        type: "manual_topup",
+        amount: 1,
+        cost: amount,
+        markup: 0,
+        description: `Manual balance top-up: +$${amount.toFixed(2)}`
+      }
+    }).catch(() => {})
+
+    revalidatePath("/settings/billing")
+    return { success: true, newBalance: (wallet.balance || 0) + amount }
+  },
+  { role: "admin" }
 )
 
 export const getBYOKSavingsMetrics = withAgency(
