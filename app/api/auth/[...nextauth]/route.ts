@@ -41,21 +41,23 @@ export const authOptions: NextAuthOptions = {
           return null
         }
         
+        const cleanEmail = credentials.email.trim().toLowerCase()
+        const cleanPassword = credentials.password.trim()
+
         // 1. Check PlatformAdmin
-        const admin = await db.platformAdmin.findUnique({
-          where: { email: credentials.email }
+        const admin = await db.platformAdmin.findFirst({
+          where: { email: { equals: cleanEmail, mode: "insensitive" } }
         })
         
         if (admin && admin.passwordHash) {
-          // Only bcrypt comparison is accepted — plaintext fallback removed intentionally
-          const isValid = await bcrypt.compare(credentials.password, admin.passwordHash).catch(() => false)
+          const isValid = await bcrypt.compare(cleanPassword, admin.passwordHash).catch(() => false)
           const isActive = admin.status === "active"
 
           if (isValid && isActive) {
             await db.platformAdmin.update({
               where: { id: admin.id },
               data: { lastLoginAt: new Date() }
-            })
+            }).catch(() => {})
             
             return { 
               id: admin.id, 
@@ -68,26 +70,23 @@ export const authOptions: NextAuthOptions = {
         }
         
         // 2. Check User (Tenant)
-        const user = await db.user.findUnique({
-          where: { email: credentials.email }
+        const user = await db.user.findFirst({
+          where: { email: { equals: cleanEmail, mode: "insensitive" } }
         })
 
-        if (!user || !user.passwordHash) {
-          return null
-        }
+        if (user && user.passwordHash) {
+          const isValidUser = await bcrypt.compare(cleanPassword, user.passwordHash).catch(() => false)
 
-        // Only bcrypt comparison is accepted — plaintext fallback removed intentionally
-        const isValidUser = await bcrypt.compare(credentials.password, user.passwordHash).catch(() => false)
-
-        if (isValidUser) {
-          return { 
-            id: user.id, 
-            name: user.name, 
-            email: user.email, 
-            role: user.role, 
-            isAfricaUser: user.isAfricaUser,
-            agencyId: user.agencyId
-          } as any
+          if (isValidUser) {
+            return { 
+              id: user.id, 
+              name: user.name, 
+              email: user.email, 
+              role: user.role, 
+              isAfricaUser: user.isAfricaUser,
+              agencyId: user.agencyId
+            } as any
+          }
         }
 
         return null
