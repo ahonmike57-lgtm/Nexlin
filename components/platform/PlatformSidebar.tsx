@@ -45,7 +45,7 @@ const allRoutes: RouteItem[] = [
     label: "Global Revenue & Billing",
     icon: DollarSign,
     href: "/platform/revenue",
-    roles: ["owner"],
+    roles: ["owner", "developer"],
   },
   {
     label: "AI Usage & API Costs",
@@ -99,7 +99,7 @@ const allRoutes: RouteItem[] = [
     label: "Administrators",
     icon: ShieldAlert,
     href: "/platform/admins",
-    roles: ["owner"],
+    roles: ["owner", "developer"],
   },
   {
     label: "Prospecting Scanner",

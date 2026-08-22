@@ -22,7 +22,7 @@ export async function getCurrentPlatformAdmin() {
  * 1. Global Revenue & SaaS Subscription Metrics (Access: Owner only)
  */
 export async function getPlatformRevenueMetrics() {
-  const auth = await requirePlatformAuth(["owner"])
+  const auth = await requirePlatformAuth(["owner", "developer"])
   if (!auth.authorized) {
     return { success: false, error: auth.error }
   }

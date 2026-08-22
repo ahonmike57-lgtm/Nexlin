@@ -11,7 +11,7 @@ export default async function PlatformRevenuePage() {
         <ShieldAlert className="w-12 h-12 text-error mx-auto mb-3" />
         <h2 className="text-xl font-bold">Access Restricted</h2>
         <p className="text-sm text-text-secondary mt-1">
-          Financial & Revenue metrics are strictly restricted to Platform Owners.
+          Financial & Revenue metrics are strictly restricted to Platform Owners & Developers.
         </p>
       </div>
     )
