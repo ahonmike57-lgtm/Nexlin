@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache"
 import { db as prisma } from "@/lib/db"
-
 import { getSession } from "@/lib/auth"
 
 export async function getMediaFiles(agencyId: string) {
@@ -21,21 +20,24 @@ export async function getMediaFiles(agencyId: string) {
   }
 }
 
-export async function uploadMockMedia(agencyId: string, name: string, size: number, type: string) {
+export async function uploadMediaFile(agencyId: string, data: {
+  name: string
+  size: number
+  type: string
+  url: string
+}) {
   try {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
     const targetAgencyId = session.user.agencyId || agencyId
 
-    const mockUrl = `https://storage.example.com/${targetAgencyId}/${name}`
-    
     const file = await prisma.mediaFile.create({
       data: {
         agencyId: targetAgencyId,
-        name,
-        size,
-        type,
-        url: mockUrl,
+        name: data.name,
+        size: data.size,
+        type: data.type,
+        url: data.url,
       }
     })
 
@@ -44,6 +46,11 @@ export async function uploadMockMedia(agencyId: string, name: string, size: numb
   } catch (error: any) {
     return { success: false, error: error.message }
   }
+}
+
+export async function uploadMockMedia(agencyId: string, name: string, size: number, type: string) {
+  const mockUrl = `https://storage.example.com/${agencyId}/${name}`
+  return uploadMediaFile(agencyId, { name, size, type, url: mockUrl })
 }
 
 export async function deleteMediaFile(fileId: string) {

@@ -1,23 +1,16 @@
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+export const dynamic = 'force-dynamic'
+
 import { redirect } from "next/navigation"
-import { db as prisma } from "@/lib/db"
+import { getSession } from "@/lib/auth"
+import { getOrCreateAgency } from "@/app/actions/agency"
 import AffiliatesClient from "./AffiliatesClient"
 
 export default async function AffiliatesPage() {
-  const session = await getServerSession(authOptions)
-  
-  if (!session?.user?.email) {
+  const session = await getSession()
+  if (!session?.user?.id) {
     redirect("/login")
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  })
-
-  if (!user || !user.agencyId) {
-    return <div>Agency access required.</div>
-  }
-
-  return <AffiliatesClient agencyId={user.agencyId} />
+  const agencyId = await getOrCreateAgency()
+  return <AffiliatesClient agencyId={agencyId} />
 }
