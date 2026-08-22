@@ -315,10 +315,12 @@ export default function DashboardLayoutClient({
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-8">{children}</main>
+        <main className={`flex-1 overflow-y-auto ${pathname === "/chat" ? "p-4 sm:p-5" : "p-8"}`}>{children}</main>
 
-        {/* Global Omni-Inbox Floating Drawer */}
-        <OmniChatDrawer />
+        {/* Global Omni-Inbox Floating Drawer (Hidden when on dedicated /chat page) */}
+        {pathname !== "/chat" && !pathname.startsWith("/chat/") && (
+          <OmniChatDrawer />
+        )}
       </div>
     </div>
   )

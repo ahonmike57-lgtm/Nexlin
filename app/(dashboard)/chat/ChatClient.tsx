@@ -1,35 +1,50 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import Link from "next/link"
 import {
-  MessageCircle, Mail, MessageSquare, Check, X, Loader2,
-  ChevronRight, ArrowLeft, ShieldCheck, Inbox as InboxIcon,
-  Search, MoreHorizontal, Send, Plus, Sparkles
+  MessageCircle,
+  Mail,
+  MessageSquare,
+  Check,
+  X,
+  Loader2,
+  ChevronRight,
+  ShieldCheck,
+  Inbox as InboxIcon,
+  Search,
+  MoreHorizontal,
+  Send,
+  Plus,
+  Sparkles,
+  User,
+  Phone,
+  ExternalLink,
+  ChevronDown
 } from "lucide-react"
-import { getMessages, sendMessage, createConversation, createQuickContactAndConversation, resolveMetaWhatsappError } from "@/app/actions/chat"
-import { saveChannelCredentials, getChannelCredentials } from "@/app/actions/channel-credentials"
+import {
+  getMessages,
+  sendMessage,
+  createQuickContactAndConversation,
+} from "@/app/actions/chat"
+import { saveChannelCredentials } from "@/app/actions/channel-credentials"
 import { generateAiReply } from "@/app/actions/ai"
 import { toast } from "sonner"
-
-const PALETTE = {
-  base: '#0B0E1A',
-  panel: '#12172A',
-  elevated: '#1B2138',
-  border: '#262D4A',
-  blue: '#1A3CFF',
-  gold: '#F5A623',
-  whatsapp: '#25D366',
-  google: '#4285F4',
-  microsoft: '#00A4EF',
-  textPrimary: '#F2F4FA',
-  textSecondary: '#8B93B0',
-  textTertiary: '#5A6180',
-}
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import { format } from "date-fns"
 
 function ChannelIcon({ channel, size = 16 }: { channel: string; size?: number }) {
-  if (channel === 'whatsapp') return <MessageCircle size={size} style={{ color: PALETTE.whatsapp }} />
-  if (channel === 'email') return <Mail size={size} style={{ color: PALETTE.google }} />
-  return <MessageSquare size={size} style={{ color: PALETTE.blue }} />
+  if (channel === "whatsapp") return <MessageCircle size={size} className="text-emerald-500" />
+  if (channel === "email") return <Mail size={size} className="text-amber-500" />
+  return <MessageSquare size={size} className="text-primary" />
 }
 
 function StepDots({ total, current }: { total: number; current: number }) {
@@ -38,38 +53,38 @@ function StepDots({ total, current }: { total: number; current: number }) {
       {Array.from({ length: total }).map((_, i) => (
         <span
           key={i}
-          style={{
-            width: i === current ? 18 : 6,
-            height: 6,
-            borderRadius: 9999,
-            backgroundColor: i <= current ? PALETTE.whatsapp : PALETTE.border,
-            transition: 'all 0.2s ease',
-            display: 'inline-block',
-          }}
+          className={`h-1.5 rounded-full transition-all duration-200 ${
+            i <= current ? "bg-primary w-4" : "bg-border w-1.5"
+          }`}
         />
       ))}
     </div>
   )
 }
 
-function WhatsAppWizard({ onClose, onConnected }: { onClose: () => void; onConnected: (phoneNumberId: string, token: string) => void }) {
+function WhatsAppWizard({
+  onClose,
+  onConnected
+}: {
+  onClose: () => void
+  onConnected: (phoneNumberId: string, token: string) => void
+}) {
   const [step, setStep] = useState(0)
-  const [flow, setFlow] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [portfolio, setPortfolio] = useState('')
-  const [waba, setWaba] = useState('')
-  const [phone, setPhone] = useState('')
+  const [phone, setPhone] = useState("")
   const [otpSent, setOtpSent] = useState(false)
-  const [otp, setOtp] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [phoneNumberId, setPhoneNumberId] = useState('')
-  const [accessToken, setAccessToken] = useState('')
-  const totalSteps = 6
+  const [otp, setOtp] = useState("")
+  const [phoneNumberId, setPhoneNumberId] = useState("")
+  const [accessToken, setAccessToken] = useState("")
+  const totalSteps = 4
 
   function goNext() {
     if (step === 1) {
       setLoading(true)
-      setTimeout(() => { setLoading(false); setStep(2) }, 1100)
+      setTimeout(() => {
+        setLoading(false)
+        setStep(2)
+      }, 1000)
       return
     }
     setStep((s) => Math.min(s + 1, totalSteps - 1))
@@ -81,13 +96,13 @@ function WhatsAppWizard({ onClose, onConnected }: { onClose: () => void; onConne
   }
 
   return (
-    <div className="modal-enter w-full max-w-lg rounded-2xl overflow-hidden" style={{ backgroundColor: PALETTE.panel, border: `1px solid ${PALETTE.border}` }}>
-      <div className="flex items-center justify-between px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+    <div className="w-full max-w-lg rounded-2xl overflow-hidden bg-bg-primary border border-border shadow-2xl animate-in zoom-in-95 duration-150">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-bg-secondary/40">
         <div className="flex items-center gap-2.5">
-          <MessageCircle size={20} style={{ color: PALETTE.whatsapp }} />
-          <span className="font-semibold text-base" style={{ color: PALETTE.textPrimary }}>Connect WhatsApp Business</span>
+          <MessageCircle size={20} className="text-emerald-500" />
+          <span className="font-bold text-base text-text-primary">Connect WhatsApp Cloud API</span>
         </div>
-        <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg" style={{ color: PALETTE.textSecondary }}>
+        <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary">
           <X size={18} />
         </button>
       </div>
@@ -98,312 +113,136 @@ function WhatsAppWizard({ onClose, onConnected }: { onClose: () => void; onConne
         </div>
       )}
 
-      <div className="px-6 py-6 min-h-[280px] flex flex-col">
+      <div className="p-6 space-y-4">
         {step === 0 && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm mb-1" style={{ color: PALETTE.textSecondary }}>How do you want to bring WhatsApp in?</p>
-            {[
-              { id: 'connect', label: 'Connect an existing WhatsApp Business Account', sub: 'Already set up on Meta — link it here.' },
-              { id: 'create', label: 'Create a new WhatsApp Business Account', sub: 'Start fresh with a new business number.' },
-              { id: 'migrate', label: 'Migrate a number from the WhatsApp Business app', sub: 'Bring your existing conversations into NEXLIN.' },
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => { setFlow(opt.id); setStep(1) }}
-                className="text-left px-4 py-3.5 rounded-xl transition-colors"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}` }}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm" style={{ color: PALETTE.textPrimary }}>{opt.label}</span>
-                  <ChevronRight size={16} style={{ color: PALETTE.textTertiary }} />
-                </div>
-                <p className="text-xs mt-1" style={{ color: PALETTE.textTertiary }}>{opt.sub}</p>
-              </button>
-            ))}
+          <div className="space-y-4">
+            <p className="text-xs text-text-secondary">
+              Connect your Meta Business WhatsApp number to send and receive WhatsApp messages directly in Nexlin.
+            </p>
+            <div className="p-4 rounded-xl border border-border bg-bg-secondary/30 space-y-2">
+              <span className="text-xs font-bold text-text-primary">Prerequisites:</span>
+              <ul className="text-xs text-text-secondary list-disc pl-4 space-y-1">
+                <li>Meta Developer Account & App ID</li>
+                <li>WhatsApp Business Phone Number ID</li>
+                <li>System User Permanent Access Token</li>
+              </ul>
+            </div>
+            <Button onClick={() => setStep(1)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
+              Start WhatsApp Setup
+            </Button>
           </div>
         )}
 
         {step === 1 && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center">
-            {loading ? (
-              <>
-                <Loader2 size={28} className="animate-spin" style={{ color: '#1877F2' }} />
-                <p className="text-sm" style={{ color: PALETTE.textSecondary }}>Redirecting to Meta...</p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm max-w-xs" style={{ color: PALETTE.textSecondary }}>
-                  You'll log in and accept Meta's terms for the WhatsApp Business Platform. This opens in a secure Meta window.
-                </p>
-                <button
-                  onClick={goNext}
-                  className="flex items-center gap-2.5 px-5 py-3 rounded-lg font-medium text-sm"
-                  style={{ backgroundColor: '#1877F2', color: '#FFFFFF' }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                  Continue with Facebook
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="flex flex-col gap-4">
+          <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>Meta Business Portfolio</label>
-              <div className="flex flex-col gap-2">
-                {['Pixelis Lab Dealership Partners', '+ Create new Business Portfolio'].map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPortfolio(p)}
-                    className="text-left px-4 py-2.5 rounded-lg text-sm"
-                    style={{
-                      backgroundColor: portfolio === p ? 'rgba(26,60,255,0.12)' : PALETTE.elevated,
-                      border: portfolio === p ? `1px solid ${PALETTE.blue}` : `1px solid ${PALETTE.border}`,
-                      color: PALETTE.textPrimary,
-                    }}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {portfolio && (
-              <div>
-                <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>WhatsApp Business Account</label>
-                <div className="flex flex-col gap-2">
-                  {['Rodriguez Auto Sales — WABA', '+ Create new WhatsApp Business Account'].map((w) => (
-                    <button
-                      key={w}
-                      onClick={() => setWaba(w)}
-                      className="text-left px-4 py-2.5 rounded-lg text-sm"
-                      style={{
-                        backgroundColor: waba === w ? 'rgba(26,60,255,0.12)' : PALETTE.elevated,
-                        border: waba === w ? `1px solid ${PALETTE.blue}` : `1px solid ${PALETTE.border}`,
-                        color: PALETTE.textPrimary,
-                      }}
-                    >
-                      {w}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="flex flex-col gap-3">
-            <label className="text-xs font-medium" style={{ color: PALETTE.textSecondary }}>Business phone number</label>
-            <div className="flex gap-2">
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 (214) 555-0142"
-                className="flex-1 px-4 py-2.5 rounded-lg outline-none font-mono text-sm"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-              />
-              <button
-                onClick={handleSendCode}
-                disabled={phone.trim().length < 7}
-                className="px-4 py-2.5 rounded-lg font-medium text-sm disabled:opacity-40"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-              >
-                Send code
-              </button>
-            </div>
-            {otpSent && (
-              <div className="mt-2">
-                <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>
-                  Enter the 6-digit code sent to {phone}
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="000000"
-                  className="w-32 px-4 py-2.5 rounded-lg outline-none font-mono text-lg tracking-widest text-center"
-                  style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="flex flex-col gap-4">
-            <div>
-              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>WhatsApp Business display name</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Rodriguez Auto Sales"
-                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-              />
-              <p className="text-xs mt-2" style={{ color: PALETTE.textTertiary }}>
-                Subject to review by Meta — approval usually lands within a few hours.
-              </p>
-            </div>
-            <div>
-              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>Meta Phone Number ID</label>
-              <input
-                type="text"
+              <label className="block text-xs font-semibold text-text-secondary uppercase mb-1">WhatsApp Phone Number ID</label>
+              <Input
+                placeholder="e.g. 104829104829104"
                 value={phoneNumberId}
-                onChange={(e) => setPhoneNumberId(e.target.value)}
-                placeholder="109283746501928"
-                className="w-full px-4 py-2.5 rounded-lg outline-none font-mono text-sm"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+                onChange={e => setPhoneNumberId(e.target.value)}
+                className="text-xs font-mono bg-bg-secondary/50"
               />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-2" style={{ color: PALETTE.textSecondary }}>Meta Permanent Access Token</label>
-              <input
+              <label className="block text-xs font-semibold text-text-secondary uppercase mb-1">Permanent Access Token</label>
+              <Input
                 type="password"
-                value={accessToken}
-                onChange={(e) => setAccessToken(e.target.value)}
                 placeholder="EAAG..."
-                className="w-full px-4 py-2.5 rounded-lg outline-none font-mono text-sm"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
+                value={accessToken}
+                onChange={e => setAccessToken(e.target.value)}
+                className="text-xs font-mono bg-bg-secondary/50"
               />
             </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={onClose} className="flex-1 text-xs">Cancel</Button>
+              <Button
+                onClick={() => {
+                  if (phoneNumberId && accessToken) {
+                    onConnected(phoneNumberId, accessToken)
+                  } else {
+                    toast.error("Please fill in both Phone ID and Token")
+                  }
+                }}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+              >
+                Save & Connect
+              </Button>
+            </div>
           </div>
-        )}
-
-        {step === 5 && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm mb-1" style={{ color: PALETTE.textSecondary }}>NEXLIN is requesting:</p>
-            {[
-              'WhatsApp Business Management — create and manage your WABA',
-              'Business Asset Management — associate this phone number and templates',
-              'Webhook Management — configure message and status webhooks automatically',
-            ].map((perm) => (
-              <div key={perm} className="flex items-start gap-2.5 px-4 py-2.5 rounded-lg" style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}` }}>
-                <ShieldCheck size={16} style={{ color: PALETTE.whatsapp, marginTop: 2, flexShrink: 0 }} />
-                <span className="text-sm" style={{ color: PALETTE.textPrimary }}>{perm}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="px-6 pb-6 flex items-center justify-between">
-        {step > 0 && step < totalSteps - 1 ? (
-          <button onClick={() => setStep((s) => s - 1)} className="flex items-center gap-1.5 text-sm" style={{ color: PALETTE.textSecondary }}>
-            <ArrowLeft size={14} /> Back
-          </button>
-        ) : <span />}
-        {step !== 1 && step < totalSteps - 1 && (
-          <button
-            onClick={step === totalSteps - 2
-              ? () => {
-                  setLoading(true)
-                  setTimeout(() => {
-                    setLoading(false)
-                    onConnected(phoneNumberId || '109283746501928', accessToken || 'EAAG_demo')
-                  }, 900)
-                }
-              : goNext}
-            disabled={
-              (step === 2 && !waba) ||
-              (step === 3 && (!otpSent || otp.length !== 6)) ||
-              (step === 4 && !displayName.trim())
-            }
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm disabled:opacity-40"
-            style={{ backgroundColor: PALETTE.whatsapp, color: '#06301A' }}
-          >
-            {loading && <Loader2 size={15} className="animate-spin" />}
-            {step === totalSteps - 2 ? 'Finish setup' : 'Continue'}
-          </button>
         )}
       </div>
     </div>
   )
 }
 
-function EmailWizard({ onClose, onConnected }: { onClose: () => void; onConnected: (provider: string) => void }) {
-  const [step, setStep] = useState(0)
-  const [provider, setProvider] = useState<string | null>(null)
+function EmailWizard({
+  onClose,
+  onConnected
+}: {
+  onClose: () => void
+  onConnected: (provider: string) => void
+}) {
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  function pick(p: string) {
-    setProvider(p)
+  const handleConnect = (provider: string) => {
+    setSelectedProvider(provider)
     setLoading(true)
-    setTimeout(() => { setLoading(false); setStep(1) }, 800)
+    setTimeout(() => {
+      setLoading(false)
+      onConnected(provider)
+    }, 1200)
   }
-
-  function allow() {
-    setLoading(true)
-    setTimeout(() => { setLoading(false); onConnected(provider!) }, 700)
-  }
-
-  const providerColor = provider === 'google' ? PALETTE.google : PALETTE.microsoft
-  const providerEmail = provider === 'google' ? 'sales@rodriguezautosales.com' : 'sales@rodriguezautosales.onmicrosoft.com'
 
   return (
-    <div className="modal-enter w-full max-w-md rounded-2xl overflow-hidden" style={{ backgroundColor: PALETTE.panel, border: `1px solid ${PALETTE.border}` }}>
-      <div className="flex items-center justify-between px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
+    <div className="w-full max-w-md rounded-2xl overflow-hidden bg-bg-primary border border-border shadow-2xl animate-in zoom-in-95 duration-150">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-bg-secondary/40">
         <div className="flex items-center gap-2.5">
-          <Mail size={20} style={{ color: PALETTE.textPrimary }} />
-          <span className="font-semibold text-base" style={{ color: PALETTE.textPrimary }}>Connect email</span>
+          <Mail size={20} className="text-amber-500" />
+          <span className="font-bold text-base text-text-primary">Connect Email Channel</span>
         </div>
-        <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg" style={{ color: PALETTE.textSecondary }}>
+        <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary">
           <X size={18} />
         </button>
       </div>
 
-      <div className="px-6 py-6 min-h-[200px] flex flex-col justify-center">
-        {step === 0 && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm mb-1" style={{ color: PALETTE.textSecondary }}>Sign in the way you already do — nothing new to set up.</p>
-            <button
-              onClick={() => pick('google')}
-              disabled={loading}
-              className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-lg font-medium text-sm disabled:opacity-60"
-              style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-            >
-              {loading && provider === 'google' ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} style={{ color: PALETTE.google }} />}
-              Continue with Google
-            </button>
-            <button
-              onClick={() => pick('microsoft')}
-              disabled={loading}
-              className="flex items-center justify-center gap-2.5 px-4 py-3 rounded-lg font-medium text-sm disabled:opacity-60"
-              style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-            >
-              {loading && provider === 'microsoft' ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} style={{ color: PALETTE.microsoft }} />}
-              Continue with Microsoft
-            </button>
-          </div>
-        )}
+      <div className="p-6 space-y-4">
+        <p className="text-xs text-text-secondary">
+          Choose your email provider to send and receive support & sales emails in the Omnichannel inbox.
+        </p>
 
-        {step === 1 && (
-          <div className="flex flex-col gap-4">
-            <div className="px-4 py-3 rounded-lg" style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}` }}>
-              <p className="text-xs font-medium mb-2" style={{ color: PALETTE.textSecondary }}>NEXLIN wants to:</p>
-              {['Read and send email on your behalf', 'View your contacts'].map((line) => (
-                <div key={line} className="flex items-center gap-2 py-1">
-                  <Check size={13} style={{ color: providerColor }} />
-                  <span className="text-sm" style={{ color: PALETTE.textPrimary }}>{line}</span>
-                </div>
-              ))}
+        <div className="space-y-3">
+          <button
+            onClick={() => handleConnect("google")}
+            disabled={loading}
+            className="w-full p-3.5 rounded-xl border border-border bg-bg-secondary/40 hover:border-primary flex items-center justify-between transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center font-bold text-xs">G</div>
+              <div>
+                <p className="text-xs font-bold text-text-primary">Google Workspace / Gmail</p>
+                <p className="text-[10px] text-text-secondary">Connect via OAuth 2.0</p>
+              </div>
             </div>
-            <p className="font-mono text-xs text-center" style={{ color: PALETTE.textTertiary }}>{providerEmail}</p>
-            <button
-              onClick={allow}
-              disabled={loading}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm disabled:opacity-60"
-              style={{ backgroundColor: providerColor, color: '#FFFFFF' }}
-            >
-              {loading && <Loader2 size={15} className="animate-spin" />}
-              Allow
-            </button>
-          </div>
-        )}
+            <ChevronRight className="w-4 h-4 text-text-secondary" />
+          </button>
+
+          <button
+            onClick={() => handleConnect("microsoft")}
+            disabled={loading}
+            className="w-full p-3.5 rounded-xl border border-border bg-bg-secondary/40 hover:border-primary flex items-center justify-between transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-600 flex items-center justify-center font-bold text-xs">M</div>
+              <div>
+                <p className="text-xs font-bold text-text-primary">Microsoft 365 / Outlook</p>
+                <p className="text-[10px] text-text-secondary">Connect via Azure AD OAuth</p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-text-secondary" />
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -423,12 +262,14 @@ export default function ChatClient({ initialConversations }: { initialConversati
   const [newPhone, setNewPhone] = useState("")
   const [newChannel, setNewChannel] = useState("sms")
   const [isCreating, setIsCreating] = useState(false)
+  const [outboundChannel, setOutboundChannel] = useState<"sms" | "whatsapp" | "email">("sms")
+
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const [channels, setChannels] = useState({
-    sms: { connected: true, label: '(214) 555-0142' },
-    whatsapp: { connected: initialConversations.some(c => c.channel === 'whatsapp'), label: null as string | null },
-    email: { connected: initialConversations.some(c => c.channel === 'email'), label: null as string | null },
+    sms: { connected: true, label: "+1 (214) 555-0142" },
+    whatsapp: { connected: initialConversations.some(c => c.channel === "whatsapp"), label: null as string | null },
+    email: { connected: initialConversations.some(c => c.channel === "email"), label: null as string | null },
   })
 
   const selected = conversations.find(c => c.id === selectedId) || conversations[0] || null
@@ -438,10 +279,13 @@ export default function ChatClient({ initialConversations }: { initialConversati
     getMessages(selected.id).then(res => {
       if (res.success) setMessages(res.data || [])
     })
+    if (selected.channel) {
+      setOutboundChannel(selected.channel as any)
+    }
   }, [selected?.id])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
   async function handleSend() {
@@ -467,7 +311,7 @@ export default function ChatClient({ initialConversations }: { initialConversati
     } else {
       setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
       setNewMessage(textToSend)
-      toast.error('error' in res ? res.error : "Failed to send message")
+      toast.error("error" in res ? res.error : "Failed to send message")
     }
     setIsSending(false)
   }
@@ -478,6 +322,7 @@ export default function ChatClient({ initialConversations }: { initialConversati
     const res = await generateAiReply("chat", selected.id)
     if (res.success && res.data) {
       setNewMessage(res.data)
+      toast.success("AI Copilot drafted a reply!")
     } else {
       toast.error("AI reply failed")
     }
@@ -486,17 +331,17 @@ export default function ChatClient({ initialConversations }: { initialConversati
 
   async function handleWhatsAppConnected(phoneNumberId: string, token: string) {
     await saveChannelCredentials({ whatsappPhoneNumberId: phoneNumberId, whatsappAccessToken: token })
-    setChannels(c => ({ ...c, whatsapp: { connected: true, label: '+1 (214) 555-0198' } }))
+    setChannels(c => ({ ...c, whatsapp: { connected: true, label: "+1 (214) 555-0198" } }))
     setActiveModal(null)
-    toast.success("WhatsApp Business connected")
+    toast.success("WhatsApp Business connected!")
   }
 
   async function handleEmailConnected(provider: string) {
-    const label = provider === 'google' ? 'sales@rodriguezautosales.com' : 'sales@rodriguezautosales.onmicrosoft.com'
-    await saveChannelCredentials({ emailAddress: label, smtpHost: 'smtp.gmail.com', smtpPort: '587', smtpUser: label })
+    const label = provider === "google" ? "support@youragency.com" : "sales@youragency.onmicrosoft.com"
+    await saveChannelCredentials({ emailAddress: label, smtpHost: "smtp.gmail.com", smtpPort: "587", smtpUser: label })
     setChannels(c => ({ ...c, email: { connected: true, label } }))
     setActiveModal(null)
-    toast.success("Email connected")
+    toast.success("Email channel connected!")
   }
 
   async function handleNewChat(e: React.FormEvent) {
@@ -509,318 +354,379 @@ export default function ChatClient({ initialConversations }: { initialConversati
       setConversations(prev => [conv, ...prev.filter(c => c.id !== conv.id)])
       setSelectedId(conv.id)
       setIsNewChatOpen(false)
-      setNewName(""); setNewPhone("")
+      setNewName("")
+      setNewPhone("")
       toast.success(`${newChannel.toUpperCase()} conversation started`)
     } else {
-      toast.error('error' in res ? res.error : "Failed")
+      toast.error("error" in res ? res.error : "Failed to start conversation")
     }
     setIsCreating(false)
   }
 
   const filteredConversations = conversations.filter(c => {
     if (!searchQuery) return true
-    const name = `${c.contact?.firstName || ''} ${c.contact?.lastName || ''}`.toLowerCase()
-    return name.includes(searchQuery.toLowerCase()) || (c.contact?.phone || '').includes(searchQuery)
+    const name = `${c.contact?.firstName || ""} ${c.contact?.lastName || ""}`.toLowerCase()
+    return name.includes(searchQuery.toLowerCase()) || (c.contact?.phone || "").includes(searchQuery)
   })
 
   return (
-    <>
-      <style>{`
-        @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-        .modal-enter { animation: modalIn 0.18s ease-out; }
-        @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-        .row-in { animation: rowIn 0.2s ease-out; }
-      `}</style>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-text-primary flex items-center gap-2.5">
+            <MessageSquare className="w-8 h-8 text-primary" /> Conversations & Omnichannel Inbox
+          </h1>
+          <p className="text-text-secondary text-sm mt-0.5">
+            Unified multi-channel messaging thread across SMS, WhatsApp, and Email.
+          </p>
+        </div>
 
-      <div className="h-full flex flex-col" style={{ backgroundColor: PALETTE.base }}>
-        {/* Header */}
-        <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
-          <div>
-            <h1 className="font-bold text-xl" style={{ color: PALETTE.textPrimary, fontFamily: "'Syne', sans-serif" }}>Inbox</h1>
-            <p className="text-xs mt-0.5" style={{ color: PALETTE.textSecondary }}>Every conversation, one thread of channels.</p>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsNewChatOpen(true)} className="bg-primary text-white" size="sm">
+            <Plus className="w-4 h-4 mr-1.5" /> New Conversation
+          </Button>
+        </div>
+      </div>
+
+      {/* Main 3-Column Studio */}
+      <div className="h-[calc(100vh-12rem)] min-h-[500px] rounded-2xl border border-border bg-bg-primary overflow-hidden shadow-sm grid grid-cols-1 md:grid-cols-12">
+        {/* Left: Channels Rail (2 cols on md+) */}
+        <div className="md:col-span-3 border-r border-border bg-bg-secondary/30 flex flex-col p-3 gap-2 overflow-y-auto">
+          <span className="text-[10px] font-bold tracking-wider uppercase text-text-secondary px-2 pt-1">
+            Connected Channels
+          </span>
+
+          {/* SMS Channel */}
+          <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-bg-primary shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-text-primary leading-tight">Text / SMS</p>
+                <p className="text-[10px] font-mono text-text-secondary mt-0.5">{channels.sms.label}</p>
+              </div>
+            </div>
+            <Check className="w-3.5 h-3.5 text-primary" />
           </div>
+
+          {/* WhatsApp Channel */}
           <button
-            onClick={() => setIsNewChatOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium"
-            style={{ backgroundColor: PALETTE.blue, color: '#fff' }}
+            onClick={() => !channels.whatsapp.connected && setActiveModal("whatsapp")}
+            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+              channels.whatsapp.connected
+                ? "bg-bg-primary border-border shadow-sm"
+                : "border-dashed border-border hover:border-emerald-500/50 hover:bg-emerald-500/5"
+            }`}
           >
-            <Plus size={14} /> New Chat
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                <MessageCircle className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-text-primary leading-tight">WhatsApp</p>
+                <p className="text-[10px] text-text-secondary mt-0.5">
+                  {channels.whatsapp.connected ? channels.whatsapp.label || "Connected" : "Connect Meta API"}
+                </p>
+              </div>
+            </div>
+            {channels.whatsapp.connected ? (
+              <Check className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-secondary" />
+            )}
+          </button>
+
+          {/* Email Channel */}
+          <button
+            onClick={() => !channels.email.connected && setActiveModal("email")}
+            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+              channels.email.connected
+                ? "bg-bg-primary border-border shadow-sm"
+                : "border-dashed border-border hover:border-amber-500/50 hover:bg-amber-500/5"
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                <Mail className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-text-primary leading-tight">Email</p>
+                <p className="text-[10px] text-text-secondary mt-0.5 truncate max-w-[120px]">
+                  {channels.email.connected ? channels.email.label || "Connected" : "Connect Inbox"}
+                </p>
+              </div>
+            </div>
+            {channels.email.connected ? (
+              <Check className="w-3.5 h-3.5 text-amber-500" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-text-secondary" />
+            )}
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-hidden flex">
-          <div className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '220px 260px 1fr' }}>
+        {/* Middle: Conversation List (4 cols) */}
+        <div className="md:col-span-4 border-r border-border bg-bg-primary flex flex-col overflow-hidden">
+          {/* Search Header */}
+          <div className="p-3 border-b border-border bg-bg-secondary/20">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+              <Input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search conversations..."
+                className="pl-8 h-8 text-xs bg-bg-primary"
+              />
+            </div>
+          </div>
 
-            {/* Channels Rail */}
-            <div className="flex flex-col gap-1.5 p-3 overflow-y-auto" style={{ borderRight: `1px solid ${PALETTE.border}`, backgroundColor: PALETTE.panel }}>
-              <span className="text-[10px] font-semibold tracking-widest uppercase px-1 pb-1 pt-1" style={{ color: PALETTE.textTertiary, fontFamily: "'IBM Plex Mono', monospace" }}>Channels</span>
-
-              {/* SMS — always connected */}
-              <div className="flex items-center justify-between px-2.5 py-2.5 rounded-lg" style={{ backgroundColor: PALETTE.elevated }}>
-                <div className="flex items-center gap-2">
-                  <MessageSquare size={15} style={{ color: PALETTE.blue }} />
-                  <div>
-                    <p className="text-sm font-medium leading-tight" style={{ color: PALETTE.textPrimary }}>Text / SMS</p>
-                    <p className="text-[10px] font-mono mt-0.5" style={{ color: PALETTE.textTertiary }}>{channels.sms.label}</p>
-                  </div>
-                </div>
-                <Check size={13} style={{ color: PALETTE.blue }} />
+          {/* List items */}
+          <div className="flex-1 overflow-y-auto divide-y divide-border">
+            {filteredConversations.length === 0 ? (
+              <div className="p-8 text-center text-text-secondary">
+                <InboxIcon className="w-8 h-8 text-border mx-auto mb-2" />
+                <p className="text-xs font-semibold">No conversations yet</p>
+                <button
+                  onClick={() => setIsNewChatOpen(true)}
+                  className="mt-2 text-xs text-primary hover:underline font-bold"
+                >
+                  + Start a chat
+                </button>
               </div>
+            ) : (
+              filteredConversations.map(c => {
+                const name = c.contact
+                  ? `${c.contact.firstName || ""} ${c.contact.lastName || ""}`.trim() || "Contact"
+                  : "Contact"
+                const preview = c.messages?.[0]?.content || "No messages yet"
+                const time = format(new Date(c.updatedAt), "h:mm a")
+                const isActive = c.id === selectedId
 
-              {/* WhatsApp */}
-              <button
-                onClick={() => !channels.whatsapp.connected && setActiveModal('whatsapp')}
-                className="flex items-center justify-between px-2.5 py-2.5 rounded-lg text-left transition-colors"
-                style={{
-                  backgroundColor: channels.whatsapp.connected ? PALETTE.elevated : 'transparent',
-                  border: channels.whatsapp.connected ? 'none' : `1px dashed ${PALETTE.border}`,
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <MessageCircle size={15} style={{ color: PALETTE.whatsapp }} />
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => setSelectedId(c.id)}
+                    className={`p-3.5 cursor-pointer transition-all flex items-start gap-3 ${
+                      isActive
+                        ? "bg-primary/10 border-l-4 border-l-primary"
+                        : "hover:bg-bg-secondary/40"
+                    }`}
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      <ChannelIcon channel={c.channel} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-xs text-text-primary truncate">{name}</span>
+                        <span className="text-[10px] text-text-secondary shrink-0">{time}</span>
+                      </div>
+                      <p className="text-xs text-text-secondary truncate mt-0.5">{preview}</p>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right: Message Thread & Composer (5 cols) */}
+        <div className="md:col-span-5 flex flex-col bg-bg-primary overflow-hidden">
+          {selected ? (
+            <>
+              {/* Thread Header */}
+              <div className="p-4 border-b border-border bg-bg-secondary/20 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                    {(selected.contact?.firstName || "C").substring(0, 1).toUpperCase()}
+                  </div>
                   <div>
-                    <p className="text-sm font-medium leading-tight" style={{ color: PALETTE.textPrimary }}>WhatsApp</p>
-                    <p className="text-[10px] mt-0.5" style={{ color: PALETTE.textTertiary }}>
-                      {channels.whatsapp.connected ? channels.whatsapp.label : 'Not connected'}
+                    <h3 className="font-bold text-sm text-text-primary">
+                      {selected.contact
+                        ? `${selected.contact.firstName || ""} ${selected.contact.lastName || ""}`.trim() || "Contact"
+                        : "Contact"}
+                    </h3>
+                    <p className="text-[10px] font-mono text-text-secondary">
+                      {selected.contact?.phone || selected.contact?.email || selected.channel.toUpperCase()}
                     </p>
                   </div>
                 </div>
-                {channels.whatsapp.connected
-                  ? <Check size={13} style={{ color: PALETTE.whatsapp }} />
-                  : <ChevronRight size={13} style={{ color: PALETTE.textTertiary }} />}
-              </button>
 
-              {/* Email */}
-              <button
-                onClick={() => !channels.email.connected && setActiveModal('email')}
-                className="flex items-center justify-between px-2.5 py-2.5 rounded-lg text-left transition-colors"
-                style={{
-                  backgroundColor: channels.email.connected ? PALETTE.elevated : 'transparent',
-                  border: channels.email.connected ? 'none' : `1px dashed ${PALETTE.border}`,
-                }}
-              >
                 <div className="flex items-center gap-2">
-                  <Mail size={15} style={{ color: PALETTE.gold }} />
-                  <div>
-                    <p className="text-sm font-medium leading-tight" style={{ color: PALETTE.textPrimary }}>Email</p>
-                    <p className="text-[10px] mt-0.5 truncate max-w-[120px]" style={{ color: PALETTE.textTertiary }}>
-                      {channels.email.connected ? channels.email.label : 'Not connected'}
-                    </p>
-                  </div>
+                  <Link href="/crm/contacts" className="text-text-secondary hover:text-primary p-1.5 rounded-lg border border-border bg-bg-primary text-xs flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" /> CRM
+                  </Link>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAiReply}
+                    disabled={isAiLoading}
+                    className="h-7 text-xs text-primary border-primary/30 hover:bg-primary/10"
+                  >
+                    {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                    AI Reply
+                  </Button>
                 </div>
-                {channels.email.connected
-                  ? <Check size={13} style={{ color: PALETTE.gold }} />
-                  : <ChevronRight size={13} style={{ color: PALETTE.textTertiary }} />}
-              </button>
-            </div>
-
-            {/* Conversation List */}
-            <div className="flex flex-col overflow-hidden" style={{ borderRight: `1px solid ${PALETTE.border}`, backgroundColor: PALETTE.panel }}>
-              <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
-                <Search size={13} style={{ color: PALETTE.textTertiary }} />
-                <input
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search conversations"
-                  className="bg-transparent outline-none text-sm w-full"
-                  style={{ color: PALETTE.textSecondary }}
-                />
               </div>
 
-              <div className="flex-1 overflow-y-auto">
-                {filteredConversations.length === 0 ? (
-                  <div className="px-4 py-10 text-center">
-                    <p className="text-sm" style={{ color: PALETTE.textTertiary }}>No conversations yet.</p>
-                    <button
-                      onClick={() => setIsNewChatOpen(true)}
-                      className="mt-3 text-xs px-3 py-1.5 rounded-lg"
-                      style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textSecondary }}
-                    >
-                      + Start one
-                    </button>
+              {/* Message Timeline */}
+              <div className="flex-1 p-4 space-y-3 overflow-y-auto bg-bg-secondary/10">
+                {messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary">
+                    <MessageSquare className="w-8 h-8 text-border mb-2" />
+                    <p className="text-xs">No message history yet. Send a message below!</p>
                   </div>
-                ) : filteredConversations.map(c => {
-                  const name = c.contact ? `${c.contact.firstName || ''} ${c.contact.lastName || ''}`.trim() || 'Contact' : 'Contact'
-                  const preview = c.messages?.[0]?.content || 'No messages yet'
-                  const time = new Date(c.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  const isActive = c.id === selectedId
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedId(c.id)}
-                      className="row-in w-full text-left px-4 py-3 flex items-start gap-2.5"
-                      style={{
-                        backgroundColor: isActive ? PALETTE.elevated : 'transparent',
-                        borderBottom: `1px solid ${PALETTE.border}`,
-                      }}
-                    >
-                      <div className="mt-0.5 flex-shrink-0">
-                        <ChannelIcon channel={c.channel} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm truncate" style={{ color: PALETTE.textPrimary }}>{name}</span>
-                          <span className="text-[10px] flex-shrink-0 ml-2" style={{ color: PALETTE.textTertiary }}>{time}</span>
-                        </div>
-                        <p className="text-xs truncate mt-0.5" style={{ color: PALETTE.textTertiary }}>{preview}</p>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Thread View */}
-            <div className="flex flex-col overflow-hidden" style={{ backgroundColor: PALETTE.panel }}>
-              {selected ? (
-                <>
-                  {/* Thread Header */}
-                  <div className="flex items-center justify-between px-5 py-3.5 flex-shrink-0" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
-                    <div className="flex items-center gap-2.5">
-                      <ChannelIcon channel={selected.channel} size={18} />
-                      <div>
-                        <span className="font-semibold text-sm" style={{ color: PALETTE.textPrimary, fontFamily: "'Syne', sans-serif" }}>
-                          {selected.contact ? `${selected.contact.firstName || ''} ${selected.contact.lastName || ''}`.trim() || 'Contact' : 'Contact'}
-                        </span>
-                        <p className="text-[10px] font-mono mt-0.5" style={{ color: PALETTE.textTertiary }}>
-                          {selected.contact?.phone || selected.contact?.email || selected.channel.toUpperCase()}
+                ) : (
+                  messages.map((m, i) => (
+                    <div key={m.id || i} className={`flex ${m.isOutbound ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`max-w-[78%] px-4 py-2.5 rounded-2xl shadow-sm text-xs leading-relaxed ${
+                          m.isOutbound
+                            ? "bg-primary text-white rounded-br-none"
+                            : "bg-bg-secondary/80 text-text-primary border border-border rounded-bl-none"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        <p className={`text-[10px] mt-1 text-right ${m.isOutbound ? "text-white/70" : "text-text-secondary"}`}>
+                          {format(new Date(m.createdAt), "h:mm a")}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleAiReply}
-                        disabled={isAiLoading}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
-                        style={{ backgroundColor: 'rgba(26,60,255,0.15)', color: PALETTE.blue, border: `1px solid rgba(26,60,255,0.3)` }}
-                      >
-                        {isAiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                        AI Reply
-                      </button>
-                      <MoreHorizontal size={16} style={{ color: PALETTE.textTertiary }} />
-                    </div>
-                  </div>
+                  ))
+                )}
+                <div ref={bottomRef} />
+              </div>
 
-                  {/* Messages */}
-                  <div className="flex-1 px-5 py-4 flex flex-col gap-3 overflow-y-auto">
-                    {messages.length === 0 ? (
-                      <div className="flex-1 flex items-center justify-center">
-                        <p className="text-sm" style={{ color: PALETTE.textTertiary }}>No messages yet. Send one below.</p>
-                      </div>
-                    ) : messages.map((m, i) => (
-                      <div key={m.id || i} className={`flex ${m.isOutbound ? 'justify-end' : 'justify-start'}`}>
-                        <div
-                          className="max-w-[75%] px-3.5 py-2 rounded-xl"
-                          style={{
-                            backgroundColor: m.isOutbound ? PALETTE.blue : PALETTE.elevated,
-                            color: m.isOutbound ? '#FFFFFF' : PALETTE.textPrimary,
-                          }}
-                        >
-                          <p className="text-sm leading-relaxed">{m.content}</p>
-                          <p className="text-[10px] mt-1 opacity-60">
-                            {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                      </div>
+              {/* Composer */}
+              <div className="p-3 border-t border-border bg-bg-primary space-y-2 flex-shrink-0">
+                {/* Channel Switcher */}
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-text-secondary uppercase">Send Via:</span>
+                    {(["sms", "whatsapp", "email"] as const).map(ch => (
+                      <button
+                        key={ch}
+                        onClick={() => setOutboundChannel(ch)}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-semibold capitalize flex items-center gap-1 transition-colors ${
+                          outboundChannel === ch
+                            ? "bg-primary text-white"
+                            : "bg-bg-secondary text-text-secondary hover:bg-border"
+                        }`}
+                      >
+                        <ChannelIcon channel={ch} size={12} />
+                        {ch.toUpperCase()}
+                      </button>
                     ))}
-                    <div ref={bottomRef} />
                   </div>
-
-                  {/* Composer */}
-                  <div className="px-5 py-3.5 flex-shrink-0" style={{ borderTop: `1px solid ${PALETTE.border}` }}>
-                    <div className="flex items-end gap-2">
-                      <textarea
-                        rows={1}
-                        value={newMessage}
-                        onChange={e => setNewMessage(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                        placeholder={`Reply via ${selected.channel}...`}
-                        className="flex-1 px-4 py-2.5 rounded-lg outline-none text-sm resize-none"
-                        style={{
-                          backgroundColor: PALETTE.elevated,
-                          border: `1px solid ${PALETTE.border}`,
-                          color: PALETTE.textPrimary,
-                          maxHeight: 120,
-                        }}
-                      />
-                      <button
-                        onClick={handleSend}
-                        disabled={isSending || !newMessage.trim()}
-                        className="p-2.5 rounded-lg flex-shrink-0 disabled:opacity-40 transition-opacity"
-                        style={{ backgroundColor: PALETTE.blue, color: '#fff' }}
-                      >
-                        {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                      </button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
-                  <InboxIcon size={28} style={{ color: PALETTE.textTertiary }} />
-                  <p className="text-sm" style={{ color: PALETTE.textTertiary }}>Connect a channel to start seeing conversations here.</p>
                 </div>
-              )}
+
+                <div className="flex items-end gap-2">
+                  <textarea
+                    rows={2}
+                    value={newMessage}
+                    onChange={e => setNewMessage(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSend()
+                      }
+                    }}
+                    placeholder={`Type message via ${outboundChannel.toUpperCase()}... (Press Enter to send)`}
+                    className="flex-1 p-2.5 rounded-xl border border-border bg-bg-secondary/30 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={handleSend}
+                    disabled={isSending || !newMessage.trim()}
+                    className="h-10 w-10 bg-primary text-white rounded-xl shrink-0"
+                  >
+                    {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-text-secondary">
+              <InboxIcon className="w-10 h-10 text-border mb-2" />
+              <p className="text-xs font-semibold">Select a conversation to view message history</p>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
       {/* New Chat Modal */}
       {isNewChatOpen && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }} onClick={() => setIsNewChatOpen(false)}>
-          <div className="modal-enter w-full max-w-sm rounded-2xl overflow-hidden" style={{ backgroundColor: PALETTE.panel, border: `1px solid ${PALETTE.border}` }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${PALETTE.border}` }}>
-              <span className="font-semibold text-sm" style={{ color: PALETTE.textPrimary }}>Start new conversation</span>
-              <button onClick={() => setIsNewChatOpen(false)} style={{ color: PALETTE.textSecondary }}><X size={16} /></button>
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/60 backdrop-blur-xs" onClick={() => setIsNewChatOpen(false)}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden bg-bg-primary border border-border shadow-2xl animate-in zoom-in-95 duration-150" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-bg-secondary/40">
+              <span className="font-bold text-sm text-text-primary">Start New Conversation</span>
+              <button onClick={() => setIsNewChatOpen(false)} className="text-text-secondary hover:text-text-primary"><X size={16} /></button>
             </div>
-            <form onSubmit={handleNewChat} className="px-5 py-4 flex flex-col gap-3">
-              <input
-                placeholder="Contact name"
-                value={newName}
-                onChange={e => setNewName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-              />
-              <input
-                placeholder="Phone or email"
-                value={newPhone}
-                onChange={e => setNewPhone(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm font-mono"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-              />
-              <select
-                value={newChannel}
-                onChange={e => setNewChannel(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg outline-none text-sm"
-                style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textPrimary }}
-              >
-                <option value="sms">💬 SMS</option>
-                <option value="whatsapp">📱 WhatsApp</option>
-                <option value="email">✉️ Email</option>
-              </select>
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setIsNewChatOpen(false)} className="flex-1 py-2.5 rounded-lg text-sm" style={{ backgroundColor: PALETTE.elevated, border: `1px solid ${PALETTE.border}`, color: PALETTE.textSecondary }}>Cancel</button>
-                <button type="submit" disabled={isCreating || !newPhone.trim()} className="flex-1 py-2.5 rounded-lg text-sm font-medium disabled:opacity-40 flex items-center justify-center gap-2" style={{ backgroundColor: PALETTE.blue, color: '#fff' }}>
-                  {isCreating && <Loader2 size={14} className="animate-spin" />}
-                  {isCreating ? 'Creating...' : 'Start Chat'}
-                </button>
+            <form onSubmit={handleNewChat} className="p-5 space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">Contact Name</label>
+                <Input
+                  placeholder="e.g. Sarah Connor"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  className="text-xs bg-bg-secondary/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">Phone Number or Email *</label>
+                <Input
+                  placeholder="+15551234567 or user@example.com"
+                  value={newPhone}
+                  onChange={e => setNewPhone(e.target.value)}
+                  required
+                  className="text-xs font-mono bg-bg-secondary/40"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-text-secondary uppercase mb-1">Channel</label>
+                <select
+                  value={newChannel}
+                  onChange={e => setNewChannel(e.target.value)}
+                  className="w-full h-9 rounded-md border border-border bg-bg-primary px-3 text-xs text-text-primary"
+                >
+                  <option value="sms">💬 Text / SMS</option>
+                  <option value="whatsapp">📱 WhatsApp</option>
+                  <option value="email">✉️ Email</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-border">
+                <Button type="button" variant="ghost" size="sm" onClick={() => setIsNewChatOpen(false)} className="flex-1 text-xs">Cancel</Button>
+                <Button type="submit" size="sm" disabled={isCreating || !newPhone.trim()} className="flex-1 bg-primary text-white text-xs">
+                  {isCreating ? <Loader2 size={14} className="animate-spin mr-1.5" /> : null}
+                  Start Chat
+                </Button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Channel Modals */}
-      {activeModal && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }} onClick={() => setActiveModal(null)}>
+      {/* WhatsApp Modal */}
+      {activeModal === "whatsapp" && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/60 backdrop-blur-xs" onClick={() => setActiveModal(null)}>
           <div onClick={e => e.stopPropagation()}>
-            {activeModal === 'whatsapp' && <WhatsAppWizard onClose={() => setActiveModal(null)} onConnected={handleWhatsAppConnected} />}
-            {activeModal === 'email' && <EmailWizard onClose={() => setActiveModal(null)} onConnected={handleEmailConnected} />}
+            <WhatsAppWizard onClose={() => setActiveModal(null)} onConnected={handleWhatsAppConnected} />
           </div>
         </div>
       )}
-    </>
+
+      {/* Email Modal */}
+      {activeModal === "email" && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50 bg-black/60 backdrop-blur-xs" onClick={() => setActiveModal(null)}>
+          <div onClick={e => e.stopPropagation()}>
+            <EmailWizard onClose={() => setActiveModal(null)} onConnected={handleEmailConnected} />
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
