@@ -1,20 +1,34 @@
-import { getApiKeys } from "@/app/actions/api-keys"
-import { ApiKeyManagement } from "@/components/settings/ApiKeyManagement"
-
 export const dynamic = "force-dynamic"
 
+import { getSession } from "@/lib/auth"
+import { redirect } from "next/navigation"
+import { getApiKeys } from "@/app/actions/api-keys"
+import { getAiSettings } from "@/app/actions/aiSettings"
+import { getMcpConnections } from "@/app/actions/mcp"
+import { getOrCreateAgency } from "@/app/actions/agency"
+import DeveloperHubClient from "./DeveloperHubClient"
+
 export default async function ApiKeysPage() {
-  const res = await getApiKeys()
-  const initialKeys = res.success && res.apiKeys ? res.apiKeys : []
+  const session = await getSession()
+  if (!session?.user?.id) redirect("/login")
+
+  const [keysRes, aiRes, mcpRes, agencyId] = await Promise.all([
+    getApiKeys(),
+    getAiSettings(),
+    getMcpConnections(),
+    getOrCreateAgency()
+  ])
+
+  const initialKeys = keysRes.success && keysRes.apiKeys ? keysRes.apiKeys : []
+  const initialAiSettings = aiRes.settings || []
+  const initialMcpConnections = mcpRes.success && mcpRes.connections ? mcpRes.connections : []
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-text-primary">Developer API Keys</h1>
-        <p className="text-text-secondary text-sm">Manage API tokens for programmatic access to your tenant data.</p>
-      </div>
-
-      <ApiKeyManagement initialKeys={initialKeys} />
-    </div>
+    <DeveloperHubClient
+      initialKeys={initialKeys}
+      initialAiSettings={initialAiSettings}
+      initialMcpConnections={initialMcpConnections}
+      agencyId={agencyId}
+    />
   )
 }
