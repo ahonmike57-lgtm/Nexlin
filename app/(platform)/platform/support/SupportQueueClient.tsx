@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { LifeBuoy, CheckCircle2, Loader2, MessageSquare, AlertCircle } from "lucide-react"
 import { updatePlatformTicketStatus } from "@/app/actions/platform-admin"
 
+import { parseTicketDescription } from "@/lib/support-utils"
+
 interface TicketItem {
   id: string
   title: string
@@ -76,49 +78,53 @@ export function SupportQueueClient({
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {tickets.map((t) => (
-                <div key={t.id} className="py-4 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-text-primary">{t.title}</h4>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                        t.priority === "urgent" ? "bg-red-500/10 text-red-600 dark:text-red-400" :
-                        t.priority === "high" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
-                        "bg-bg-secondary text-text-secondary"
-                      }`}>
-                        {t.priority}
-                      </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                        t.status === "open" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
-                        t.status === "resolved" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                        "bg-bg-secondary text-text-secondary"
-                      }`}>
-                        {t.status}
-                      </span>
+              {tickets.map((t) => {
+                const parsed = parseTicketDescription(t.description)
+
+                return (
+                  <div key={t.id} className="py-4 flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-text-primary">{t.title}</h4>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                          t.priority === "urgent" ? "bg-red-500/10 text-red-600 dark:text-red-400" :
+                          t.priority === "high" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                          "bg-bg-secondary text-text-secondary"
+                        }`}>
+                          {t.priority}
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                          t.status === "open" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
+                          t.status === "resolved" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                          "bg-bg-secondary text-text-secondary"
+                        }`}>
+                          {t.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-text-secondary mt-1 line-clamp-2">{parsed.text || "No details provided."}</p>
+                      <p className="text-[11px] text-text-secondary mt-2 flex items-center gap-2">
+                        <span className="font-semibold text-primary">{t.agency.name}</span>
+                        <span>·</span>
+                        <span>Submitted by {t.contact?.firstName || "Agency Owner"}</span>
+                        <span>·</span>
+                        <span>{new Date(t.createdAt).toLocaleDateString()}</span>
+                      </p>
                     </div>
-                    <p className="text-xs text-text-secondary mt-1 line-clamp-2">{t.description || "No details provided."}</p>
-                    <p className="text-[11px] text-text-secondary mt-2 flex items-center gap-2">
-                      <span className="font-semibold text-primary">{t.agency.name}</span>
-                      <span>·</span>
-                      <span>Submitted by {t.contact?.firstName || "Agency Owner"}</span>
-                      <span>·</span>
-                      <span>{new Date(t.createdAt).toLocaleDateString()}</span>
-                    </p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button 
+                        onClick={() => {
+                          setSelectedTicket(t)
+                          setNewStatus(t.status === "open" ? "resolved" : "open")
+                        }} 
+                        variant="outline" 
+                        size="sm"
+                      >
+                        {t.status === "open" ? "Reply & Resolve" : "Re-open Ticket"}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Button 
-                      onClick={() => {
-                        setSelectedTicket(t)
-                        setNewStatus(t.status === "open" ? "resolved" : "open")
-                      }} 
-                      variant="outline" 
-                      size="sm"
-                    >
-                      {t.status === "open" ? "Reply & Resolve" : "Re-open Ticket"}
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </CardContent>
@@ -136,7 +142,7 @@ export function SupportQueueClient({
           <div className="space-y-4 py-2">
             <div className="p-3 rounded-lg border border-border bg-bg-secondary/40 text-xs text-text-secondary">
               <p className="font-semibold text-text-primary mb-1">Customer Issue:</p>
-              <p>{selectedTicket?.description || "No description provided."}</p>
+              <p>{selectedTicket ? parseTicketDescription(selectedTicket.description).text : "No description provided."}</p>
             </div>
 
             <div>
