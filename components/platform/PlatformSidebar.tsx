@@ -75,13 +75,13 @@ const allRoutes: RouteItem[] = [
     label: "Global Announcements",
     icon: Megaphone,
     href: "/platform/announcements",
-    roles: ["owner", "support"],
+    roles: ["owner", "developer", "support"],
   },
   {
     label: "Support Ticket Queue",
     icon: LifeBuoy,
     href: "/platform/support",
-    roles: ["owner", "support"],
+    roles: ["owner", "developer", "support"],
   },
   {
     label: "System Debug & Logs",
@@ -102,7 +102,7 @@ const allRoutes: RouteItem[] = [
     roles: ["owner"],
   },
   {
-    label: "Prospecting Audit Scanner",
+    label: "Prospecting Scanner",
     icon: Building,
     href: "/platform/prospecting",
     roles: ["owner", "developer", "support"],
