@@ -13,13 +13,13 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
 
   // Local form states
   const [googleKey, setGoogleKey] = useState(settings.find(s => s.provider === "google")?.apiKey || "")
-  const [googleModel, setGoogleModel] = useState(settings.find(s => s.provider === "google")?.modelName || "gemini-3.5-flash")
+  const [googleModel, setGoogleModel] = useState(settings.find(s => s.provider === "google")?.modelName || "gemini-2.0-flash")
 
   const [openAiKey, setOpenAiKey] = useState(settings.find(s => s.provider === "openai")?.apiKey || "")
   const [openAiModel, setOpenAiModel] = useState(settings.find(s => s.provider === "openai")?.modelName || "gpt-4o")
 
   const [anthropicKey, setAnthropicKey] = useState(settings.find(s => s.provider === "anthropic")?.apiKey || "")
-  const [anthropicModel, setAnthropicModel] = useState(settings.find(s => s.provider === "anthropic")?.modelName || "claude-5-sonnet")
+  const [anthropicModel, setAnthropicModel] = useState(settings.find(s => s.provider === "anthropic")?.modelName || "claude-3-5-sonnet-20241022")
 
   const activeProvider = settings.find(s => s.isActive)?.provider || "google"
 
@@ -70,7 +70,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle>OpenAI</CardTitle>
-                <CardDescription>Use models like GPT-4o and GPT-4 Turbo.</CardDescription>
+                <CardDescription>Industry-standard models including GPT-4o, GPT-4o Mini, and o3-mini.</CardDescription>
               </div>
               {activeProvider === 'openai' && <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">Active Default</span>}
             </div>
@@ -92,9 +92,10 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
                 value={openAiModel}
                 onChange={(e) => setOpenAiModel(e.target.value)}
               >
-                <option value="gpt-4o">GPT-4o</option>
+                <option value="gpt-4o">GPT-4o (Omni Flagship)</option>
+                <option value="gpt-4o-mini">GPT-4o Mini (High Speed & Low Cost)</option>
+                <option value="o3-mini">o3-mini (Advanced Reasoning)</option>
                 <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
               </select>
             </div>
             <div className="flex gap-3 pt-2">
@@ -121,7 +122,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle>Anthropic (Claude)</CardTitle>
-                <CardDescription>Use models like Claude 5 Opus, 5 Sonnet, and 4.5 Haiku.</CardDescription>
+                <CardDescription>Frontier models including Claude 3.5 Sonnet, 3.5 Haiku, and 3 Opus.</CardDescription>
               </div>
               {activeProvider === 'anthropic' && <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">Active Default</span>}
             </div>
@@ -143,9 +144,9 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
                 value={anthropicModel}
                 onChange={(e) => setAnthropicModel(e.target.value)}
               >
-                <option value="claude-5-opus">Claude 5 Opus</option>
-                <option value="claude-5-sonnet">Claude 5 Sonnet</option>
-                <option value="claude-4-5-haiku">Claude 4.5 Haiku</option>
+                <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Balanced Leader)</option>
+                <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Ultra Fast)</option>
+                <option value="claude-3-opus-20240229">Claude 3 Opus (Deep Analysis)</option>
               </select>
             </div>
             <div className="flex gap-3 pt-2">
@@ -172,7 +173,7 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle>Google (Gemini)</CardTitle>
-                <CardDescription>Use models like Gemini 3.1 Pro and 3.5 Flash.</CardDescription>
+                <CardDescription>Multimodal models including Gemini 2.0 Flash and Gemini 1.5 Pro.</CardDescription>
               </div>
               {activeProvider === 'google' && <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">Active Default</span>}
             </div>
@@ -194,8 +195,9 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
                 value={googleModel}
                 onChange={(e) => setGoogleModel(e.target.value)}
               >
-                <option value="gemini-3.1-pro">Gemini 3.1 Pro</option>
-                <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Next-Gen Multimodal)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Complex Reasoning)</option>
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Lightweight & Rapid)</option>
               </select>
             </div>
             <div className="flex gap-3 pt-2">

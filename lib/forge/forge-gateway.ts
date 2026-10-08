@@ -27,11 +27,11 @@ export interface ForgeTaskResult {
 
 // Default Task Routing Table Configuration
 const DEFAULT_MODEL_REGISTRY: Record<ForgeTaskType, { primary: string; fallback: string }> = {
-  layout_generation: { primary: "claude-3-5-sonnet", fallback: "gpt-4o" },
-  copywriting: { primary: "claude-3-5-sonnet", fallback: "gpt-4o-mini" },
+  layout_generation: { primary: "claude-3-5-sonnet-20241022", fallback: "gpt-4o" },
+  copywriting: { primary: "claude-3-5-sonnet-20241022", fallback: "gpt-4o-mini" },
   image_generation: { primary: "flux-1-dev", fallback: "dall-e-3" },
-  design_critique: { primary: "gpt-4o-vision", fallback: "claude-3-5-sonnet" },
-  seo_metadata: { primary: "gpt-4o-mini", fallback: "claude-3-haiku" }
+  design_critique: { primary: "gpt-4o", fallback: "claude-3-5-sonnet-20241022" },
+  seo_metadata: { primary: "gpt-4o-mini", fallback: "claude-3-5-haiku-20241022" }
 }
 
 export async function generateForgeTask(

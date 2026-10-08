@@ -17,11 +17,22 @@ export async function getAiSettings() {
       where: { agencyId: auth.agencyId }
     })
 
-    // Mask API keys before returning to client — decrypt only for display masking
-    const masked = settings.map(s => ({
-      ...s,
-      apiKey: s.apiKey ? "••••••••" + decryptConfig(s.apiKey).slice(-4) : "••••••••"
-    }))
+    // Mask API keys before returning to client — safely decrypt only for display masking
+    const masked = settings.map(s => {
+      let last4 = "••••"
+      try {
+        if (s.apiKey) {
+          const dec = decryptConfig(s.apiKey)
+          last4 = dec.slice(-4)
+        }
+      } catch {
+        last4 = s.apiKey ? s.apiKey.slice(-4) : "••••"
+      }
+      return {
+        ...s,
+        apiKey: s.apiKey ? `••••••••${last4}` : "••••••••"
+      }
+    })
 
     return { success: true, settings: masked }
   } catch (error: any) {

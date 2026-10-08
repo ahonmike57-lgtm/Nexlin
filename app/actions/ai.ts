@@ -2,11 +2,32 @@
 
 import { getSession } from "@/lib/auth"
 import { generateText } from "ai"
-import { google } from "@ai-sdk/google"
 import { createOpenAI } from "@ai-sdk/openai"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { db } from "@/lib/db"
 import { getOrCreateAgency } from "./agency"
+import { decryptConfig } from "@/lib/encryption"
+
+// Model normalization mapping to handle legacy or informal model names
+const MODEL_ALIASES: Record<string, string> = {
+  // Anthropic
+  "claude-5-sonnet": "claude-3-5-sonnet-20241022",
+  "claude-5-opus": "claude-3-opus-20240229",
+  "claude-4-5-haiku": "claude-3-5-haiku-20241022",
+  "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
+  "claude-3-haiku": "claude-3-5-haiku-20241022",
+  // Google
+  "gemini-3.5-flash": "gemini-2.0-flash",
+  "gemini-3.1-pro": "gemini-1.5-pro",
+  "gemini-2-flash": "gemini-2.0-flash",
+  "gemini-flash": "gemini-2.0-flash",
+  "gemini-pro": "gemini-1.5-pro"
+}
+
+function normalizeModelName(rawModel: string): string {
+  if (!rawModel) return ""
+  return MODEL_ALIASES[rawModel.toLowerCase().trim()] || rawModel
+}
 
 export async function generateAiReply(context: string, prompt: string, requestedProviderAndModel?: string) {
   try {
@@ -28,12 +49,12 @@ export async function generateAiReply(context: string, prompt: string, requested
     const cleanKey = (k: string | undefined) => {
       if (!k) return ""
       if (k === "1234567890" || k.includes("your-") || k.includes("YOUR_") || k === "placeholder") return ""
-      return k
+      return k.trim()
     }
 
-    // Default top-level env variables
+    // Default top-level env variables (support both GOOGLE_GENERATIVE_AI_API_KEY and GEMINI_API_KEY)
     const envKeys = {
-      google: cleanKey(process.env.GOOGLE_GENERATIVE_AI_API_KEY),
+      google: cleanKey(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY),
       openai: cleanKey(process.env.OPENAI_API_KEY),
       anthropic: cleanKey(process.env.ANTHROPIC_API_KEY)
     }
@@ -42,26 +63,36 @@ export async function generateAiReply(context: string, prompt: string, requested
     let modelName = ""
     let apiKey = ""
 
+    // Helper to safely decrypt agency key or fallback to raw
+    const getDecryptedKey = (rawKey: string): string => {
+      try {
+        return decryptConfig(rawKey)
+      } catch {
+        return rawKey
+      }
+    }
+
     // Helper to try setting the provider based on priority list
     const trySetProvider = (priorityList: string[]) => {
+      // 1. Try Agency-configured keys
       for (const p of priorityList) {
         const agencyConf = agencyKeys[p as keyof typeof agencyKeys]
         if (agencyConf?.apiKey) {
           provider = p
-          modelName = agencyConf.modelName
-          apiKey = agencyConf.apiKey
+          modelName = normalizeModelName(agencyConf.modelName)
+          apiKey = getDecryptedKey(agencyConf.apiKey)
           return true
         }
       }
       
-      // If agency has no valid keys for these, try env vars
+      // 2. Fallback to server Environment Variables
       for (const p of priorityList) {
         const envKey = envKeys[p as keyof typeof envKeys]
         if (envKey) {
           provider = p
           if (p === "openai") modelName = "gpt-4o"
-          if (p === "anthropic") modelName = "claude-5-sonnet"
-          if (p === "google") modelName = "gemini-3.5-flash"
+          if (p === "anthropic") modelName = "claude-3-5-sonnet-20241022"
+          if (p === "google") modelName = "gemini-2.0-flash"
           apiKey = envKey
           return true
         }
@@ -69,27 +100,57 @@ export async function generateAiReply(context: string, prompt: string, requested
       return false
     }
 
-    // Task-Based Routing Hierarchy
     let found = false
-    if (context === "landing_page" || context === "deal_insights" || context === "workflow_generator" || context === "form_generator" || context === "field_optimizer") {
-      found = trySetProvider(["anthropic", "openai", "google"])
-    } else if (context === "marketing") {
-      found = trySetProvider(["openai", "anthropic", "google"])
-    } else {
-      // Chat or default
-      found = trySetProvider(["google", "openai", "anthropic"])
+
+    // Explicit Provider / Model Request Override
+    if (requestedProviderAndModel) {
+      const parts = requestedProviderAndModel.split(":")
+      const reqProvider = parts[0]?.toLowerCase().trim()
+      const reqModel = parts[1]?.trim()
+
+      if (reqProvider && ["openai", "anthropic", "google"].includes(reqProvider)) {
+        const agencyConf = agencyKeys[reqProvider as keyof typeof agencyKeys]
+        const envKey = envKeys[reqProvider as keyof typeof envKeys]
+        
+        if (agencyConf?.apiKey) {
+          provider = reqProvider
+          modelName = reqModel ? normalizeModelName(reqModel) : normalizeModelName(agencyConf.modelName)
+          apiKey = getDecryptedKey(agencyConf.apiKey)
+          found = true
+        } else if (envKey) {
+          provider = reqProvider
+          modelName = reqModel ? normalizeModelName(reqModel) : (
+            reqProvider === "openai" ? "gpt-4o" :
+            reqProvider === "anthropic" ? "claude-3-5-sonnet-20241022" : "gemini-2.0-flash"
+          )
+          apiKey = envKey
+          found = true
+        }
+      }
     }
 
-    // Ultimate fallback if absolutely nothing is found
+    // Task-Based Routing Hierarchy (if not overridden)
+    if (!found) {
+      if (context === "landing_page" || context === "deal_insights" || context === "workflow_generator" || context === "form_generator" || context === "field_optimizer" || context === "snapshot_generator") {
+        found = trySetProvider(["anthropic", "openai", "google"])
+      } else if (context === "marketing" || context === "sales_coach" || context === "lead_enrichment") {
+        found = trySetProvider(["openai", "anthropic", "google"])
+      } else {
+        // Chat, voice simulator, forge or default
+        found = trySetProvider(["google", "openai", "anthropic"])
+      }
+    }
+
+    // Ultimate fallback if absolutely nothing is configured
     if (!found) {
       provider = "google"
-      modelName = "gemini-3.5-flash"
+      modelName = "gemini-2.0-flash"
       apiKey = ""
     }
 
     if (!apiKey) {
       console.warn(`No API key found for ${provider}, falling back to mock response.`)
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await new Promise(resolve => setTimeout(resolve, 800))
       let response = "Here is some AI generated text based on your prompt."
       if (context === "chat") {
         response = "Thank you for reaching out! We've received your message and our team will get back to you shortly."
@@ -97,6 +158,29 @@ export async function generateAiReply(context: string, prompt: string, requested
         response = "Unlock Your Business Potential! \n\nHey there, \n\nAre you looking to scale your business? We just launched our newest feature designed to double your conversions..."
       } else if (context === "landing_page") {
         response = `Here is some high-converting copy based on your prompt:\n\n**Headline:** Transform Your Workflow Today\n**Subheadline:** Discover the tools that top teams use to save hours every week.\n**Call to Action:** Get Started for Free`
+      } else if (context === "sales_coach") {
+        response = JSON.stringify({
+          objectionScore: 88,
+          valuePropScore: 85,
+          closingScore: 82,
+          overallScore: 85,
+          grade: "A-",
+          executiveSummary: "Strong presentation of ROI and platform capabilities. Rep maintained consultative tone throughout.",
+          keyStrengths: ["Clear differentiation against legacy tools", "Active listening on integration bottlenecks"],
+          actionableTips: ["Tighten closing call-to-action", "Anchor pricing earlier in the qualification stage"]
+        })
+      } else if (context === "lead_enrichment") {
+        response = JSON.stringify({
+          companyName: "Acme Corp",
+          domain: "acme.com",
+          industry: "B2B SaaS / Growth Tech",
+          employeeRange: "50 - 200 Employees",
+          estimatedRevenue: "$5M - $20M ARR",
+          techStack: ["Next.js", "Stripe", "PostgreSQL", "Twilio", "AWS"],
+          buyerPersona: "VP of Revenue Operations",
+          keyPainPoints: ["High churn during manual onboarding", "Disconnected CRM and voice tools"],
+          suggestedPitch: "Consolidate omnichannel CRM, voice automation, and automated funnel tracking into a unified pipeline."
+        })
       }
       return { success: true, data: response }
     }
@@ -110,6 +194,14 @@ export async function generateAiReply(context: string, prompt: string, requested
       systemPrompt = "You are an expert landing page copywriter. The user wants to build a web page section. Generate concise, compelling copy (headline + subheadline + CTA text) for the following request. Format it clearly."
     } else if (context === "deal_insights") {
       systemPrompt = "You are an expert CRM sales manager AI. Analyze the provided deal and conversation history. Return ONLY a raw JSON object with the following structure: {\"winProbability\": number (0-100), \"summary\": \"string summarizing the relationship\", \"nextAction\": \"string describing the best next action to close the deal\"}. Do not wrap the JSON in markdown code blocks."
+    } else if (context === "sales_coach") {
+      systemPrompt = "You are an executive VP of Sales and master sales coach. Evaluate roleplay sessions with objective scoring, actionable feedback, and closing strategies. Return strictly valid JSON."
+    } else if (context === "lead_enrichment") {
+      systemPrompt = "You are an expert B2B firmographics and market intelligence specialist. Analyze the contact and company data and return strictly valid JSON containing company details, tech stack, pain points, and pitch hooks."
+    } else if (context === "forge") {
+      systemPrompt = "You are Forge AI, an elite Full-Stack Web Designer and Funnel Conversion Architect. Generate high-performance UI sections, compelling marketing copy, and SEO metadata. Return concise JSON or structured content per the requested task."
+    } else if (context === "snapshot_generator") {
+      systemPrompt = "You are an enterprise CRM architect. Generate structured, multi-stage pipelines, funnels, and automated nurture sequences in strictly valid JSON format."
     } else if (context === "workflow_generator") {
       systemPrompt = `You are an expert Automation Architect. The user will describe a workflow they want. 
 You must translate their prompt into a strict JSON object with this exact structure:
