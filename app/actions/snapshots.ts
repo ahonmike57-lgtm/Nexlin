@@ -239,11 +239,7 @@ You must return a raw JSON object (NO MARKDOWN, NO BACKTICKS) with this exact st
     // and we override the prompt (wait, deal_insights forces a specific JSON structure).
     // Let's just import generateText directly for this special case, or assume we added 'snapshot_generator' context.
     
-    // For this implementation, let's just mock the AI parsing step since generateAiReply is rigid,
-    // or we can just create the items based on the prompt heuristically to save AI token time in the demo.
-    
-    // Mocking the AI's parsed JSON for speed and reliability in the prototype
-    const parsedData = {
+    let parsedData = {
       pipelineName: `${prompt} Sales Pipeline`,
       pipelineStages: ["New Lead", "Qualified", "Consultation Booked", "Proposal Sent", "Closed Won"],
       funnelName: `${prompt} Lead Funnel`,
@@ -252,6 +248,37 @@ You must return a raw JSON object (NO MARKDOWN, NO BACKTICKS) with this exact st
       workflowTrigger: "contact_created",
       workflowActions: ["send_email", "wait", "send_sms"]
     };
+
+    try {
+      const aiPrompt = `You are a CRM agency architecture specialist. The user wants a custom snapshot for this industry: "${prompt}".
+Generate a customized CRM architecture in strictly valid JSON format with this exact shape:
+{
+  "pipelineName": "string",
+  "pipelineStages": ["stage 1", "stage 2", "stage 3", "stage 4", "stage 5"],
+  "funnelName": "string",
+  "funnelSteps": ["step 1", "step 2", "step 3"],
+  "workflowName": "string",
+  "workflowTrigger": "contact_created",
+  "workflowActions": ["send_email", "wait", "send_sms"]
+}
+Only return raw JSON.`;
+
+      const aiRes = await generateAiReply("workflow_generator", aiPrompt);
+      if (aiRes.success && aiRes.data) {
+        const cleaned = aiRes.data.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const custom = JSON.parse(cleaned);
+        if (custom.pipelineName && Array.isArray(custom.pipelineStages)) {
+          parsedData = {
+            ...parsedData,
+            ...custom,
+            pipelineStages: custom.pipelineStages.slice(0, 7),
+            funnelSteps: Array.isArray(custom.funnelSteps) ? custom.funnelSteps.slice(0, 5) : parsedData.funnelSteps
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("AI snapshot generation fallback to baseline schema:", e);
+    }
 
     // 1. Create Pipeline
     const createdPipeline = await prisma.pipeline.create({

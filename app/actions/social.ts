@@ -134,6 +134,108 @@ export async function createSocialPost(accountId: string, content: string, sched
   }
 }
 
+export async function publishSocialPostNow(postId: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    const post = await db.socialPost.findFirst({
+      where: { id: postId, agencyId: auth.agencyId },
+      include: { account: true }
+    })
+
+    if (!post) {
+      return { success: false, error: "Post not found" }
+    }
+
+    const token = post.account ? await getDecryptedSocialToken(post.accountId, auth.agencyId) : null
+    const platform = post.account.platform.toLowerCase()
+
+    let dispatchSuccess = false
+    let externalPostId = ""
+
+    if (token && !token.startsWith("mock_")) {
+      try {
+        if (platform === "twitter" || platform === "x") {
+          const res = await fetch("https://api.twitter.com/2/tweets", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ text: post.content })
+          })
+          const data = await res.json()
+          if (data?.data?.id) {
+            dispatchSuccess = true
+            externalPostId = data.data.id
+          }
+        } else if (platform === "facebook" || platform === "instagram") {
+          const res = await fetch(`https://graph.facebook.com/v19.0/me/feed`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: post.content,
+              access_token: token
+            })
+          })
+          const data = await res.json()
+          if (data?.id) {
+            dispatchSuccess = true
+            externalPostId = data.id
+          }
+        } else if (platform === "linkedin") {
+          const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "X-Restli-Protocol-Version": "2.0.0"
+            },
+            body: JSON.stringify({
+              author: `urn:li:person:${post.account.handle.replace('@', '')}`,
+              lifecycleState: "PUBLISHED",
+              specificContent: {
+                "com.linkedin.ugc.ShareContent": {
+                  shareCommentary: { text: post.content },
+                  shareMediaCategory: "NONE"
+                }
+              },
+              visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
+            })
+          })
+          const data = await res.json()
+          if (data?.id) {
+            dispatchSuccess = true
+            externalPostId = data.id
+          }
+        }
+      } catch (e: any) {
+        console.error("Live social dispatch error:", e)
+      }
+    } else {
+      // Sandbox mode
+      dispatchSuccess = true
+    }
+
+    const updated = await db.socialPost.update({
+      where: { id: postId },
+      data: {
+        status: dispatchSuccess ? "published" : "failed",
+        publishedAt: dispatchSuccess ? new Date() : null
+      }
+    })
+
+    revalidatePath("/social")
+    return { success: true, post: updated, externalPostId }
+  } catch (err: any) {
+    console.error("Error publishing social post:", err)
+    return { success: false, error: "Failed to publish post" }
+  }
+}
+
 /**
  * Internal-only: decrypt and return a live OAuth access token for API calls.
  * NEVER returns this to the client.

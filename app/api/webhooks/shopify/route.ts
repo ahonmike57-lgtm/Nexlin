@@ -22,25 +22,42 @@ export async function POST(request: Request) {
 
     const cleanEmail = email.trim().toLowerCase()
 
+    const shopDomain = request.headers.get("x-shopify-shop-domain")?.toLowerCase() || ""
+
     let contact = await db.contact.findFirst({
       where: { email: cleanEmail }
     })
 
     if (!contact) {
-      const agency = await db.agency.findFirst()
-      if (agency) {
-        contact = await db.contact.create({
-          data: {
-            agencyId: agency.id,
-            firstName: body.customer?.first_name || "Shopify",
-            lastName: body.customer?.last_name || "Customer",
-            email: cleanEmail,
-            phone: body.customer?.phone || body.phone,
-            tags: "shopify_customer",
-            leadScore: 50
+      // Resolve agency by matched shop domain or custom domain
+      let agency = null
+      if (shopDomain) {
+        agency = await db.agency.findFirst({
+          where: {
+            OR: [
+              { customDomain: shopDomain },
+              { subdomain: shopDomain.replace(".myshopify.com", "") }
+            ]
           }
         })
       }
+
+      if (!agency) {
+        // Cannot safely attribute new contact without verified agency identifier
+        return NextResponse.json({ error: "Agency not resolved for Shopify store domain" }, { status: 404 })
+      }
+
+      contact = await db.contact.create({
+        data: {
+          agencyId: agency.id,
+          firstName: body.customer?.first_name || "Shopify",
+          lastName: body.customer?.last_name || "Customer",
+          email: cleanEmail,
+          phone: body.customer?.phone || body.phone,
+          tags: "shopify_customer",
+          leadScore: 50
+        }
+      })
     }
 
     if (contact) {

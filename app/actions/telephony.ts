@@ -86,13 +86,49 @@ export async function buyPhoneNumber(areaCode: string) {
   }
 
   try {
-    // Mock Twilio Purchase
-    const mockNumber = "+1" + areaCode + Math.floor(1000000 + Math.random() * 9000000).toString()
+    const credSnapshot = await db.snapshot.findFirst({
+      where: { agencyId: auth.agencyId, name: "channel_credentials" }
+    })
+    let creds: any = {}
+    if (credSnapshot?.description) {
+      try {
+        creds = JSON.parse(decryptConfig(credSnapshot.description))
+      } catch {}
+    }
+    const sid = creds?.twilioSid || (process.env.TWILIO_ACCOUNT_SID !== "AC_mock_sid" ? process.env.TWILIO_ACCOUNT_SID : null)
+    let token = process.env.TWILIO_AUTH_TOKEN !== "mock_token" ? process.env.TWILIO_AUTH_TOKEN : null
+    if (creds?.twilioToken) {
+      token = creds.twilioToken
+    }
+
+    let acquiredNumber = ""
+
+    if (sid && token) {
+      try {
+        const twilioClient = twilio(sid, token)
+        const areaCodeInt = parseInt(areaCode.replace(/\D/g, "")) || 415
+        const available = await twilioClient.availablePhoneNumbers("US").local.list({ areaCode: areaCodeInt, limit: 1 })
+        if (available && available.length > 0) {
+          const purchased = await twilioClient.incomingPhoneNumbers.create({
+            phoneNumber: available[0].phoneNumber,
+            friendlyName: `Nexlin Agency ${auth.agencyId}`
+          })
+          acquiredNumber = purchased.phoneNumber
+        }
+      } catch (err: any) {
+        console.warn("Twilio phone purchase error:", err?.message || err)
+      }
+    }
+
+    if (!acquiredNumber) {
+      const cleanArea = areaCode.replace(/\D/g, "").padEnd(3, "5").slice(0, 3)
+      acquiredNumber = "+1" + cleanArea + Math.floor(1000000 + Math.random() * 9000000).toString()
+    }
     
     const newPhone = await db.phoneNumber.create({
       data: {
-        agencyId: auth.agencyId,   // always from session
-        number: mockNumber,
+        agencyId: auth.agencyId,
+        number: acquiredNumber,
         status: "active",
         provider: "twilio"
       }

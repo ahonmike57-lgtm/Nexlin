@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { withAgency } from "@/lib/tenant"
+import { db } from "@/lib/db"
 import { generateAiReply } from "./ai"
 
 export const getForms = withAgency(async ({ db }) => {
@@ -80,5 +81,74 @@ export async function optimizeFieldLabel(label: string) {
   } catch (error: any) {
     console.error("Failed to optimize field label:", error)
     return { success: false, error: error.message || "Failed to optimize label" }
+  }
+}
+
+export async function getPublicForm(id: string) {
+  try {
+    const form = await db.form.findUnique({
+      where: { id },
+      include: { agency: { select: { id: true, name: true, customDomain: true, subdomain: true } } }
+    })
+    if (!form) return null
+    return {
+      id: form.id,
+      name: form.name,
+      fields: form.fields ? JSON.parse(form.fields) : [],
+      agencyName: form.agency?.name || "Nexlin Partner",
+      agencyId: form.agencyId
+    }
+  } catch (error) {
+    console.error("Error fetching public form:", error)
+    return null
+  }
+}
+
+export async function submitPublicForm(formId: string, values: Record<string, any>) {
+  try {
+    const form = await db.form.findUnique({
+      where: { id: formId }
+    })
+    if (!form) return { success: false, error: "Form not found" }
+
+    const email = values.email || values.Email || null
+    const phone = values.phone || values.Phone || values["Phone Number"] || null
+    const fullName = values.name || values.Name || values["Full Name"] || ""
+    const [firstName, ...rest] = (fullName as string).split(" ")
+    const lastName = rest.join(" ") || values.lastName || values["Last Name"] || ""
+
+    let contact = null
+    if (email) {
+      contact = await db.contact.findFirst({
+        where: { agencyId: form.agencyId, email }
+      })
+    }
+
+    if (!contact) {
+      contact = await db.contact.create({
+        data: {
+          agencyId: form.agencyId,
+          firstName: firstName || "Form",
+          lastName: lastName || "Lead",
+          email,
+          phone,
+          leadScore: 40,
+          tags: `form_submission,${form.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+        }
+      })
+    } else {
+      await db.contact.update({
+        where: { id: contact.id },
+        data: {
+          leadScore: (contact.leadScore || 0) + 15,
+          tags: `${contact.tags || ''},form_submission`
+        }
+      })
+    }
+
+    return { success: true, contactId: contact.id }
+  } catch (error: any) {
+    console.error("Error submitting public form:", error)
+    return { success: false, error: error.message || "Failed to submit form" }
   }
 }

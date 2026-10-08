@@ -5,7 +5,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Globe, Link as LinkIcon, CheckCircle2, AlertCircle, ShieldCheck } from "lucide-react"
-import { updateFunnelDomain } from "@/app/actions/domains"
+import { updateFunnelDomain, checkCustomDomainDns } from "@/app/actions/domains"
+import { toast } from "sonner"
 
 export default function DomainClient({ initialFunnels, agencyId }: { initialFunnels: any[], agencyId: string }) {
   const [funnels, setFunnels] = useState(initialFunnels)
@@ -29,13 +30,28 @@ export default function DomainClient({ initialFunnels, agencyId }: { initialFunn
     setIsAdding(false)
   }
   
-  const handleVerify = (funnelId: string) => {
+  const handleVerify = async (funnelId: string) => {
+    const targetFunnel = funnels.find(f => f.id === funnelId)
+    if (!targetFunnel?.customDomain) {
+      toast.error("No custom domain configured for this funnel")
+      return
+    }
+
     setIsVerifying(funnelId)
-    setTimeout(() => {
+    try {
+      const res = await checkCustomDomainDns(targetFunnel.customDomain)
+      if (res.success && res.status === "configured") {
+        toast.success(`Domain ${targetFunnel.customDomain} is verified and active!`)
+      } else {
+        toast.warning(
+          `Pending DNS records for ${targetFunnel.customDomain}. Ensure CNAME points to cname.vercel-dns.com or A record points to 76.76.21.21.`
+        )
+      }
+    } catch {
+      toast.error("Failed to query DNS nameservers. Please verify internet connection.")
+    } finally {
       setIsVerifying(null)
-      // Mock verification success
-      alert("Domain verified successfully!")
-    }, 2000)
+    }
   }
 
   return (

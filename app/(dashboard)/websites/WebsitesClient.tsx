@@ -24,6 +24,10 @@ export default function WebsitesClient({ initialWebsites, agencyId }: { initialW
     }
   }
 
+  const publishedSites = initialWebsites.filter(w => w.status === "published").length
+  const customDomainCount = initialWebsites.filter(w => w.customDomain).length
+  const totalPages = initialWebsites.reduce((acc, w) => acc + (w.steps?.length || 1), 0)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -43,39 +47,42 @@ export default function WebsitesClient({ initialWebsites, agencyId }: { initialW
         </div>
       </div>
 
-      {/* Overview Stats */}
+      {/* Dynamic Real Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex justify-between mb-2">
-              <h3 className="text-sm font-medium text-text-secondary">Total Site Visitors</h3>
+              <h3 className="text-sm font-medium text-text-secondary">Published Sites</h3>
               <Eye className="w-4 h-4 text-primary" />
             </div>
-            <div className="text-3xl font-bold">124,530</div>
+            <div className="text-3xl font-bold">{publishedSites} <span className="text-xs text-text-secondary font-normal">/ {initialWebsites.length} total</span></div>
             <p className="text-xs text-success flex items-center mt-1">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +22% this month
+              <ArrowUpRight className="w-3 h-3 mr-1" /> Active online
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
             <div className="flex justify-between mb-2">
-              <h3 className="text-sm font-medium text-text-secondary">Avg. Bounce Rate</h3>
-              <MousePointerClick className="w-4 h-4 text-warning" />
-            </div>
-            <div className="text-3xl font-bold">42.8%</div>
-            <p className="text-xs text-success flex items-center mt-1">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> -5.4% this month
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex justify-between mb-2">
-              <h3 className="text-sm font-medium text-text-secondary">Active Domains</h3>
+              <h3 className="text-sm font-medium text-text-secondary">Custom Domains Linked</h3>
               <Globe className="w-4 h-4 text-secondary" />
             </div>
-            <div className="text-3xl font-bold">5</div>
+            <div className="text-3xl font-bold">{customDomainCount}</div>
+            <p className="text-xs text-text-secondary flex items-center mt-1">
+              SSL provisioned
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex justify-between mb-2">
+              <h3 className="text-sm font-medium text-text-secondary">Total Pages &amp; Funnel Steps</h3>
+              <MousePointerClick className="w-4 h-4 text-warning" />
+            </div>
+            <div className="text-3xl font-bold">{totalPages}</div>
+            <p className="text-xs text-text-secondary flex items-center mt-1">
+              Across all sites
+            </p>
           </CardContent>
         </Card>
       </div>

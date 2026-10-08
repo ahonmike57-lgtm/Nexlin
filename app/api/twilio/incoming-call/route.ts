@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { pusherServer } from "@/lib/pusher"
+import { decryptConfig } from "@/lib/encryption"
 
 export async function POST(req: Request) {
   try {
@@ -48,9 +49,21 @@ export async function POST(req: Request) {
       if (existingAgency) targetAgencyId = existingAgency.id
     }
 
-    if (!targetAgencyId) {
-      const defaultAgency = await db.agency.findFirst({ select: { id: true } })
-      if (defaultAgency) targetAgencyId = defaultAgency.id
+    if (!targetAgencyId && accountSid) {
+      const snapshots = await db.snapshot.findMany({
+        where: { name: "channel_credentials" },
+        select: { agencyId: true, description: true }
+      })
+      for (const s of snapshots) {
+        if (!s.description) continue
+        try {
+          const creds = JSON.parse(decryptConfig(s.description)) as any
+          if (creds.twilioSid === accountSid) {
+            targetAgencyId = s.agencyId
+            break
+          }
+        } catch {}
+      }
     }
 
     if (!targetAgencyId) {

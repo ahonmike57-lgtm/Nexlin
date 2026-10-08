@@ -87,3 +87,37 @@ export async function deleteBlogPost(id: string) {
     return { success: false, error: error.message }
   }
 }
+
+export async function getPublicBlogPost(slug: string) {
+  try {
+    const posts = await db.snapshot.findMany({
+      where: { version: "blog_post" },
+      include: { agency: true }
+    })
+
+    const cleanSlug = slug.toLowerCase().trim()
+
+    for (const p of posts) {
+      if (p.description) {
+        try {
+          const meta = JSON.parse(p.description)
+          if (meta.slug === cleanSlug && meta.status === "published") {
+            return {
+              id: p.id,
+              title: p.name,
+              agencyName: p.agency?.name || "Nexlin Partner",
+              agencyId: p.agencyId,
+              ...meta,
+              createdAt: p.createdAt
+            }
+          }
+        } catch {}
+      }
+    }
+    return null
+  } catch (error) {
+    console.error("Error fetching public blog post:", error)
+    return null
+  }
+}
+
