@@ -147,129 +147,242 @@ export default function Home() {
           </motion.div>
 
           {/* Interactive Hero App Interface Preview */}
+          {/* Interactive Laptop Hero Display */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 40 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="mt-16 w-full max-w-5xl rounded-2xl border border-border/80 bg-bg-primary/80 backdrop-blur-2xl shadow-2xl overflow-hidden relative"
+            className="mt-16 w-full max-w-5xl rounded-3xl p-3 sm:p-4 bg-slate-950/90 dark:bg-neutral-950 border border-slate-800 shadow-2xl relative"
           >
-            {/* Top Window Bar */}
-            <div className="p-3.5 border-b border-border bg-bg-secondary/60 flex items-center justify-between px-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                <span className="text-xs font-mono text-text-secondary ml-2 font-medium">nexlin.app/dashboard</span>
-              </div>
-
-              {/* Tab Selector */}
-              <div className="flex items-center gap-1 bg-bg-primary/80 p-1 rounded-lg border border-border text-xs">
-                <button
-                  onClick={() => setActiveHeroTab("pipeline")}
-                  className={`px-3 py-1 rounded-md font-medium transition-all ${
-                    activeHeroTab === "pipeline" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  Sales Pipeline
-                </button>
-                <button
-                  onClick={() => setActiveHeroTab("voice")}
-                  className={`px-3 py-1 rounded-md font-medium transition-all ${
-                    activeHeroTab === "voice" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  Voice AI Routing
-                </button>
-                <button
-                  onClick={() => setActiveHeroTab("cpq")}
-                  className={`px-3 py-1 rounded-md font-medium transition-all ${
-                    activeHeroTab === "cpq" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  CPQ Proposal
-                </button>
+            {/* Laptop Top Bezel with Camera Dot */}
+            <div className="flex items-center justify-center pb-2.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-slate-800 ring-1 ring-slate-700/60 flex items-center justify-center">
+                <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
               </div>
             </div>
 
-            {/* Tab 1: Live Interactive Pipeline */}
-            {activeHeroTab === "pipeline" && (
-              <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-left bg-bg-secondary/30">
-                <div className="p-4 rounded-xl bg-bg-primary border border-border space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-text-secondary uppercase">
-                    <span>New Leads (4)</span>
-                    <Badge variant="outline" className="text-blue-500 bg-blue-500/10">$24,500</Badge>
+            {/* Laptop Inner Screen Frame */}
+            <div className="rounded-2xl border border-border/80 bg-bg-primary/95 backdrop-blur-2xl shadow-inner overflow-hidden text-left">
+              {/* Top Window Bar */}
+              <div className="p-3 border-b border-border bg-bg-secondary/70 flex flex-wrap items-center justify-between gap-3 px-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 mr-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500/80" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
+                    <div className="w-3 h-3 rounded-full bg-green-500/80" />
                   </div>
-                  <div className="p-3 rounded-lg bg-bg-secondary border border-border/80 shadow-sm space-y-1.5">
-                    <div className="font-semibold text-sm">Apex Dynamics</div>
-                    <div className="text-xs text-text-secondary">Enterprise SaaS • $15,000</div>
-                    <Badge variant="outline" className="text-[10px] text-emerald-500 bg-emerald-500/10">🔥 Lead Score: 94</Badge>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-bg-primary border border-primary/30 space-y-3 relative shadow-md">
-                  <div className="flex items-center justify-between text-xs font-bold text-primary uppercase">
-                    <span>Proposal Sent (2)</span>
-                    <Badge variant="outline" className="text-primary bg-primary/10">$48,000</Badge>
-                  </div>
-                  <div className="p-3 rounded-lg bg-primary/5 border border-primary/30 shadow-sm space-y-1.5">
-                    <div className="font-semibold text-sm text-primary">Cyberdyne Systems</div>
-                    <div className="text-xs text-text-secondary">CPQ Quote #1049 • Signed & Verified</div>
-                    <Badge variant="outline" className="text-[10px] text-purple-500 bg-purple-500/10">⚡ Drip Active</Badge>
+                  <div className="bg-bg-primary/80 border border-border/80 rounded-md px-2.5 py-1 text-xs font-mono text-text-secondary flex items-center gap-1.5 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    <span className="font-semibold text-text-primary">nexlin.app</span>/dashboard
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-bg-primary border border-border space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-emerald-500 uppercase">
-                    <span>Closed Won (18)</span>
-                    <Badge variant="outline" className="text-emerald-500 bg-emerald-500/10">$142,850</Badge>
-                  </div>
-                  <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/30 shadow-sm space-y-1.5">
-                    <div className="font-semibold text-sm text-emerald-600 dark:text-emerald-400">Nova Health Clinics</div>
-                    <div className="text-xs text-text-secondary">Annual Retainer • Confetti Triggered 🎉</div>
-                    <Badge variant="outline" className="text-[10px] text-emerald-500 bg-emerald-500/10">Paid via Stripe</Badge>
-                  </div>
+                {/* Tab Selector */}
+                <div className="flex items-center gap-1 bg-bg-secondary p-1 rounded-lg border border-border text-xs">
+                  <button
+                    onClick={() => setActiveHeroTab("pipeline")}
+                    className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                      activeHeroTab === "pipeline" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    Sales Pipeline
+                  </button>
+                  <button
+                    onClick={() => setActiveHeroTab("voice")}
+                    className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                      activeHeroTab === "voice" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    Voice AI Routing
+                  </button>
+                  <button
+                    onClick={() => setActiveHeroTab("cpq")}
+                    className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                      activeHeroTab === "cpq" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    CPQ Proposal
+                  </button>
                 </div>
               </div>
-            )}
 
-            {/* Tab 2: Voice AI Live Audio Router */}
-            {activeHeroTab === "voice" && (
-              <div className="p-8 flex flex-col items-center text-center bg-bg-secondary/20 space-y-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 border-2 border-primary text-primary flex items-center justify-center animate-pulse">
-                  <PhoneCall className="w-8 h-8" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold">Autonomous Inbound Call Porter</h4>
-                  <p className="text-xs text-text-secondary max-w-md mt-1">
-                    Answering inbound calls in &lt; 200ms, transcribing audio with Whisper, qualifying prospect, and dispatching SMS follow-ups.
-                  </p>
-                </div>
-                <div className="p-3 bg-bg-primary rounded-xl border border-border max-w-lg text-left text-xs font-mono text-text-secondary">
-                  <span className="text-primary font-bold">Caller:</span> "Hi, do you have 3 dental clinic licenses available?"<br />
-                  <span className="text-emerald-500 font-bold">Voice AI:</span> "Yes! I can lock in your 20% annual discount and text you the CPQ quote right now."
-                </div>
-              </div>
-            )}
+              {/* Tab 1: Live Interactive Pipeline */}
+              {activeHeroTab === "pipeline" && (
+                <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-left bg-bg-secondary/30">
+                  <div className="p-4 rounded-xl bg-bg-primary border border-border space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-text-secondary uppercase">
+                      <span>New Leads (4)</span>
+                      <Badge variant="outline" className="text-blue-500 bg-blue-500/10 font-bold">$24,500</Badge>
+                    </div>
+                    <div className="p-3.5 rounded-lg bg-bg-secondary border border-border/80 shadow-xs space-y-1.5">
+                      <div className="font-bold text-sm text-text-primary">Apex Dynamics</div>
+                      <div className="text-xs text-text-secondary">Enterprise SaaS • $15,000</div>
+                      <div className="pt-1 flex items-center justify-between">
+                        <Badge variant="outline" className="text-[10px] text-emerald-500 bg-emerald-500/10 font-semibold border-emerald-500/30">
+                          🔥 Lead Score: 94
+                        </Badge>
+                        <span className="text-[10px] text-text-secondary">Just now</span>
+                      </div>
+                    </div>
+                  </div>
 
-            {/* Tab 3: CPQ Proposals */}
-            {activeHeroTab === "cpq" && (
-              <div className="p-8 flex flex-col md:flex-row gap-6 items-center bg-bg-secondary/20 text-left">
-                <div className="flex-1 space-y-2">
-                  <Badge variant="outline" className="text-xs text-emerald-500 bg-emerald-500/10">Dynamic E-Signature Portal</Badge>
-                  <h4 className="text-lg font-bold">Configure, Price, Quote (CPQ)</h4>
-                  <p className="text-xs text-text-secondary leading-relaxed">
-                    Generate professional proposals with embedded digital signatures, payment gates (Stripe & Paystack), and automated deal stage advancement.
-                  </p>
-                </div>
-                <div className="w-full md:w-72 p-4 rounded-xl bg-bg-primary border border-border shadow-lg space-y-2 text-xs">
-                  <div className="font-bold flex justify-between"><span>Proposal #9481</span><span className="text-emerald-500">$9,800.00</span></div>
-                  <div className="text-text-secondary">Client: Apex Global</div>
-                  <div className="h-10 border border-dashed border-border rounded-lg flex items-center justify-center font-cursive text-primary font-semibold">
-                    ✓ Digitally Signed by John Doe
+                  <div className="p-4 rounded-xl bg-bg-primary border-2 border-primary/40 space-y-3 relative shadow-md">
+                    <div className="flex items-center justify-between text-xs font-bold text-primary uppercase">
+                      <span>Proposal Sent (2)</span>
+                      <Badge variant="outline" className="text-primary bg-primary/10 font-bold border-primary/30">$48,000</Badge>
+                    </div>
+                    <div className="p-3.5 rounded-lg bg-primary/5 border border-primary/30 shadow-xs space-y-1.5">
+                      <div className="font-bold text-sm text-primary">Cyberdyne Systems</div>
+                      <div className="text-xs text-text-secondary">CPQ Quote #1049 • Signed & Verified</div>
+                      <div className="pt-1 flex items-center justify-between">
+                        <Badge variant="outline" className="text-[10px] text-purple-500 bg-purple-500/10 font-semibold border-purple-500/30">
+                          ⚡ Drip Active
+                        </Badge>
+                        <span className="text-[10px] text-primary font-medium">Viewing Doc</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-bg-primary border border-border space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-emerald-500 uppercase">
+                      <span>Closed Won (18)</span>
+                      <Badge variant="outline" className="text-emerald-500 bg-emerald-500/10 font-bold border-emerald-500/30">$142,850</Badge>
+                    </div>
+                    <div className="p-3.5 rounded-lg bg-emerald-500/5 border border-emerald-500/30 shadow-xs space-y-1.5">
+                      <div className="font-bold text-sm text-emerald-600 dark:text-emerald-400">Nova Health Clinics</div>
+                      <div className="text-xs text-text-secondary">Annual Retainer • Confetti Triggered 🎉</div>
+                      <div className="pt-1 flex items-center justify-between">
+                        <Badge variant="outline" className="text-[10px] text-emerald-500 bg-emerald-500/10 font-semibold border-emerald-500/30">
+                          Paid via Stripe
+                        </Badge>
+                        <span className="text-[10px] text-text-secondary">Auto-provisioned</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Tab 2: Voice AI Live Audio Router */}
+              {activeHeroTab === "voice" && (
+                <div className="p-6 space-y-4 bg-bg-secondary/20">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/30 text-primary flex items-center justify-center">
+                        <PhoneCall className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-text-primary">Autonomous Inbound Voice Porter</h4>
+                        <p className="text-xs text-text-secondary">Real-time caller transcription, intent mapping & live transfer</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs text-emerald-500 bg-emerald-500/10 border-emerald-500/30 font-semibold">
+                      94.2% AI Autonomous Resolution
+                    </Badge>
+                  </div>
+
+                  {/* Telephony Diagram */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 rounded-lg bg-bg-primary border border-border">
+                      <div className="text-text-secondary text-[11px] font-medium">1. Carrier Inbound</div>
+                      <div className="font-bold text-text-primary mt-1">Twilio DID Trunk</div>
+                      <div className="text-[10px] text-text-secondary mt-0.5">&lt; 180ms latency response</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-primary/10 border border-primary/30">
+                      <div className="text-primary text-[11px] font-semibold">2. Speech AI Agent</div>
+                      <div className="font-bold text-primary mt-1">Whisper + Nexlin LLM</div>
+                      <div className="text-[10px] text-text-secondary mt-0.5">Zero-interruption streaming</div>
+                    </div>
+                    <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                      <div className="text-emerald-500 text-[11px] font-semibold">3. Autonomous Trigger</div>
+                      <div className="font-bold text-emerald-600 dark:text-emerald-400 mt-1">Auto-Book &amp; SMS Recap</div>
+                      <div className="text-[10px] text-text-secondary mt-0.5">Direct calendar synchronization</div>
+                    </div>
+                  </div>
+
+                  {/* Live Active Session Snippet */}
+                  <div className="p-3.5 bg-bg-primary rounded-xl border border-border flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                      <div>
+                        <div className="font-bold text-text-primary">+1 (415) 892-0192 <span className="font-normal text-text-secondary">• Apex Dynamics</span></div>
+                        <div className="text-[11px] text-text-secondary">Qualifying for Enterprise SaaS • Active 01m 24s</div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-primary bg-primary/10 border-primary/30">Live In Call</Badge>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: CPQ Proposals */}
+              {activeHeroTab === "cpq" && (
+                <div className="p-6 space-y-4 bg-bg-secondary/20">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-text-primary">CPQ Quote #1049</h4>
+                        <Badge variant="outline" className="text-xs text-emerald-500 bg-emerald-500/10 border-emerald-500/30 font-semibold">
+                          E-Signed &amp; Approved
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-text-secondary mt-0.5">Client: <strong>Cyberdyne Systems</strong> • Signed via Digital Portal</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-text-secondary">Total Contract Value</div>
+                      <div className="text-lg font-extrabold text-primary">$48,000.00</div>
+                    </div>
+                  </div>
+
+                  {/* Itemized Table */}
+                  <div className="rounded-lg border border-border overflow-hidden bg-bg-primary text-xs">
+                    <table className="w-full text-left">
+                      <thead className="bg-bg-secondary/80 border-b border-border text-text-secondary text-[11px]">
+                        <tr>
+                          <th className="p-2.5 font-semibold">Item &amp; Description</th>
+                          <th className="p-2.5 text-center font-semibold">Term</th>
+                          <th className="p-2.5 text-right font-semibold">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        <tr>
+                          <td className="p-2.5 font-medium text-text-primary">Nexlin Enterprise Core (Multi-tenant White-label)</td>
+                          <td className="p-2.5 text-center text-text-secondary">12 Mo</td>
+                          <td className="p-2.5 text-right font-semibold">$30,000</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2.5 font-medium text-text-primary">Voice AI Inbound Trunk (50,000 Minutes Block)</td>
+                          <td className="p-2.5 text-center text-text-secondary">Annual</td>
+                          <td className="p-2.5 text-right font-semibold">$12,000</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2.5 font-medium text-text-primary">Dedicated Solutions Architect Onboarding</td>
+                          <td className="p-2.5 text-center text-text-secondary">1-Time</td>
+                          <td className="p-2.5 text-right font-semibold">$6,000</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Signature Stamp */}
+                  <div className="p-3 bg-bg-primary rounded-xl border border-border flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs">MD</div>
+                      <div>
+                        <div className="font-bold text-text-primary">Miles Dyson (Chief Architect)</div>
+                        <div className="text-[10px] text-text-secondary">Verified Signature Hash: 0x8f2a...c4b1</div>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-emerald-500 bg-emerald-500/10 border-emerald-500/30">
+                      ✓ Stripe Subscription Provisioned
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Laptop Bottom Lip / Notch */}
+            <div className="pt-2 flex justify-center">
+              <div className="w-20 h-1 rounded-full bg-slate-800 dark:bg-neutral-800" />
+            </div>
           </motion.div>
         </section>
 
