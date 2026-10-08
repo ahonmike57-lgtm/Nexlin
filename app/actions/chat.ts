@@ -5,29 +5,21 @@ import { withAgency } from "@/lib/tenant"
 import { getActiveSubAccountId } from "./subaccounts"
 import { generateAiReply } from "./ai"
 import Pusher from "pusher"
-
-const pusher = new Pusher({
-  appId: process.env.PUSHER_APP_ID || "",
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY || "",
-  secret: process.env.PUSHER_SECRET || "",
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "mt1",
-  useTLS: true,
-})
+import { deliverMessage, broadcastNewMessage, type Channel } from "@/lib/messaging"
 
 // Meta WhatsApp Cloud API Error Resolver
 export async function resolveMetaWhatsappError(errorCodeStr: string) {
   const code = errorCodeStr.replace(/[^0-9]/g, "")
 
-  if (code === "3538221404" || code.includes("3538221404")) {
+  if (code === "3538221404" || code === "131047" || code.includes("3538221404")) {
     return {
-      errorCode: "3538221404",
-      title: "Meta WhatsApp Error 3538221404: 24-Hour Messaging Window & System Token Expiry",
-      cause: "Meta WhatsApp Cloud API blocked freeform message dispatch because either (1) the 24-hour customer service session expired, or (2) your Meta System User Permanent Access Token lacks 'whatsapp_business_messaging' scope.",
+      errorCode: code,
+      title: "Meta WhatsApp: 24-Hour Customer Care Window Expired",
+      cause: "Meta WhatsApp Cloud API restricts freeform text to 24 hours after the customer's last incoming message. After 24 hours, you must use a pre-approved Meta Template message until the customer replies.",
       resolutionSteps: [
-        "1. Open Meta Business Manager (business.facebook.com) -> Settings -> System Users.",
-        "2. Ensure your System User Token has permissions: 'whatsapp_business_messaging' and 'whatsapp_business_management'.",
-        "3. Generate a Permanent System User Token (Never-Expiring) and paste it into '/chat -> Link Channels'.",
-        "4. NEXLIN automatically formats outbound messages as Meta Approved Utility Templates to bypass Error 3538221404!"
+        "1. Wait for the customer to reply on WhatsApp to reopen the 24-hour service window.",
+        "2. Or switch the channel to SMS or Email to reach the contact immediately.",
+        "3. Ensure your WhatsApp System User Token has 'whatsapp_business_messaging' and 'whatsapp_business_management' permissions in Meta Business Manager."
       ]
     }
   }
@@ -38,7 +30,7 @@ export async function resolveMetaWhatsappError(errorCodeStr: string) {
     cause: "Meta WhatsApp API authorization or phone number configuration issue.",
     resolutionSteps: [
       "1. Verify your WhatsApp Phone Number ID in Meta Developers Console.",
-      "2. Confirm your Meta Permanent Token is pasted in '/chat -> Link Channels'.",
+      "2. Confirm your Meta Permanent Token is saved in Settings -> API Keys / Integrations.",
       "3. Verify payment method attached to Meta WhatsApp Business Account (WABA)."
     ]
   }
@@ -142,47 +134,67 @@ export const getMessages = withAgency(async ({ db }, conversationId: string) => 
 })
 
 export const sendMessage = withAgency(
-  async ({ db, agencyId }, conversationId: string, content: string, isOutbound: boolean = true) => {
+  async (
+    { db, agencyId },
+    conversationId: string,
+    content: string,
+    channelOrIsOutbound?: Channel | boolean,
+    isOutboundFlag?: boolean
+  ) => {
+    const isOutbound = typeof channelOrIsOutbound === "boolean" ? channelOrIsOutbound : (isOutboundFlag ?? true)
+    const channelOverride = typeof channelOrIsOutbound === "string" ? channelOrIsOutbound : undefined
+
     const conv = await db.conversation.findFirst({
       where: { id: conversationId },
       include: { contact: true }
     })
 
-    let messageContent = content
-    let channelTag = conv?.channel || "whatsapp"
+    if (!conv) {
+      throw new Error("Conversation not found")
+    }
 
-    // Automated Meta Error 3538221404 Bypasser:
-    if (channelTag === "whatsapp" && isOutbound) {
-      if (!content.includes("[Meta Approved Template]")) {
-        messageContent = `${content}\n\n[Meta Approved Utility Template • Bypass 3538221404]`
+    const channelTag = (channelOverride || conv.channel || "whatsapp") as Channel
+
+    // Perform real delivery if outbound
+    if (isOutbound) {
+      const delivery = await deliverMessage({
+        agencyId,
+        channel: channelTag,
+        contact: conv.contact,
+        content
+      })
+
+      if (!delivery.ok) {
+        throw new Error(delivery.error || "Message delivery failed")
       }
     }
 
     const message = await db.message.create({
       data: {
         conversationId,
-        content: messageContent,
+        content,
         isOutbound,
         status: "delivered"
       }
     })
 
-    await db.conversation.updateMany({
+    await db.conversation.update({
       where: { id: conversationId },
-      data: { updatedAt: new Date() }
+      data: {
+        updatedAt: new Date(),
+        ...(channelOverride && channelOverride !== conv.channel ? { channel: channelOverride } : {})
+      }
     })
 
     // Broadcast real-time event via Pusher (fire-and-forget)
-    if (process.env.PUSHER_APP_ID) {
-      pusher.trigger(`conversation-${conversationId}`, "new-message", {
-        id: message.id,
-        conversationId: message.conversationId,
-        content: message.content,
-        isOutbound: message.isOutbound,
-        status: message.status,
-        createdAt: message.createdAt,
-      }).catch((err) => console.warn("Pusher trigger failed:", err))
-    }
+    broadcastNewMessage({
+      id: message.id,
+      conversationId: message.conversationId,
+      content: message.content,
+      isOutbound: message.isOutbound,
+      status: message.status,
+      createdAt: message.createdAt,
+    })
 
     revalidatePath("/chat")
 
@@ -190,7 +202,7 @@ export const sendMessage = withAgency(
     if (!isOutbound && conv?.aiAutoReply) {
       generateAiReply("chat", conversationId).then(async (aiRes) => {
         if (aiRes.success && aiRes.data) {
-          await sendMessage(conversationId, aiRes.data, true)
+          await sendMessage(conversationId, aiRes.data, channelTag, true)
         }
       }).catch(err => console.error("AI AutoReply Error:", err))
     }
@@ -245,6 +257,7 @@ export const createQuickContactAndConversation = withAgency(
 
     let contact = await db.contact.findFirst({
       where: {
+        agencyId,
         OR: [
           { phone: phoneOrEmail },
           { email: phoneOrEmail }

@@ -146,9 +146,11 @@ export function withAgency<TArgs extends any[], TResult>(
       )
       return { success: true, data }
     } catch (error: any) {
-      // Log internally, return an opaque message — Prisma errors echo schema details.
+      // Log internally; mask sensitive database/Prisma errors
       console.error("Action error:", error)
-      return { success: false, error: "Request failed" }
+      const msg = error?.message || ""
+      const isSensitive = msg.toLowerCase().includes("prisma") || msg.toLowerCase().includes("database") || msg.toLowerCase().includes("sql")
+      return { success: false, error: isSensitive || !msg ? "Request failed" : msg }
     }
   }
 }

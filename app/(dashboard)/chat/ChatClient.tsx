@@ -29,6 +29,7 @@ import {
 } from "@/app/actions/chat"
 import { saveChannelCredentials } from "@/app/actions/channel-credentials"
 import { generateAiReply } from "@/app/actions/ai"
+import { getPusherClient } from "@/lib/pusher"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -248,7 +249,13 @@ function EmailWizard({
   )
 }
 
-export default function ChatClient({ initialConversations }: { initialConversations: any[] }) {
+export default function ChatClient({
+  initialConversations,
+  initialChannels
+}: {
+  initialConversations: any[]
+  initialChannels?: any
+}) {
   const [conversations, setConversations] = useState<any[]>(initialConversations)
   const [selectedId, setSelectedId] = useState<string | null>(initialConversations[0]?.id || null)
   const [messages, setMessages] = useState<any[]>([])
@@ -267,9 +274,9 @@ export default function ChatClient({ initialConversations }: { initialConversati
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const [channels, setChannels] = useState({
-    sms: { connected: true, label: "+1 (214) 555-0142" },
-    whatsapp: { connected: initialConversations.some(c => c.channel === "whatsapp"), label: null as string | null },
-    email: { connected: initialConversations.some(c => c.channel === "email"), label: null as string | null },
+    sms: initialChannels?.sms || { connected: false, label: "Not configured" },
+    whatsapp: initialChannels?.whatsapp || { connected: initialConversations.some(c => c.channel === "whatsapp"), label: null as string | null },
+    email: initialChannels?.email || { connected: initialConversations.some(c => c.channel === "email"), label: null as string | null },
   })
 
   const selected = conversations.find(c => c.id === selectedId) || conversations[0] || null
@@ -281,6 +288,31 @@ export default function ChatClient({ initialConversations }: { initialConversati
     })
     if (selected.channel) {
       setOutboundChannel(selected.channel as any)
+    }
+
+    // Subscribe to live Pusher events for the selected conversation
+    try {
+      const pusherClient = getPusherClient()
+      const channelName = `conversation-${selected.id}`
+      const channel = pusherClient.subscribe(channelName)
+
+      channel.bind("new-message", (incomingMsg: any) => {
+        setMessages(prev => {
+          if (prev.some(m => m.id === incomingMsg.id)) return prev
+          const hasOptimistic = prev.some(m => m.id.startsWith("temp-") && m.content === incomingMsg.content)
+          if (hasOptimistic) {
+            return prev.map(m => (m.id.startsWith("temp-") && m.content === incomingMsg.content ? incomingMsg : m))
+          }
+          return [...prev, incomingMsg]
+        })
+      })
+
+      return () => {
+        channel.unbind_all()
+        pusherClient.unsubscribe(channelName)
+      }
+    } catch (err) {
+      console.warn("Pusher subscription skipped:", err)
     }
   }, [selected?.id])
 
@@ -305,13 +337,16 @@ export default function ChatClient({ initialConversations }: { initialConversati
     setMessages(prev => [...prev, optimisticMsg])
     setIsSending(true)
 
-    const res = await sendMessage(selected.id, textToSend)
-    if (res.success && res.data) {
+    // Pass the selected outbound channel explicitly to the server
+    const res = await sendMessage(selected.id, textToSend, outboundChannel)
+    if (res.success) {
       setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? res.data : m))
+      // Update selected conversation channel in state if changed
+      setConversations(prev => prev.map(c => c.id === selected.id ? { ...c, channel: outboundChannel } : c))
     } else {
       setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
       setNewMessage(textToSend)
-      toast.error("error" in res ? res.error : "Failed to send message")
+      toast.error(res.error || "Failed to send message")
     }
     setIsSending(false)
   }
@@ -330,18 +365,29 @@ export default function ChatClient({ initialConversations }: { initialConversati
   }
 
   async function handleWhatsAppConnected(phoneNumberId: string, token: string) {
-    await saveChannelCredentials({ whatsappPhoneNumberId: phoneNumberId, whatsappAccessToken: token })
-    setChannels(c => ({ ...c, whatsapp: { connected: true, label: "+1 (214) 555-0198" } }))
-    setActiveModal(null)
-    toast.success("WhatsApp Business connected!")
+    const res = await saveChannelCredentials({ whatsappPhoneNumberId: phoneNumberId, whatsappAccessToken: token })
+    if (res.success) {
+      setChannels(c => ({
+        ...c,
+        whatsapp: { connected: true, label: `ID: ${phoneNumberId}` }
+      }))
+      setActiveModal(null)
+      toast.success(res.message || "WhatsApp Business connected & verified with Meta!")
+    } else {
+      toast.error(res.error || "Failed to verify Meta WhatsApp credentials")
+    }
   }
 
   async function handleEmailConnected(provider: string) {
-    const label = provider === "google" ? "support@youragency.com" : "sales@youragency.onmicrosoft.com"
-    await saveChannelCredentials({ emailAddress: label, smtpHost: "smtp.gmail.com", smtpPort: "587", smtpUser: label })
-    setChannels(c => ({ ...c, email: { connected: true, label } }))
-    setActiveModal(null)
-    toast.success("Email channel connected!")
+    const label = provider === "google" ? "support@yourdomain.com" : "sales@yourdomain.com"
+    const res = await saveChannelCredentials({ emailAddress: label })
+    if (res.success) {
+      setChannels(c => ({ ...c, email: { connected: true, label } }))
+      setActiveModal(null)
+      toast.success("Email channel saved!")
+    } else {
+      toast.error(res.error || "Failed to save email channel")
+    }
   }
 
   async function handleNewChat(e: React.FormEvent) {

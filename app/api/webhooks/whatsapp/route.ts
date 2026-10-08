@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifyMetaSignature, logWebhookDelivery } from "@/lib/webhooks"
 import { db } from "@/lib/db"
+import { findAgencyByWhatsappPhoneNumberId, broadcastNewMessage } from "@/lib/messaging"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -45,42 +46,68 @@ export async function POST(req: NextRequest) {
       for (const entry of payload.entry) {
         for (const change of entry.changes || []) {
           const value = change.value
+          const recipientPhoneNumberId = value?.metadata?.phone_number_id
+
           if (value?.messages) {
             for (const msg of value.messages) {
               try {
-                const fromNumber = msg.from // e.g. "+14155550192"
+                const fromNumber = msg.from // e.g. "14155550192"
+                const normalizedFrom = fromNumber.startsWith("+") ? fromNumber : `+${fromNumber}`
                 const textContent = msg.text?.body || msg.caption || "[Media Message]"
 
-                // Find or create contact
+                // Route to correct tenant by recipient phone_number_id
+                let targetAgencyId: string | null = null
+                if (recipientPhoneNumberId) {
+                  targetAgencyId = await findAgencyByWhatsappPhoneNumberId(recipientPhoneNumberId)
+                }
+
+                if (!targetAgencyId) {
+                  // Fallback: check if contact already exists in a known agency
+                  const existingContact = await db.contact.findFirst({
+                    where: { OR: [{ phone: fromNumber }, { phone: normalizedFrom }] }
+                  })
+                  if (existingContact) {
+                    targetAgencyId = existingContact.agencyId
+                  }
+                }
+
+                // If still unmapped, reject to protect against cross-tenant data leaks
+                if (!targetAgencyId) {
+                  console.warn(
+                    `[WhatsApp Webhook] Unmapped recipient phone_number_id (${recipientPhoneNumberId}); skipping message from ${fromNumber} to prevent tenant leakage.`
+                  )
+                  continue
+                }
+
+                // Find or create contact strictly scoped to target agency
                 let contact = await db.contact.findFirst({
-                  where: { OR: [{ phone: fromNumber }, { phone: `+${fromNumber}` }] }
+                  where: {
+                    agencyId: targetAgencyId,
+                    OR: [{ phone: fromNumber }, { phone: normalizedFrom }]
+                  }
                 })
 
                 if (!contact) {
-                  // Assign to default first agency if unmapped
-                  const defaultAgency = await db.agency.findFirst()
-                  if (defaultAgency) {
-                    contact = await db.contact.create({
-                      data: {
-                        agencyId: defaultAgency.id,
-                        firstName: value.contacts?.[0]?.profile?.name || "WhatsApp",
-                        lastName: "User",
-                        phone: fromNumber.startsWith("+") ? fromNumber : `+${fromNumber}`
-                      }
-                    })
-                  }
+                  contact = await db.contact.create({
+                    data: {
+                      agencyId: targetAgencyId,
+                      firstName: value.contacts?.[0]?.profile?.name || "WhatsApp",
+                      lastName: "User",
+                      phone: normalizedFrom
+                    }
+                  })
                 }
 
                 if (contact) {
                   // Find or create conversation
                   let conv = await db.conversation.findFirst({
-                    where: { contactId: contact.id, channel: "whatsapp" }
+                    where: { agencyId: targetAgencyId, contactId: contact.id, channel: "whatsapp" }
                   })
 
                   if (!conv) {
                     conv = await db.conversation.create({
                       data: {
-                        agencyId: contact.agencyId,
+                        agencyId: targetAgencyId,
                         contactId: contact.id,
                         channel: "whatsapp"
                       }
@@ -88,7 +115,7 @@ export async function POST(req: NextRequest) {
                   }
 
                   // Ingest message into thread
-                  await db.message.create({
+                  const createdMsg = await db.message.create({
                     data: {
                       conversationId: conv.id,
                       content: textContent,
@@ -100,6 +127,16 @@ export async function POST(req: NextRequest) {
                   await db.conversation.update({
                     where: { id: conv.id },
                     data: { updatedAt: new Date() }
+                  })
+
+                  // Broadcast live message to active conversation via Pusher
+                  broadcastNewMessage({
+                    id: createdMsg.id,
+                    conversationId: conv.id,
+                    content: createdMsg.content,
+                    isOutbound: false,
+                    status: createdMsg.status,
+                    createdAt: createdMsg.createdAt
                   })
                 }
               } catch (msgError) {
