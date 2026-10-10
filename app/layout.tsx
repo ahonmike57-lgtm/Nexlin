@@ -5,6 +5,7 @@ import { Providers } from "@/components/Providers"
 import { Toaster } from "sonner";
 import PwaRegister from "@/components/PwaRegister";
 import { ImpersonationBanner } from "@/components/platform/ImpersonationBanner";
+import AutoTranslator from "@/components/AutoTranslator";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -38,6 +39,7 @@ export default function RootLayout({
         </Providers>
         <Toaster position="bottom-right" richColors />
         <PwaRegister />
+        <AutoTranslator />
       </body>
     </html>
   );
