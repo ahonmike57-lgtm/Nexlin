@@ -74,6 +74,7 @@ export default function Home() {
             <a href="#call-porter" className="hover:text-primary transition-colors">Voice AI & Routing</a>
             <a href="#pricing" className="hover:text-primary transition-colors">Pricing</a>
             <a href="#testimonials" className="hover:text-primary transition-colors">Agencies</a>
+            <Link href="/blog" className="hover:text-primary transition-colors font-semibold">Blog</Link>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -646,6 +647,7 @@ export default function Home() {
           </div>
           <div>&copy; {new Date().getFullYear()} NEXLIN Inc. All rights reserved. Built for modern high-performance agencies.</div>
           <div className="flex items-center gap-4">
+            <Link href="/blog" className="hover:underline text-primary font-medium">Blog</Link>
             <Link href="/login" className="hover:underline">Login</Link>
             <Link href="/register" className="hover:underline">Register</Link>
           </div>

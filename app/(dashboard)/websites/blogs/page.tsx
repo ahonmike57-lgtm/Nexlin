@@ -9,6 +9,7 @@ import { Plus, BookOpen, Trash2, Globe, FileText, Loader2, Sparkles } from "luci
 import { generateAiReply } from "@/app/actions/ai"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import Link from "next/link"
 
 export default function BlogsPage() {
   const [posts, setPosts] = useState<any[]>([])
@@ -95,12 +96,18 @@ export default function BlogsPage() {
           <p className="text-text-secondary mt-1">Draft, schedule, and publish SEO-optimized articles onto your root domain.</p>
         </div>
         
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Create Blog Post
+        <div className="flex items-center gap-3">
+          <Link href="/blog" target="_blank">
+            <Button variant="outline" className="flex items-center gap-1.5 text-xs">
+              <Globe className="w-3.5 h-3.5 text-primary" /> View Live Blog Hub
             </Button>
-          </DialogTrigger>
+          </Link>
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <Plus className="w-4 h-4" /> Create Blog Post
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[700px] bg-bg-primary border-border">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -172,6 +179,7 @@ export default function BlogsPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {loading ? (

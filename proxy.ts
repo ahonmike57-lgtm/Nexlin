@@ -73,6 +73,11 @@ export default withAuth(
           "/api/auth",
           "/api/health",
           "/api/webhooks",
+          "/api/geo",
+          "/api/t/",
+          "/blog",
+          "/forms",
+          "/f/",
           "/_next",
           "/favicon.ico",
         ]
