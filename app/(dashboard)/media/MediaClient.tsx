@@ -67,27 +67,32 @@ export default function MediaClient({ initialFiles, agencyId }: { initialFiles: 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i]
 
-      // Limit file size to 10MB for direct base64 storage
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name} exceeds 10MB maximum size limit.`)
+      // Limit file size to 25MB
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 25MB maximum size limit.`)
         continue
       }
 
       try {
-        const dataUrl = await readFileAsDataUrl(file)
-        const res = await uploadMediaFile(agencyId, {
-          name: file.name,
-          size: file.size,
-          type: file.type || "application/octet-stream",
-          url: dataUrl
-        })
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("folder", "general")
 
-        if (res.success && res.file) {
+        const res = await fetch("/api/media/upload", {
+          method: "POST",
+          body: formData
+        })
+        const data = await res.json()
+
+        if (data.success && data.file) {
           uploadCount++
-          setFiles(prev => [res.file as any, ...prev])
+          setFiles(prev => [data.file as any, ...prev])
+        } else {
+          toast.error(data.error || `Failed to upload ${file.name}`)
         }
       } catch (err) {
-        console.error("Error reading file", err)
+        console.error("Error uploading file", err)
+        toast.error(`Error uploading ${file.name}`)
       }
     }
 

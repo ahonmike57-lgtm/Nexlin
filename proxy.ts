@@ -74,6 +74,7 @@ export default withAuth(
           "/api/health",
           "/api/webhooks",
           "/api/geo",
+          "/api/og",
           "/api/t/",
           "/blog",
           "/forms",

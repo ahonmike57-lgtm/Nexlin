@@ -48,15 +48,23 @@ export async function uploadMediaFile(agencyId: string, data: {
   }
 }
 
-export async function uploadMockMedia(agencyId: string, name: string, size: number, type: string) {
-  const mockUrl = `https://storage.example.com/${agencyId}/${name}`
-  return uploadMediaFile(agencyId, { name, size, type, url: mockUrl })
-}
+import { unlink } from "fs/promises"
+import path from "path"
 
 export async function deleteMediaFile(fileId: string) {
   try {
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
+
+    // Retrieve file before deleting to remove from disk if local
+    const file = await prisma.mediaFile.findUnique({
+      where: { id: fileId }
+    })
+
+    if (file && file.url.startsWith("/uploads/")) {
+      const localFilePath = path.join(process.cwd(), "public", file.url)
+      await unlink(localFilePath).catch(() => {})
+    }
 
     await prisma.mediaFile.deleteMany({
       where: { 

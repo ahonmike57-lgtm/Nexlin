@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import RevenueChart from "./revenue-chart"
 import DashboardAICoach from "./DashboardAICoach"
+import DemoAcceleratorBanner from "@/components/DemoAcceleratorBanner"
 import { format } from "date-fns"
 
 export default async function DashboardPage() {
@@ -86,6 +87,9 @@ export default async function DashboardPage() {
           <Activity className="w-4 h-4 mr-1 inline" /> AI Coach Active
         </Badge>
       </div>
+
+      {/* 1-Click Agency Accelerator Banner */}
+      <DemoAcceleratorBanner />
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
