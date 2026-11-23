@@ -160,7 +160,25 @@ export async function getAgencySettings() {
         createdAt: true
       }
     })
-    return { success: true, agency }
+
+    let timezone = "America/New_York"
+    let currency = "USD"
+    if (agency?.brandColors) {
+      try {
+        const parsed = JSON.parse(agency.brandColors)
+        if (parsed.timezone) timezone = parsed.timezone
+        if (parsed.currency) currency = parsed.currency
+      } catch {}
+    }
+
+    return {
+      success: true,
+      agency: {
+        ...agency,
+        timezone,
+        currency
+      }
+    }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
@@ -173,6 +191,9 @@ export async function updateAgencyProfile(data: {
   customDomain?: string
   missedCallEnabled?: boolean
   missedCallMessage?: string
+  timezone?: string
+  currency?: string
+  logoUrl?: string
 }) {
   const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
@@ -180,6 +201,21 @@ export async function updateAgencyProfile(data: {
   }
 
   try {
+    const existing = await db.agency.findUnique({
+      where: { id: auth.agencyId },
+      select: { brandColors: true }
+    })
+
+    let brandMeta: any = {}
+    if (existing?.brandColors) {
+      try {
+        brandMeta = JSON.parse(existing.brandColors)
+      } catch {}
+    }
+
+    if (data.timezone) brandMeta.timezone = data.timezone
+    if (data.currency) brandMeta.currency = data.currency
+
     const updated = await db.agency.update({
       where: { id: auth.agencyId },
       data: {
@@ -187,6 +223,8 @@ export async function updateAgencyProfile(data: {
         whiteLabelName: data.whiteLabelName?.trim() || null,
         subdomain: data.subdomain?.trim().toLowerCase() || undefined,
         customDomain: data.customDomain?.trim() || null,
+        logoUrl: data.logoUrl !== undefined ? data.logoUrl : undefined,
+        brandColors: JSON.stringify(brandMeta),
         missedCallEnabled: data.missedCallEnabled !== undefined ? data.missedCallEnabled : undefined,
         missedCallMessage: data.missedCallMessage !== undefined ? data.missedCallMessage : undefined
       }
@@ -196,6 +234,49 @@ export async function updateAgencyProfile(data: {
     return { success: true, agency: updated }
   } catch (error: any) {
     return { success: false, error: error.message }
+  }
+}
+
+export async function exportAgencyData() {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    const agencyId = auth.agencyId
+    const [agency, contacts, deals, appointments, pipelines, workflows] = await Promise.all([
+      db.agency.findUnique({
+        where: { id: agencyId },
+        select: { id: true, name: true, subdomain: true, planTier: true, createdAt: true }
+      }),
+      db.contact.findMany({ where: { agencyId }, orderBy: { createdAt: "desc" } }),
+      db.deal.findMany({ where: { agencyId }, orderBy: { createdAt: "desc" } }),
+      db.appointment.findMany({ where: { agencyId }, orderBy: { startTime: "desc" } }),
+      db.pipeline.findMany({ where: { agencyId }, include: { stages: true } }),
+      db.workflow.findMany({ where: { agencyId } })
+    ])
+
+    const exportPayload = {
+      agency,
+      exportedAt: new Date().toISOString(),
+      counts: {
+        contacts: contacts.length,
+        deals: deals.length,
+        appointments: appointments.length,
+        pipelines: pipelines.length,
+        workflows: workflows.length
+      },
+      contacts,
+      deals,
+      appointments,
+      pipelines,
+      workflows
+    }
+
+    return { success: true, data: exportPayload }
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to export agency data" }
   }
 }
 

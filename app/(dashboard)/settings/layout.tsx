@@ -5,7 +5,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   Palette, Globe, CreditCard, Link as LinkIcon, Building2,
-  ShieldCheck, Users, Phone, Settings, Sparkles, Key, FileText
+  ShieldCheck, Users, Phone, Settings, Sparkles, Key, FileText,
+  Bot, Layers, Kanban, Server, PhoneCall
 } from "lucide-react"
 
 type SettingsNavGroup = {
@@ -30,26 +31,31 @@ const settingsGroups: SettingsNavGroup[] = [
     ]
   },
   {
-    title: "Billing & Plans",
+    title: "AI & Intelligent Systems",
     items: [
-      { id: "billing", href: "/settings/billing", label: "Subscription Billing", icon: CreditCard },
-      { id: "saas", href: "/settings/saas", label: "SaaS Mode Config", icon: Sparkles },
+      { id: "ai", href: "/settings/ai", label: "AI Models & Keys", icon: Bot },
+      { id: "snapshots", href: "/settings/snapshots", label: "Snapshots & Blueprints", icon: Layers },
+      { id: "pipelines", href: "/settings/pipelines", label: "Pipelines & Stages", icon: Kanban },
+      { id: "missed-call", href: "/settings/missed-call", label: "Missed Call AI Voice", icon: PhoneCall },
     ]
   },
   {
-    title: "Automations & Developer",
+    title: "Billing & Monetization",
     items: [
-      { id: "trigger-links", href: "/settings/trigger-links", label: "Trigger Links & Tracking", icon: LinkIcon },
-      { id: "custom-menu", href: "/settings/custom-menu", label: "Custom Menu Links", icon: Globe },
-      { id: "integrations", href: "/settings/integrations", label: "Integrations & Webhooks", icon: LinkIcon },
-      { id: "api-keys", href: "/settings/api-keys", label: "Developer & API Keys", icon: Key },
+      { id: "billing", href: "/settings/billing", label: "Subscription Billing", icon: CreditCard },
+      { id: "saas", href: "/settings/saas", label: "SaaS Mode & Markup", icon: Sparkles },
     ]
   },
   {
     title: "Channels & Connectivity",
     items: [
-      { id: "domains", href: "/settings/domains", label: "Domains & SSL", icon: Globe },
+      { id: "domains", href: "/settings/domains", label: "Custom Domains & SSL", icon: Globe },
       { id: "phone-numbers", href: "/settings/phone-numbers", label: "Phone Numbers", icon: Phone },
+      { id: "trigger-links", href: "/settings/trigger-links", label: "Trigger Links & Tracking", icon: LinkIcon },
+      { id: "integrations", href: "/settings/integrations", label: "Integrations & Webhooks", icon: LinkIcon },
+      { id: "api-keys", href: "/settings/api-keys", label: "Developer & API Keys", icon: Key },
+      { id: "mcp", href: "/settings/mcp", label: "MCP Server Connectors", icon: Server },
+      { id: "custom-menu", href: "/settings/custom-menu", label: "Custom Menu Links", icon: Globe },
     ]
   },
   {
