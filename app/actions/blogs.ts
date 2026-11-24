@@ -64,6 +64,7 @@ export async function createBlogPost(data: {
     })
 
     revalidatePath("/websites/blogs")
+    revalidatePath("/blog")
     return { success: true, post }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -82,6 +83,7 @@ export async function deleteBlogPost(id: string) {
     })
 
     revalidatePath("/websites/blogs")
+    revalidatePath("/blog")
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }

@@ -21,13 +21,7 @@ export default async function DomainsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Custom Domains</h1>
-        <p className="text-text-secondary mt-1">Manage custom domains for your funnels and websites.</p>
-      </div>
-      
       <DomainClient initialFunnels={funnels} agencyId={user.agencyId} />
     </div>
   )
 }
-

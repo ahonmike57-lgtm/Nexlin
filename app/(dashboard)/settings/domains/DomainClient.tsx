@@ -11,6 +11,7 @@ import { toast } from "sonner"
 export default function DomainClient({ initialFunnels, agencyId }: { initialFunnels: any[], agencyId: string }) {
   const [funnels, setFunnels] = useState(initialFunnels)
   const [isVerifying, setIsVerifying] = useState<string | null>(null)
+  const [verifiedDomains, setVerifiedDomains] = useState<Record<string, boolean>>({})
   
   const [selectedFunnel, setSelectedFunnel] = useState("")
   const [domain, setDomain] = useState("")
@@ -22,10 +23,14 @@ export default function DomainClient({ initialFunnels, agencyId }: { initialFunn
     
     setIsAdding(true)
     const res = await updateFunnelDomain(selectedFunnel, domain)
-    if (res.success) {
-      setFunnels(funnels.map(f => f.id === selectedFunnel ? { ...f, customDomain: domain } : f))
+    if (res.success && res.data) {
+      setFunnels(funnels.map(f => f.id === selectedFunnel ? { ...f, customDomain: res.data.customDomain } : f))
+      setVerifiedDomains(prev => ({ ...prev, [selectedFunnel]: false }))
+      toast.success(`Custom domain ${res.data.customDomain} added! Verify DNS records below.`)
       setDomain("")
       setSelectedFunnel("")
+    } else {
+      toast.error(res.error || "Failed to add custom domain")
     }
     setIsAdding(false)
   }
@@ -41,8 +46,10 @@ export default function DomainClient({ initialFunnels, agencyId }: { initialFunn
     try {
       const res = await checkCustomDomainDns(targetFunnel.customDomain)
       if (res.success && res.status === "configured") {
+        setVerifiedDomains(prev => ({ ...prev, [funnelId]: true }))
         toast.success(`Domain ${targetFunnel.customDomain} is verified and active!`)
       } else {
+        setVerifiedDomains(prev => ({ ...prev, [funnelId]: false }))
         toast.warning(
           `Pending DNS records for ${targetFunnel.customDomain}. Ensure CNAME points to cname.vercel-dns.com or A record points to 76.76.21.21.`
         )
@@ -128,9 +135,15 @@ export default function DomainClient({ initialFunnels, agencyId }: { initialFunn
                 </div>
                 
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1 text-sm text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded-full">
-                    <AlertCircle className="w-3 h-3" /> Action Required
-                  </div>
+                  {verifiedDomains[funnel.id] ? (
+                    <div className="flex items-center gap-1 text-sm text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-sm text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded-full">
+                      <AlertCircle className="w-3 h-3" /> Action Required
+                    </div>
+                  )}
                   
                   <Button variant="outline" size="sm" onClick={() => handleVerify(funnel.id)} disabled={isVerifying === funnel.id}>
                     {isVerifying === funnel.id ? "Verifying..." : "Verify DNS"}
@@ -161,7 +174,7 @@ export default function DomainClient({ initialFunnels, agencyId }: { initialFunn
           </div>
           <div className="flex gap-4">
             <span className="w-16 font-semibold">Value:</span>
-            <span>cname.nexlin.app</span>
+            <span>cname.vercel-dns.com</span>
           </div>
         </div>
       </div>

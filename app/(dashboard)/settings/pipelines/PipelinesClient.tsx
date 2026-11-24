@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Plus, Trash2, Edit2, GripVertical, Save } from "lucide-react"
 import { createPipeline, updatePipeline, deletePipeline } from "@/app/actions/pipelines"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 
 const COLOR_OPTIONS = [
   "bg-primary/20 text-primary border-primary/30",
@@ -40,7 +41,7 @@ export default function PipelinesClient({ initialPipelines }: { initialPipelines
     setEditingId(pipeline.id)
     setEditForm({
       name: pipeline.name,
-      stages: [...pipeline.stages]
+      stages: [...(pipeline.stages || [])]
     })
   }
 
@@ -68,25 +69,28 @@ export default function PipelinesClient({ initialPipelines }: { initialPipelines
   }
 
   const handleSave = async () => {
-    if (!editForm.name) return alert("Pipeline name required")
-    if (editForm.stages.length === 0) return alert("At least one stage required")
+    if (!editForm.name.trim()) return toast.error("Pipeline name is required")
+    if (editForm.stages.length === 0) return toast.error("At least one stage is required")
     
     setLoading(true)
     if (editingId === "new") {
       const res = await createPipeline(editForm.name, editForm.stages)
       if (res.success) {
-        setPipelines([res.data, ...pipelines])
+        toast.success("Pipeline created successfully!")
+        if (res.data) {
+          setPipelines([res.data, ...pipelines])
+        }
         setEditingId(null)
       } else {
-        alert(res.error)
+        toast.error(res.error || "Failed to create pipeline")
       }
     } else {
       const res = await updatePipeline(editingId!, editForm.name, editForm.stages)
       if (res.success) {
-        // Refresh full list conceptually or just force a reload
+        toast.success("Pipeline updated successfully!")
         window.location.reload()
       } else {
-        alert(res.error)
+        toast.error(res.error || "Failed to update pipeline")
       }
     }
     setLoading(false)
@@ -97,9 +101,10 @@ export default function PipelinesClient({ initialPipelines }: { initialPipelines
     setLoading(true)
     const res = await deletePipeline(id)
     if (res.success) {
+      toast.success("Pipeline deleted")
       setPipelines(pipelines.filter(p => p.id !== id))
     } else {
-      alert(res.error)
+      toast.error(res.error || "Failed to delete pipeline")
     }
     setLoading(false)
   }

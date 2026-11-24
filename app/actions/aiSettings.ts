@@ -53,9 +53,32 @@ export async function saveAiSetting(
 
   try {
     const agencyId = auth.agencyId
+    const trimmedKey = apiKey.trim()
+    const isMasked = trimmedKey.startsWith("••••")
 
-    // Encrypt API key at rest using AES-256-GCM before storing
-    const encryptedKey = encryptConfig(apiKey)
+    let encryptedKey = ""
+    let last4 = "••••"
+
+    if (isMasked) {
+      const existing = await db.aiSettings.findUnique({
+        where: { agencyId_provider: { agencyId, provider } }
+      })
+      if (!existing?.apiKey) {
+        return { success: false, error: "Please enter a valid API key." }
+      }
+      encryptedKey = existing.apiKey
+      try {
+        last4 = decryptConfig(existing.apiKey).slice(-4)
+      } catch {
+        last4 = trimmedKey.slice(-4)
+      }
+    } else {
+      if (!trimmedKey) {
+        return { success: false, error: "Please enter a valid API key." }
+      }
+      encryptedKey = encryptConfig(trimmedKey)
+      last4 = trimmedKey.slice(-4)
+    }
 
     if (isActive) {
       await db.aiSettings.updateMany({
@@ -71,7 +94,15 @@ export async function saveAiSetting(
     })
 
     revalidatePath("/settings/ai")
-    return { success: true, setting }
+    revalidatePath("/settings/api-keys")
+
+    return {
+      success: true,
+      setting: {
+        ...setting,
+        apiKey: `••••••••${last4}`
+      }
+    }
   } catch (error: any) {
     return { success: false, error: error.message }
   }

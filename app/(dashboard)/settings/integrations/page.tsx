@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 import { Search, Zap, Webhook, Link2, CheckCircle2, ShieldCheck, ExternalLink, Settings, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -103,14 +104,21 @@ export default function IntegrationsSettingsPage() {
           <p className="text-text-secondary mt-1">Connect payments, AI models, messaging channels, ads, and CRM sync tools.</p>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-          <Input
-            placeholder="Search integrations..."
-            className="pl-9 bg-bg-primary"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <Link href="/settings/integrations/webhooks">
+            <Button variant="outline" className="gap-2 text-xs h-10">
+              <Webhook className="w-4 h-4 text-primary" /> Manage Webhooks
+            </Button>
+          </Link>
+          <div className="relative flex-1 sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+            <Input
+              placeholder="Search integrations..."
+              className="pl-9 bg-bg-primary"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

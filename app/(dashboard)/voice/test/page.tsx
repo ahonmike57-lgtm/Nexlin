@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Mic, MicOff, Volume2, Sparkles, PhoneCall, ArrowLeft, Bot, RefreshCw, Send } from "lucide-react"
@@ -23,52 +23,7 @@ export default function VoiceSimulatorPage() {
     "Do you offer custom integrations with our CRM and WhatsApp numbers?"
   ]
 
-  useEffect(() => {
-    // Setup Web Speech Recognition if available in browser
-    if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = false
-      recognition.lang = "en-US"
-
-      recognition.onresult = (event: any) => {
-        const text = event.results[0][0].transcript
-        setIsListening(false)
-        handleProcessVoiceInput(text)
-      }
-
-      recognition.onerror = () => {
-        setIsListening(false)
-      }
-
-      recognition.onend = () => {
-        setIsListening(false)
-      }
-
-      recognitionRef.current = recognition
-    }
-  }, [])
-
-  const handleStartCall = () => {
-    setCallStatus("connected")
-    const greeting = "Hello! Thanks for calling Nexlin Voice Support. How can I assist your business today?"
-    setAiResponse(greeting)
-    speakText(greeting)
-  }
-
-  const handleEndCall = () => {
-    setCallStatus("ended")
-    setIsListening(false)
-    if (recognitionRef.current) {
-      try { recognitionRef.current.abort() } catch {}
-    }
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel()
-    }
-  }
-
-  const speakText = (text: string) => {
+  const speakText = useCallback((text: string) => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
@@ -78,25 +33,9 @@ export default function VoiceSimulatorPage() {
       utterance.onend = () => setCallStatus("connected")
       window.speechSynthesis.speak(utterance)
     }
-  }
+  }, [])
 
-  const toggleMicListening = () => {
-    if (isListening) {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.stop() } catch {}
-      }
-      setIsListening(false)
-    } else {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start()
-          setIsListening(true)
-        } catch {}
-      }
-    }
-  }
-
-  const handleProcessVoiceInput = async (userText: string) => {
+  const handleProcessVoiceInput = useCallback(async (userText: string) => {
     if (!userText.trim()) return
     setTranscript(userText)
     setIsProcessing(true)
@@ -118,6 +57,67 @@ export default function VoiceSimulatorPage() {
       speakText(fallback)
     } finally {
       setIsProcessing(false)
+    }
+  }, [speakText])
+
+  useEffect(() => {
+    // Setup Web Speech Recognition if available in browser
+    if (typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      recognition.continuous = false
+      recognition.interimResults = false
+      recognition.lang = "en-US"
+
+      recognition.onresult = (event: any) => {
+        const text = event.results[0][0].transcript
+        setIsListening(false)
+        void handleProcessVoiceInput(text)
+      }
+
+      recognition.onerror = () => {
+        setIsListening(false)
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+      }
+
+      recognitionRef.current = recognition
+    }
+  }, [handleProcessVoiceInput])
+
+  const handleStartCall = () => {
+    setCallStatus("connected")
+    const greeting = "Hello! Thanks for calling Nexlin Voice Support. How can I assist your business today?"
+    setAiResponse(greeting)
+    speakText(greeting)
+  }
+
+  const handleEndCall = () => {
+    setCallStatus("ended")
+    setIsListening(false)
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort() } catch {}
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel()
+    }
+  }
+
+  const toggleMicListening = () => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop() } catch {}
+      }
+      setIsListening(false)
+    } else {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start()
+          setIsListening(true)
+        } catch {}
+      }
     }
   }
 

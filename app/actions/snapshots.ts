@@ -93,8 +93,29 @@ export async function getSnapshots(agencyId: string) {
     if (!session?.user?.id) throw new Error("Unauthorized")
     const targetAgencyId = session.user.agencyId || agencyId
 
-    const snapshots = await prisma.snapshot.findMany({
-      where: { agencyId: targetAgencyId },
+    const rawSnapshots = await prisma.snapshot.findMany({
+      where: {
+        agencyId: targetAgencyId,
+        version: {
+          notIn: [
+            "blog_post",
+            "calendar_config",
+            "lms_certificate",
+            "cpq_quote",
+            "custom_menu",
+            "community_badge",
+            "shopify_integration",
+            "smart_list",
+            "trigger_link",
+            "xero_ledger",
+            "integration_app",
+            "v1"
+          ]
+        },
+        name: {
+          notIn: ["channel_credentials", "white_label_branding"]
+        }
+      },
       include: { 
         _count: {
           select: { assets: true }
@@ -102,6 +123,16 @@ export async function getSnapshots(agencyId: string) {
       },
       orderBy: { createdAt: "desc" }
     })
+
+    const snapshots = rawSnapshots.filter((s) => {
+      if (!s.description) return true
+      try {
+        const parsed = JSON.parse(s.description)
+        if (parsed && parsed.type === "vibecode_prompt") return false
+      } catch {}
+      return true
+    })
+
     return { success: true, data: snapshots }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -113,12 +144,25 @@ export async function deploySnapshot(snapshotId: string, targetSubAgencyId: stri
     const session = await getSession()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
-    const snapshot = await prisma.snapshot.findUnique({
-      where: { id: snapshotId },
-      include: { assets: true }
-    })
+    const sessionAgencyId = session.user.agencyId || targetAgencyId
+
+    const [snapshot, ownedSubAgency] = await Promise.all([
+      prisma.snapshot.findUnique({
+        where: { id: snapshotId },
+        include: { assets: true }
+      }),
+      prisma.subAgency.findFirst({
+        where: { id: targetSubAgencyId, agencyId: sessionAgencyId }
+      })
+    ])
 
     if (!snapshot) throw new Error("Snapshot not found")
+    if (!snapshot.isPublic && snapshot.agencyId !== sessionAgencyId) {
+      throw new Error("Unauthorized snapshot access")
+    }
+    if (!ownedSubAgency) {
+      throw new Error("Target sub-account not found in your agency")
+    }
 
     // Deploy assets
     for (const asset of snapshot.assets) {
@@ -133,7 +177,7 @@ export async function deploySnapshot(snapshotId: string, targetSubAgencyId: stri
       if (asset.type === "funnel") {
         const createdFunnel = await prisma.funnel.create({
           data: {
-            agencyId: targetAgencyId,
+            agencyId: sessionAgencyId,
             subAgencyId: targetSubAgencyId,
             name: `${data.name} (from Snapshot)`,
             status: "draft"
@@ -156,7 +200,7 @@ export async function deploySnapshot(snapshotId: string, targetSubAgencyId: stri
       else if (asset.type === "workflow") {
         const createdWorkflow = await prisma.workflow.create({
           data: {
-            agencyId: targetAgencyId,
+            agencyId: sessionAgencyId,
             subAgencyId: targetSubAgencyId,
             name: `${data.name} (from Snapshot)`,
             status: "draft"
@@ -187,7 +231,7 @@ export async function deploySnapshot(snapshotId: string, targetSubAgencyId: stri
       else if (asset.type === "pipeline") {
         const createdPipeline = await prisma.pipeline.create({
           data: {
-            agencyId: targetAgencyId,
+            agencyId: sessionAgencyId,
             subAgencyId: targetSubAgencyId,
             name: `${data.name} (from Snapshot)`,
           }

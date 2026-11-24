@@ -45,14 +45,34 @@ export async function POST(req: NextRequest) {
     const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
     const safeFileName = `${baseName}-${uniqueSuffix}${ext}`
 
-    // Target upload directory in public/uploads/<agencyId>
+    let publicUrl = ""
+    const mimeType = file.type || "application/octet-stream"
     const uploadsDir = path.join(process.cwd(), "public", "uploads", agencyId)
-    await mkdir(uploadsDir, { recursive: true })
-
     const filePath = path.join(uploadsDir, safeFileName)
-    await writeFile(filePath, buffer)
 
-    const publicUrl = `/uploads/${agencyId}/${safeFileName}`
+    if (process.env.VERCEL !== "1") {
+      try {
+        await mkdir(uploadsDir, { recursive: true })
+        await writeFile(filePath, buffer)
+        publicUrl = `/uploads/${agencyId}/${safeFileName}`
+      } catch (fsErr: any) {
+        const code = fsErr?.code
+        if (code !== "EROFS" && code !== "EACCES" && code !== "EPERM") {
+          throw fsErr
+        }
+      }
+    }
+
+    if (!publicUrl) {
+      const SERVERLESS_MAX_BYTES = 4 * 1024 * 1024
+      if (file.size > SERVERLESS_MAX_BYTES) {
+        return NextResponse.json(
+          { success: false, error: "File exceeds 4MB limit in serverless mode." },
+          { status: 400 }
+        )
+      }
+      publicUrl = `data:${mimeType};base64,${buffer.toString("base64")}`
+    }
 
     // Save metadata in database
     const mediaFile = await db.mediaFile.create({
@@ -60,7 +80,7 @@ export async function POST(req: NextRequest) {
         agencyId,
         name: file.name,
         size: file.size,
-        type: file.type || "application/octet-stream",
+        type: mimeType,
         url: publicUrl,
         folder
       }

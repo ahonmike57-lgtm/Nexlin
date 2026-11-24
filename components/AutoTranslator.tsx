@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef, useCallback } from "react"
 import { Globe, Check, X, ChevronDown, Search, RotateCcw, MapPin, Sparkles } from "lucide-react"
 
 export interface LanguageOption {
@@ -102,14 +102,13 @@ export default function AutoTranslator() {
       document.head.appendChild(style)
     }
 
-    // Set callback
+    // Set callback (omit InlineLayout.SIMPLE so Google renders <select class="goog-te-combo">)
     window.googleTranslateElementInit = () => {
       if (window.google?.translate?.TranslateElement) {
         new window.google.translate.TranslateElement(
           {
             pageLanguage: "en",
-            autoDisplay: false,
-            layout: window.google.translate.TranslateElement.InlineLayout?.SIMPLE
+            autoDisplay: false
           },
           "google_translate_element"
         )
@@ -135,50 +134,8 @@ export default function AutoTranslator() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // 2. Fetch IP Geolocation & Auto-Translate
-  useEffect(() => {
-    const initGeoAndLanguage = async () => {
-      try {
-        const storedPref = localStorage.getItem("nexlin_user_language")
-        
-        // Fetch detected location from server route
-        const res = await fetch("/api/geo/language")
-        const data = await res.json()
-
-        if (data.success) {
-          setDetectedGeo({
-            country: data.country,
-            countryName: data.countryName,
-            language: data.language,
-            languageName: data.languageName,
-            flag: data.flag
-          })
-
-          if (storedPref) {
-            // User had already made an explicit choice previously
-            setCurrentLang(storedPref)
-            if (storedPref !== "en") {
-              triggerGoogleTranslate(storedPref, false)
-            }
-          } else {
-            // No previous user override: auto-translate based on IP!
-            if (data.language && data.language !== "en") {
-              setCurrentLang(data.language)
-              setShowAutoNotice(true)
-              triggerGoogleTranslate(data.language, false)
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Auto-translation geolocation lookup error:", err)
-      }
-    }
-
-    initGeoAndLanguage()
-  }, [])
-
-  // 3. Helper to trigger Google Translate on DOM
-  const triggerGoogleTranslate = (langCode: string, isManual = true) => {
+  // 2. Helper to trigger Google Translate on DOM
+  const triggerGoogleTranslate = useCallback((langCode: string, isManual = true) => {
     setIsTranslating(true)
 
     // Set Google Translate cookies
@@ -223,7 +180,49 @@ export default function AutoTranslator() {
     }
 
     attemptTranslate(10)
-  }
+  }, [])
+
+  // 3. Fetch IP Geolocation & Auto-Translate
+  useEffect(() => {
+    const initGeoAndLanguage = async () => {
+      try {
+        const storedPref = localStorage.getItem("nexlin_user_language")
+        
+        // Fetch detected location from server route
+        const res = await fetch("/api/geo/language")
+        const data = await res.json()
+
+        if (data.success) {
+          setDetectedGeo({
+            country: data.country,
+            countryName: data.countryName,
+            language: data.language,
+            languageName: data.languageName,
+            flag: data.flag
+          })
+
+          if (storedPref) {
+            // User had already made an explicit choice previously
+            setCurrentLang(storedPref)
+            if (storedPref !== "en") {
+              triggerGoogleTranslate(storedPref, false)
+            }
+          } else {
+            // No previous user override: auto-translate based on IP!
+            if (data.language && data.language !== "en") {
+              setCurrentLang(data.language)
+              setShowAutoNotice(true)
+              triggerGoogleTranslate(data.language, false)
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Auto-translation geolocation lookup error:", err)
+      }
+    }
+
+    initGeoAndLanguage()
+  }, [triggerGoogleTranslate])
 
   const handleSelectLanguage = (code: string) => {
     setCurrentLang(code)
@@ -269,7 +268,7 @@ export default function AutoTranslator() {
 
       {/* Floating Auto-Translation Notification Pill (Shown when translated via IP) */}
       {showAutoNotice && detectedGeo && currentLang !== "en" && (
-        <div className="fixed bottom-20 left-4 z-[9999] max-w-sm bg-bg-card/95 backdrop-blur-xl border border-primary/30 shadow-2xl rounded-2xl p-4 text-xs animate-in fade-in slide-in-from-bottom-5 duration-300">
+        <div className="notranslate fixed bottom-20 left-4 z-[9999] max-w-sm bg-bg-card/95 backdrop-blur-xl border border-primary/30 shadow-2xl rounded-2xl p-4 text-xs animate-in fade-in slide-in-from-bottom-5 duration-300">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-2 text-primary font-semibold">
               <span className="text-base">{detectedGeo.flag}</span>
@@ -304,7 +303,7 @@ export default function AutoTranslator() {
       )}
 
       {/* Modern Floating Language Selector Widget */}
-      <div ref={popupRef} className="fixed bottom-4 left-4 z-[9998]">
+      <div ref={popupRef} className="notranslate fixed bottom-4 left-4 z-[9998]">
         {/* Toggle Pill Button */}
         <button
           onClick={() => setIsOpen(!isOpen)}

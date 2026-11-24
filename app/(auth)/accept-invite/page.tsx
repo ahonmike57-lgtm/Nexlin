@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { verifyAdminInviteCode, completeAdminSignup } from "@/app/actions/admin"
 import { toast } from "sonner"
@@ -28,20 +28,7 @@ function AcceptInviteContent() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isCompleted, setIsCompleted] = useState(false)
 
-  // Sync state if URL query parameters update
-  useEffect(() => {
-    if (initialEmail) setEmail(initialEmail)
-    if (initialCode) setCode(initialCode)
-
-    if (initialEmail && initialCode) {
-      handleVerifyCode(initialEmail, initialCode)
-    }
-  }, [initialEmail, initialCode])
-
-  const handleVerifyCode = async (verifyEmail?: string, verifyCode?: string) => {
-    const e = verifyEmail || email
-    const c = verifyCode || code
-
+  const verifyInvite = useCallback(async (e: string, c: string) => {
     if (!e || !c) {
       toast.error("Please enter both your email address and 6-digit code.")
       return
@@ -58,12 +45,23 @@ function AcceptInviteContent() {
       } else {
         toast.error(res.error || "Failed to verify invitation code.")
       }
-    } catch (err: any) {
+    } catch {
       toast.error("An unexpected error occurred.")
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const handleVerifyCode = async (verifyEmail?: string, verifyCode?: string) => {
+    return verifyInvite(verifyEmail || email, verifyCode || code)
   }
+
+  // Verify invite automatically if URL query parameters are present
+  useEffect(() => {
+    if (initialEmail && initialCode) {
+      void verifyInvite(initialEmail, initialCode)
+    }
+  }, [initialEmail, initialCode, verifyInvite])
 
   const handleCompleteSignup = async (e: React.FormEvent) => {
     e.preventDefault()

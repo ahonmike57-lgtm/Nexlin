@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireTenantAuth } from "@/lib/permissions"
 
 const DEFAULT_MARKUPS = [
   { type: "sms", multiplier: 1.5, baseCost: 0.015 },
@@ -10,10 +11,16 @@ const DEFAULT_MARKUPS = [
   { type: "call_minutes", multiplier: 2.0, baseCost: 0.025 }
 ]
 
-export async function getRebillingMarkups(agencyId: string) {
+export async function getRebillingMarkups(agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+  const scopedAgencyId = auth.agencyId
+
   try {
     const markups = await db.rebillingMarkup.findMany({
-      where: { agencyId }
+      where: { agencyId: scopedAgencyId }
     })
     
     // Merge DB markups with defaults to ensure all types exist in the UI
@@ -35,11 +42,17 @@ export async function getRebillingMarkups(agencyId: string) {
 }
 
 export async function saveRebillingMarkup(agencyId: string, type: string, multiplier: number) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+  const scopedAgencyId = auth.agencyId
+
   try {
     const markup = await db.rebillingMarkup.upsert({
-      where: { agencyId_type: { agencyId, type } },
+      where: { agencyId_type: { agencyId: scopedAgencyId, type } },
       update: { multiplier },
-      create: { agencyId, type, multiplier }
+      create: { agencyId: scopedAgencyId, type, multiplier }
     })
     revalidatePath("/settings/saas")
     return { success: true, markup }
@@ -49,15 +62,21 @@ export async function saveRebillingMarkup(agencyId: string, type: string, multip
   }
 }
 
-export async function getAgencyWalletBalance(agencyId: string) {
+export async function getAgencyWalletBalance(agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+  const scopedAgencyId = auth.agencyId
+
   try {
     let wallet = await db.billingWallet.findUnique({
-      where: { agencyId }
+      where: { agencyId: scopedAgencyId }
     })
     
     if (!wallet) {
       wallet = await db.billingWallet.create({
-        data: { agencyId, balance: 0.0 }
+        data: { agencyId: scopedAgencyId, balance: 0.0 }
       })
     }
     

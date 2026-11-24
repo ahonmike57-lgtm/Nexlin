@@ -46,11 +46,26 @@ export async function updateAgencyBranding(branding: {
   }
 
   try {
+    let brandColorsValue: string | undefined = undefined
+    if (branding.colors) {
+      const existing = await db.agency.findUnique({
+        where: { id: auth.agencyId },
+        select: { brandColors: true }
+      })
+      let existingColors: Record<string, any> = {}
+      if (existing?.brandColors) {
+        try {
+          existingColors = JSON.parse(existing.brandColors)
+        } catch {}
+      }
+      brandColorsValue = JSON.stringify({ ...existingColors, ...branding.colors })
+    }
+
     const updated = await db.agency.update({
       where: { id: auth.agencyId },       // always from session
       data: {
         logoUrl: branding.logoUrl,
-        brandColors: branding.colors ? JSON.stringify(branding.colors) : undefined,
+        brandColors: brandColorsValue,
         customDomain: branding.customDomain || null,
         whiteLabelName: branding.whiteLabelName || null,
         loginBackgroundImage: branding.loginBackgroundImage || null
@@ -58,6 +73,7 @@ export async function updateAgencyBranding(branding: {
     })
 
     revalidatePath("/settings/branding")
+    revalidatePath("/", "layout")
     return { success: true, data: updated }
   } catch (error: any) {
     console.error("Failed to update branding:", error)
@@ -231,8 +247,13 @@ export async function updateAgencyProfile(data: {
     })
 
     revalidatePath("/settings")
+    revalidatePath("/settings/branding")
+    revalidatePath("/", "layout")
     return { success: true, agency: updated }
   } catch (error: any) {
+    if (error?.code === "P2002") {
+      return { success: false, error: "Subdomain or custom domain is already in use." }
+    }
     return { success: false, error: error.message }
   }
 }

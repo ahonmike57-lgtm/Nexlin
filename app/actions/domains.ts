@@ -2,23 +2,42 @@
 
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 import { revalidatePath } from "next/cache"
 
 export async function updateFunnelDomain(funnelId: string, customDomain: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    // Ideally we would verify the agency owns this funnel first
+  try {
+    const cleanDomain = customDomain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "")
+    if (!cleanDomain) {
+      return { success: false, error: "Invalid domain string" }
+    }
+
+    const ownedFunnel = await db.funnel.findFirst({
+      where: { id: funnelId, agencyId: auth.agencyId },
+      select: { id: true }
+    })
+
+    if (!ownedFunnel) {
+      return { success: false, error: "Funnel not found in your agency" }
+    }
+
     const updatedFunnel = await db.funnel.update({
-      where: { id: funnelId },
-      data: { customDomain }
+      where: { id: ownedFunnel.id },
+      data: { customDomain: cleanDomain }
     })
 
     revalidatePath("/settings/domains")
     revalidatePath("/funnels")
     return { success: true, data: updatedFunnel }
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      return { success: false, error: "This custom domain is already connected to another funnel." }
+    }
     console.error("Failed to update domain:", error)
     return { success: false, error: "Failed to update domain" }
   }
@@ -29,10 +48,10 @@ export async function checkCustomDomainDns(domain: string) {
     const session = await getSession()
     if (!session?.user?.id) return { success: false, error: "Unauthorized" }
 
-    const cleanDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, "")
+    const cleanDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "")
     if (!cleanDomain) return { success: false, error: "Invalid domain string" }
 
-    // DNS lookup simulation and verification
+    // DNS lookup verification via Google DNS-over-HTTPS
     const expectedCname = "cname.vercel-dns.com"
     const expectedA = "76.76.21.21"
 
@@ -53,7 +72,7 @@ export async function checkCustomDomainDns(domain: string) {
       if (dnsData.Answer && dnsData.Answer.length > 0) {
         isConfigured = dnsData.Answer.some((ans: any) => ans.data.includes(target) || ans.data.includes("vercel"))
       }
-    } catch (e) {
+    } catch {
       isConfigured = false
     }
 

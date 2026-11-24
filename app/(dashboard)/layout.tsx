@@ -52,9 +52,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div 
       className="w-full h-full"
       style={{
-        ...(colors?.primary ? { '--color-primary': colors.primary } : {}),
-        ...(colors?.bgPrimary ? { '--color-bg-primary': colors.bgPrimary } : {}),
-        ...(colors?.textPrimary ? { '--color-text-primary': colors.textPrimary } : {})
+        ...(colors?.primary ? { '--primary': colors.primary, '--color-primary': colors.primary } : {}),
+        ...(colors?.accent ? { '--secondary': colors.accent, '--color-secondary': colors.accent } : {}),
+        ...(colors?.bgPrimary ? { '--bg-primary': colors.bgPrimary, '--color-bg-primary': colors.bgPrimary } : {}),
+        ...(colors?.textPrimary ? { '--text-primary': colors.textPrimary, '--color-text-primary': colors.textPrimary } : {})
       } as React.CSSProperties}
     >
       <DashboardLayoutClient agency={agency} featureFlags={flags || []}>

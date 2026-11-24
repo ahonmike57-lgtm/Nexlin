@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Package, Plus, Play, DownloadCloud, Clock, Sparkles } from "lucide-react"
 import { createSnapshot, getSnapshots, deploySnapshot, generateDynamicSnapshot } from "@/app/actions/snapshots"
+import { toast } from "sonner"
 
 export default function SnapshotsClient({ 
   agencyId, 
@@ -33,30 +34,33 @@ export default function SnapshotsClient({
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null)
   const [selectedSubAgencyId, setSelectedSubAgencyId] = useState<string>("")
 
-  useEffect(() => {
-    loadSnapshots()
-  }, [])
-
-  const loadSnapshots = async () => {
+  const loadSnapshots = useCallback(async () => {
     setIsLoading(true)
     const res = await getSnapshots(agencyId)
     if (res.success && res.data) {
       setSnapshots(res.data)
+    } else if (!res.success) {
+      toast.error(res.error || "Failed to load snapshots")
     }
     setIsLoading(false)
-  }
+  }, [agencyId])
+
+  useEffect(() => {
+    loadSnapshots()
+  }, [loadSnapshots])
 
   const handleCreate = async () => {
     if (!newName) return
     setIsCreating(true)
     const res = await createSnapshot(agencyId, newName, newDesc)
     if (res.success) {
+      toast.success("Snapshot created successfully!")
       setNewName("")
       setNewDesc("")
       setShowCreate(false)
       loadSnapshots()
     } else {
-      alert("Failed to create snapshot")
+      toast.error(res.error || "Failed to create snapshot")
     }
     setIsCreating(false)
   }
@@ -66,10 +70,10 @@ export default function SnapshotsClient({
     setDeployingId(selectedSnapshotId)
     const res = await deploySnapshot(selectedSnapshotId, selectedSubAgencyId, agencyId)
     if (res.success) {
-      alert("Snapshot deployed successfully to the selected sub-account!")
+      toast.success("Snapshot deployed successfully to the selected sub-account!")
       setSelectedSnapshotId(null)
     } else {
-      alert("Failed to deploy snapshot")
+      toast.error(res.error || "Failed to deploy snapshot")
     }
     setDeployingId(null)
   }
@@ -79,12 +83,12 @@ export default function SnapshotsClient({
     setIsGenerating(true)
     const res = await generateDynamicSnapshot(aiPrompt)
     if (res.success) {
-      alert("AI successfully generated a Pipeline, Funnel, and Workflow tailored to your prompt!")
+      toast.success("AI successfully generated a Pipeline, Funnel, and Workflow tailored to your prompt!")
       setAiPrompt("")
       setShowAiGenerate(false)
-      // Since it creates live assets rather than a packaged snapshot, we just alert
+      loadSnapshots()
     } else {
-      alert("Failed to generate AI snapshot: " + res.error)
+      toast.error("Failed to generate AI snapshot: " + res.error)
     }
     setIsGenerating(false)
   }

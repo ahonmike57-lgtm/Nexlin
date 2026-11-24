@@ -122,9 +122,19 @@ export default function GeneralSettingsPage() {
     }
   }
 
+  const getPortalUrl = () => {
+    const cleanCustom = customDomain.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "")
+    if (cleanCustom) {
+      return `https://${cleanCustom}`
+    }
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://nexlin-virid.vercel.app"
+    return `${origin}/f/${subdomain || "app"}`
+  }
+
+  const portalUrl = getPortalUrl()
+
   const handleCopySubdomain = () => {
-    const url = `https://${subdomain || "app"}.nexlin-virid.vercel.app`
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(portalUrl)
     setCopiedLink(true)
     toast.success("Portal URL copied to clipboard!")
     setTimeout(() => setCopiedLink(false), 2000)
@@ -289,7 +299,7 @@ export default function GeneralSettingsPage() {
                     <span>{copiedLink ? "Copied" : "Copy Link"}</span>
                   </button>
                   <a
-                    href={`https://${subdomain || "app"}.nexlin-virid.vercel.app`}
+                    href={portalUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[11px] text-text-secondary hover:text-text-primary flex items-center gap-1"

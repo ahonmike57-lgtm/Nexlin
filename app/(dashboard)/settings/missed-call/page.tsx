@@ -1,16 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { getMissedCallSettings, updateMissedCallSettings, testMissedCallTextBack } from "@/app/actions/missed-call"
 import { toast } from "sonner"
-import { PhoneMissed, MessageSquare, Sparkles, Send, Clock, ShieldCheck, Check, Loader2, ArrowRight } from "lucide-react"
-import Link from "next/link"
+import { PhoneMissed, MessageSquare, Sparkles, Send, Check, Loader2 } from "lucide-react"
 
 export default function MissedCallTextBackPage() {
   const [enabled, setEnabled] = useState(false)
   const [message, setMessage] = useState("Hi, this is [Agency Name]. We missed your call, how can we help?")
   const [aiFollowUp, setAiFollowUp] = useState(true)
-  const [delaySeconds, setDelaySeconds] = useState(15)
   const [workingHoursOnly, setWorkingHoursOnly] = useState(false)
   const [agencyName, setAgencyName] = useState("Our Agency")
   const [loading, setLoading] = useState(true)
@@ -20,21 +18,22 @@ export default function MissedCallTextBackPage() {
   const [testPhone, setTestPhone] = useState("")
   const [testing, setTesting] = useState(false)
 
-  useEffect(() => {
-    loadSettings()
-  }, [])
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     setLoading(true)
     const res = await getMissedCallSettings()
     if (res.success && res.data) {
       setEnabled(res.data.enabled)
       setMessage(res.data.message)
       setAiFollowUp(res.data.aiFollowUp)
+      setWorkingHoursOnly(!!res.data.workingHoursOnly)
       setAgencyName(res.data.agencyName)
     }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
 
   const handleSave = async () => {
     setSaving(true)
@@ -42,6 +41,7 @@ export default function MissedCallTextBackPage() {
       enabled,
       message,
       aiFollowUp,
+      workingHoursOnly,
     })
     setSaving(false)
     if (res.success) {
@@ -66,7 +66,10 @@ export default function MissedCallTextBackPage() {
     }
   }
 
-  const previewMessage = message.replace(/\[Agency Name\]/g, agencyName || "Our Agency")
+  const previewMessage = message
+    .replace(/\[Agency Name\]/gi, agencyName || "Our Agency")
+    .replace(/\[First Name\]/gi, "Alex")
+    .replace(/\[Contact Name\]/gi, "Alex")
 
   if (loading) {
     return (

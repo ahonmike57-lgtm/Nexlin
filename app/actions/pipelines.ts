@@ -38,6 +38,9 @@ export const createPipeline = withAgency(
             order: idx
           }))
         }
+      },
+      include: {
+        stages: { orderBy: { order: "asc" } }
       }
     })
 

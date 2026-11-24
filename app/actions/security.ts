@@ -84,6 +84,21 @@ export async function verifyTotpToken(secret: string, token: string): Promise<bo
 }
 
 /**
+ * Fetch 2FA status for the current user
+ */
+export async function getSecurityStatus() {
+  const session = await getSession()
+  if (!session?.user?.id) return { twoFactorEnabled: false }
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { twoFactorEnabled: true },
+  })
+
+  return { twoFactorEnabled: !!user?.twoFactorEnabled }
+}
+
+/**
  * Confirm and Enable 2FA for the current user
  */
 export async function enableTwoFactor(token: string, secret: string, backupCodes: string[]) {
@@ -91,7 +106,7 @@ export async function enableTwoFactor(token: string, secret: string, backupCodes
   if (!session?.user?.id) throw new Error("Unauthorized")
 
   const isValid = await verifyTotpToken(secret, token)
-  if (!isValid && token !== "123456") {
+  if (!isValid) {
     return { success: false, error: "Invalid 6-digit verification code. Please try again." }
   }
 

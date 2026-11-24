@@ -44,7 +44,8 @@ export async function addMcpConnection(data: { name: string, serverUrl: string, 
     });
 
     revalidatePath('/settings/mcp');
-    return { success: true, connection };
+    const { encryptedCredentials: _enc, ...safeConnection } = connection;
+    return { success: true, connection: safeConnection };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

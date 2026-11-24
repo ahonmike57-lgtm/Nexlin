@@ -7,19 +7,39 @@ import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { saveAiSetting } from "@/app/actions/aiSettings"
 
+const UI_MODEL_ALIASES: Record<string, string> = {
+  "gemini-3.5-flash": "gemini-2.0-flash",
+  "gemini-3.1-pro": "gemini-1.5-pro",
+  "claude-5-sonnet": "claude-3-5-sonnet-20241022",
+  "claude-5-opus": "claude-3-opus-20240229",
+  "claude-4-5-haiku": "claude-3-5-haiku-20241022"
+}
+
+function normalizeUiModel(raw: string | undefined, fallback: string): string {
+  if (!raw) return fallback
+  const trimmed = raw.trim()
+  return UI_MODEL_ALIASES[trimmed.toLowerCase()] || trimmed
+}
+
 export default function AiSettingsClient({ initialSettings, agencyId }: { initialSettings: any[], agencyId: string }) {
   const [settings, setSettings] = useState(initialSettings)
   const [loading, setLoading] = useState<string | null>(null)
 
   // Local form states
   const [googleKey, setGoogleKey] = useState(settings.find(s => s.provider === "google")?.apiKey || "")
-  const [googleModel, setGoogleModel] = useState(settings.find(s => s.provider === "google")?.modelName || "gemini-2.0-flash")
+  const [googleModel, setGoogleModel] = useState(
+    normalizeUiModel(settings.find(s => s.provider === "google")?.modelName, "gemini-2.0-flash")
+  )
 
   const [openAiKey, setOpenAiKey] = useState(settings.find(s => s.provider === "openai")?.apiKey || "")
-  const [openAiModel, setOpenAiModel] = useState(settings.find(s => s.provider === "openai")?.modelName || "gpt-4o")
+  const [openAiModel, setOpenAiModel] = useState(
+    normalizeUiModel(settings.find(s => s.provider === "openai")?.modelName, "gpt-4o")
+  )
 
   const [anthropicKey, setAnthropicKey] = useState(settings.find(s => s.provider === "anthropic")?.apiKey || "")
-  const [anthropicModel, setAnthropicModel] = useState(settings.find(s => s.provider === "anthropic")?.modelName || "claude-3-5-sonnet-20241022")
+  const [anthropicModel, setAnthropicModel] = useState(
+    normalizeUiModel(settings.find(s => s.provider === "anthropic")?.modelName, "claude-3-5-sonnet-20241022")
+  )
 
   const activeProvider = settings.find(s => s.isActive)?.provider || "google"
 
@@ -34,22 +54,26 @@ export default function AiSettingsClient({ initialSettings, agencyId }: { initia
     setLoading(null)
 
     if (res.success) {
+      const maskedKey = res.setting?.apiKey || apiKey
+      if (provider === "google") setGoogleKey(maskedKey)
+      if (provider === "openai") setOpenAiKey(maskedKey)
+      if (provider === "anthropic") setAnthropicKey(maskedKey)
+
       toast.success(`${provider} settings saved!`)
-      // Refresh local settings state
-      if (makeActive) {
-        setSettings(prev => {
-          const updated = prev.map(s => ({ ...s, isActive: false }))
-          const existing = updated.find(s => s.provider === provider)
-          if (existing) {
-            existing.apiKey = apiKey
-            existing.modelName = modelName
-            existing.isActive = true
-            return updated
-          } else {
-            return [...updated, { provider, apiKey, modelName, isActive: true }]
+      setSettings(prev => {
+        const base = makeActive ? prev.map(s => ({ ...s, isActive: false })) : [...prev]
+        const existingIdx = base.findIndex(s => s.provider === provider)
+        if (existingIdx !== -1) {
+          base[existingIdx] = {
+            ...base[existingIdx],
+            apiKey: maskedKey,
+            modelName,
+            isActive: makeActive ? true : base[existingIdx].isActive
           }
-        })
-      }
+          return base
+        }
+        return [...base, { provider, apiKey: maskedKey, modelName, isActive: makeActive }]
+      })
     } else {
       toast.error(res.error || "Failed to save settings")
     }

@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ShieldAlert, KeyRound, Smartphone, Check, Copy, AlertCircle, ShieldCheck, Lock } from "lucide-react"
-import { generateTwoFactorSetup, enableTwoFactor, changeUserPassword } from "@/app/actions/security"
+import { ShieldAlert, KeyRound, Smartphone, Check, Copy, AlertCircle, ShieldCheck, Lock, FileDown } from "lucide-react"
+import { generateTwoFactorSetup, enableTwoFactor, disableTwoFactor, changeUserPassword, getSecurityStatus } from "@/app/actions/security"
+import { toast } from "sonner"
 
 export default function SecuritySettingsPage() {
   // Password State
@@ -21,6 +23,21 @@ export default function SecuritySettingsPage() {
   const [twoFactorStatus, setTwoFactorStatus] = useState<{ loading: boolean; error?: string; success?: string }>({ loading: false })
   const [copiedKey, setCopiedKey] = useState(false)
 
+  // Disable 2FA State
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false)
+  const [disablePassword, setDisablePassword] = useState("")
+
+  // Danger Zone confirmation toggle
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  useEffect(() => {
+    getSecurityStatus()
+      .then((res) => {
+        setTwoFactorEnabled(!!res.twoFactorEnabled)
+      })
+      .catch(() => {})
+  }, [])
+
   // Handle Password Change
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,6 +50,7 @@ export default function SecuritySettingsPage() {
       const res = await changeUserPassword(currentPassword, newPassword)
       if (res.success) {
         setPasswordStatus({ loading: false, success: "Password successfully updated!" })
+        toast.success("Password successfully updated!")
         setCurrentPassword("")
         setNewPassword("")
         setConfirmPassword("")
@@ -67,12 +85,37 @@ export default function SecuritySettingsPage() {
       const res = await enableTwoFactor(verificationCode, twoFactorSetup.secret, twoFactorSetup.backupCodes)
       if (res.success) {
         setTwoFactorEnabled(true)
+        setTwoFactorSetup(null)
+        setVerificationCode("")
         setTwoFactorStatus({ loading: false, success: "2FA successfully activated!" })
+        toast.success("2FA protection activated!")
       } else {
         setTwoFactorStatus({ loading: false, error: res.error || "Invalid 6-digit code. Please try again." })
       }
     } catch (err: any) {
       setTwoFactorStatus({ loading: false, error: err.message || "Verification failed" })
+    }
+  }
+
+  // Handle 2FA Disable
+  const handleDisableTwoFactor = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!disablePassword) return
+
+    setTwoFactorStatus({ loading: true })
+    try {
+      const res = await disableTwoFactor(disablePassword)
+      if (res.success) {
+        setTwoFactorEnabled(false)
+        setShowDisableConfirm(false)
+        setDisablePassword("")
+        setTwoFactorStatus({ loading: false })
+        toast.success("Two-factor authentication disabled.")
+      } else {
+        setTwoFactorStatus({ loading: false, error: res.error || "Failed to disable 2FA" })
+      }
+    } catch (err: any) {
+      setTwoFactorStatus({ loading: false, error: err.message || "Failed to disable 2FA" })
     }
   }
 
@@ -173,17 +216,64 @@ export default function SecuritySettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {twoFactorEnabled ? (
-            <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="w-6 h-6 text-emerald-500" />
-                <div>
-                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">2FA Protection is Active</p>
-                  <p className="text-xs text-text-secondary">Your account requires a 6-digit TOTP token upon login.</p>
+            <div className="space-y-3">
+              <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="w-6 h-6 text-emerald-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">2FA Protection is Active</p>
+                    <p className="text-xs text-text-secondary">Your account requires a 6-digit TOTP token upon login.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
+                    Enabled
+                  </span>
+                  {!showDisableConfirm && (
+                    <Button variant="outline" size="sm" onClick={() => setShowDisableConfirm(true)}>
+                      Disable 2FA
+                    </Button>
+                  )}
                 </div>
               </div>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">
-                Enabled
-              </span>
+
+              {showDisableConfirm && (
+                <form onSubmit={handleDisableTwoFactor} className="p-4 rounded-xl border border-border bg-bg-secondary/40 space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-text-primary">Confirm Password to Disable 2FA</label>
+                    <input
+                      type="password"
+                      required
+                      value={disablePassword}
+                      onChange={(e) => setDisablePassword(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-bg-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      placeholder="Enter your account password"
+                    />
+                  </div>
+                  {twoFactorStatus.error && (
+                    <p className="text-xs text-red-500 flex items-center gap-1.5 font-medium">
+                      <AlertCircle className="w-3.5 h-3.5" /> {twoFactorStatus.error}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Button type="submit" variant="danger" size="sm" disabled={twoFactorStatus.loading}>
+                      {twoFactorStatus.loading ? "Disabling..." : "Confirm Disable"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowDisableConfirm(false)
+                        setDisablePassword("")
+                        setTwoFactorStatus({ loading: false })
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              )}
             </div>
           ) : !twoFactorSetup ? (
             <Button onClick={handleStartTwoFactor} disabled={twoFactorStatus.loading}>
@@ -275,8 +365,36 @@ export default function SecuritySettingsPage() {
             Permanently delete your agency workspace, contacts, funnels, and billing wallets. This action is irreversible.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button variant="danger">Delete Agency Workspace</Button>
+        <CardContent className="space-y-3">
+          {!showDeleteConfirm ? (
+            <Button variant="danger" onClick={() => setShowDeleteConfirm(true)}>
+              Delete Agency Workspace
+            </Button>
+          ) : (
+            <div className="p-4 rounded-xl border border-red-500/30 bg-bg-primary space-y-3 animate-in fade-in">
+              <p className="text-xs font-semibold text-red-500 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" /> Before requesting permanent deletion:
+              </p>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                Workspace deletion permanently destroys all contacts, deals, funnels, and phone numbers. First export your CRM backup from General Settings, then contact Platform Support with your Agency ID to complete tenant offboarding.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href="/settings">
+                  <Button variant="outline" size="sm" className="text-xs gap-1.5">
+                    <FileDown className="w-3.5 h-3.5" /> Go to General Settings &amp; Export CRM
+                  </Button>
+                </Link>
+                <Link href="/support">
+                  <Button variant="danger" size="sm" className="text-xs">
+                    Contact Support to Offboard
+                  </Button>
+                </Link>
+                <Button variant="ghost" size="sm" className="text-xs" onClick={() => setShowDeleteConfirm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

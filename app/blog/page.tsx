@@ -2,6 +2,8 @@ import { getAllPublicBlogPosts } from "@/app/actions/blogs"
 import BlogIndexClient from "./BlogIndexClient"
 import type { Metadata } from "next"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "The Nexlin Journal | AI Automation, CRM Engineering & Agency Growth",
   description: "Deep technical breakdowns, voice AI latency benchmarks, CPQ close-rate strategies, and operating architecture for high-growth digital agencies.",
