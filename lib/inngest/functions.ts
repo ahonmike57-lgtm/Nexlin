@@ -1,8 +1,9 @@
 import { inngest } from "./client"
 import { db } from "@/lib/db"
-import { interpolateMergeTags } from "@/lib/merge-tags"
+import { deliverMessage } from "@/lib/messaging"
+import { publishSocialPostInternal } from "@/lib/social"
+import { runSingleWorkflowAction } from "@/lib/workflow-engine"
 import { pusherServer } from "@/lib/pusher"
-import { logWebhookDelivery } from "@/lib/webhooks"
 
 export const executeWorkflowEngine = (inngest.createFunction as any)(
   { id: "execute-workflow-engine", event: "workflow.execute" },
@@ -18,10 +19,13 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
         }
       })
 
-      const contact = contactId ? await db.contact.findUnique({
-        where: { id: contactId },
-        include: { deals: { take: 1, orderBy: { updatedAt: "desc" } } }
-      }) : null
+      const contact =
+        wf && contactId
+          ? await db.contact.findFirst({
+              where: { id: contactId, agencyId: wf.agencyId },
+              include: { deals: { take: 1, orderBy: { updatedAt: "desc" } } },
+            })
+          : null
 
       return { wf, contact }
     })
@@ -44,127 +48,12 @@ export const executeWorkflowEngine = (inngest.createFunction as any)(
       if (action.type === "wait") {
         const duration = config.duration ? `${config.duration}h` : "24h"
         await step.sleep(`wait-${action.id}`, duration)
-      } 
-      else if (action.type === "send_email") {
-        await step.run(`send-email-${action.id}`, async () => {
-          if (contact?.emailSuppressed) {
-            console.warn(`[Workflow Engine Deliverability] Contact ${contact.id} (${contact.email}) is on the suppression list. Skipping email dispatch.`)
-            return { skipped: true, reason: "EMAIL_SUPPRESSED" }
-          }
-
-          const rawSubject = config.subject || "Important update from {{agency.name}}"
-          const rawBody = config.body || "Hi {{contact.firstName | 'there'}}, we have an update regarding your inquiry."
-          
-          const personalizedSubject = interpolateMergeTags(rawSubject, context)
-          const personalizedBody = interpolateMergeTags(rawBody, context)
-
-          console.log(`[Workflow Engine] Sending Email to ${contact?.email || contactId}: "${personalizedSubject}"`)
-          
-          if (contactId) {
-            const conv = await db.conversation.findFirst({
-              where: { contactId, channel: "email" }
-            })
-            if (conv) {
-              await db.message.create({
-                data: {
-                  conversationId: conv.id,
-                  isOutbound: true,
-                  content: `Subject: ${personalizedSubject}\n\n${personalizedBody}`,
-                  status: "delivered"
-                }
-              }).catch(() => {})
-            }
-          }
-        })
-      } 
-      else if (action.type === "wait_delay" || action.type === "delay" || action.type === "sleep") {
+      } else if (action.type === "wait_delay" || action.type === "delay" || action.type === "sleep") {
         const duration = config.duration || config.delay || "1d"
         await step.sleep(`sleep-delay-${action.id}`, duration)
-      }
-      else if (action.type === "send_sms") {
-        await step.run(`send-sms-${action.id}`, async () => {
-          if (contact?.dndEnabled) {
-            console.warn(`[Workflow Engine Compliance] Contact ${contact.id} (${contact.phone}) has DND enabled. Skipping automated SMS.`)
-            return { skipped: true, reason: "DND_ENABLED" }
-          }
-          const rawText = config.message || "Hi {{contact.firstName | 'there'}}, this is a quick update from {{agency.name}}!"
-          const personalizedMessage = interpolateMergeTags(rawText, context)
-          console.log(`[Workflow Engine] Sending SMS to ${contact?.phone || contactId}: "${personalizedMessage}"`)
-        })
-      }
-      else if (action.type === "assign_rep") {
-        await step.run(`assign-rep-${action.id}`, async () => {
-          if (contactId && config.userId) {
-            await db.contact.updateMany({
-              where: { id: contactId },
-              data: { assignedRepId: config.userId }
-            }).catch(() => {})
-            
-            await db.deal.updateMany({
-              where: { contactId },
-              data: { assignedRepId: config.userId }
-            }).catch(() => {})
-          }
-        })
-      }
-      else if (action.type === "update_deal_stage") {
-        await step.run(`update-stage-${action.id}`, async () => {
-          if (contactId && config.stage) {
-            await db.deal.updateMany({
-              where: { contactId },
-              data: { stage: config.stage }
-            }).catch(() => {})
-          }
-        })
-      }
-      else if (action.type === "post_webhook") {
-        await step.run(`post-webhook-${action.id}`, async () => {
-          if (config.webhookUrl) {
-            const payload = {
-              event: "workflow.action",
-              workflowId: wf.id,
-              workflowName: wf.name,
-              contact,
-              timestamp: new Date().toISOString()
-            }
-            try {
-              const res = await fetch(config.webhookUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-              })
-              await logWebhookDelivery({
-                url: config.webhookUrl,
-                event: "workflow.action",
-                payload,
-                statusCode: res.status,
-                agencyId: wf.agencyId
-              }).catch(() => {})
-            } catch (err: any) {
-              console.warn(`[Workflow Engine] Outbound webhook failed to ${config.webhookUrl}:`, err)
-              await logWebhookDelivery({
-                url: config.webhookUrl,
-                event: "workflow.action",
-                payload,
-                statusCode: 500,
-                error: err.message || "Network timeout / connection refused",
-                agencyId: wf.agencyId
-              }).catch(() => {})
-            }
-          }
-        })
-      }
-      else if (action.type === "internal_notification") {
-        await step.run(`internal-notify-${action.id}`, async () => {
-          try {
-            const rawMsg = config.message || "Workflow notification: Contact {{contact.fullName}} progressed in {{workflow.name}}"
-            const message = interpolateMergeTags(rawMsg, { ...context, customValues: { "workflow.name": wf.name } })
-            await pusherServer.trigger(`agency-${wf.agencyId}`, "internal-alert", {
-              title: `Workflow: ${wf.name}`,
-              message,
-              contactId
-            })
-          } catch (e) {}
+      } else {
+        await step.run(`action-${action.type}-${action.id}`, async () => {
+          return runSingleWorkflowAction(wf, contact, action, context)
         })
       }
     }
@@ -180,21 +69,63 @@ export const cronReviewRequests = (inngest.createFunction as any)(
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
       const reviews = await db.reviewRequest.findMany({
         where: { status: "pending", createdAt: { gte: yesterday } },
+        include: {
+          contact: true,
+          agency: { select: { id: true, name: true } }
+        },
         take: 50
       })
-      
+
+      let sentCount = 0
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://nexlin.vercel.app"
+
       for (const r of reviews) {
         try {
-          await db.reviewRequest.updateMany({
-            where: { id: r.id },
-            data: { status: "sent" }
+          const channel = r.channel === "sms" ? "sms" : "email"
+          const contact = r.contact
+
+          if (
+            !contact ||
+            (channel === "email" && (!contact.email || contact.emailSuppressed)) ||
+            (channel === "sms" && (!contact.phone || contact.dndEnabled))
+          ) {
+            await db.reviewRequest.updateMany({
+              where: { id: r.id, agencyId: r.agencyId },
+              data: { status: "failed" }
+            })
+            continue
+          }
+
+          const agencyName = r.agency?.name || "Our Business"
+          const contactName = `${contact.firstName || "there"} ${contact.lastName || ""}`.trim()
+          const reviewLink = `${baseUrl}/review/${r.agencyId}`
+
+          const delivery = await deliverMessage({
+            agencyId: r.agencyId,
+            channel,
+            contact,
+            subject: channel === "email" ? `How was your experience with ${agencyName}?` : undefined,
+            content: `Hi ${contactName}! How was your experience with ${agencyName}? Leave us a quick review: ${reviewLink}`,
           })
+
+          await db.reviewRequest.updateMany({
+            where: { id: r.id, agencyId: r.agencyId },
+            data: { status: delivery.ok ? "sent" : "failed" }
+          })
+
+          if (delivery.ok) sentCount++
         } catch (e) {
-          console.warn(`cronReviewRequests: failed to update review ${r.id}:`, e)
+          console.warn(`cronReviewRequests: failed to process review ${r.id}:`, e)
+          await db.reviewRequest
+            .updateMany({
+              where: { id: r.id, agencyId: r.agencyId },
+              data: { status: "failed" }
+            })
+            .catch(() => {})
         }
       }
 
-      return reviews.length
+      return sentCount
     })
 
     return { success: true, processed: pendingRequests }
@@ -321,9 +252,18 @@ export const cronPublishScheduledSocialPosts = (inngest.createFunction as any)(
       let count = 0
       for (const post of duePosts) {
         try {
-          // Simulate platform API dispatch or connect real API
-          console.log(`[Social Engine] Publishing scheduled post ${post.id} to ${post.account.platform} for ${post.agency.name}`)
-          
+          const result = await publishSocialPostInternal(post)
+          if (!result.ok) {
+            console.warn(`[Social Engine] Failed to publish post ${post.id}: ${result.error}`)
+            await db.socialPost
+              .update({
+                where: { id: post.id },
+                data: { status: "failed" }
+              })
+              .catch(() => {})
+            continue
+          }
+
           await db.socialPost.update({
             where: { id: post.id },
             data: {
@@ -337,7 +277,8 @@ export const cronPublishScheduledSocialPosts = (inngest.createFunction as any)(
             await pusherServer.trigger(`agency-${post.agencyId}`, "social-post-published", {
               postId: post.id,
               platform: post.account.platform,
-              publishedAt: now.toISOString()
+              publishedAt: now.toISOString(),
+              externalPostId: result.externalPostId
             })
           } catch {}
 

@@ -2,17 +2,17 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireTenantAuth } from "@/lib/permissions"
 
-import { getSession } from "@/lib/auth"
+export async function getVoiceAgents(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-export async function getVoiceAgents(agencyId: string) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
-
     const agents = await db.voiceAgent.findMany({
-      where: { agencyId: targetAgencyId },
+      where: { agencyId: auth.agencyId },
       orderBy: { createdAt: "desc" }
     })
     return { success: true, agents }
@@ -22,18 +22,19 @@ export async function getVoiceAgents(agencyId: string) {
   }
 }
 
-export async function saveVoiceAgent(agencyId: string, data: any) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
+export async function saveVoiceAgent(_agencyId: string, data: any) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    let agent;
+  try {
+    let agent: any
     if (data.id) {
-      await db.voiceAgent.updateMany({
+      const updated = await db.voiceAgent.updateMany({
         where: { 
           id: data.id,
-          ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+          agencyId: auth.agencyId
         },
         data: {
           name: data.name,
@@ -46,11 +47,18 @@ export async function saveVoiceAgent(agencyId: string, data: any) {
           missedCallAIFollowUp: data.missedCallAIFollowUp
         }
       })
-      agent = await db.voiceAgent.findFirst({ where: { id: data.id } })
+
+      if (updated.count === 0) {
+        return { success: false, error: "Voice agent not found" }
+      }
+
+      agent = await db.voiceAgent.findFirst({
+        where: { id: data.id, agencyId: auth.agencyId }
+      })
     } else {
       agent = await db.voiceAgent.create({
         data: {
-          agencyId: targetAgencyId,
+          agencyId: auth.agencyId,
           name: data.name,
           systemPrompt: data.systemPrompt,
           voiceId: data.voiceId,

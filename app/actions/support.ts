@@ -2,17 +2,19 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 import { parseTicketDescription, type TicketThreadMessage, type ParsedTicketData } from "@/lib/support-utils"
+import { generateAiReply } from "./ai"
 
-export async function getTickets(agencyId: string) {
+export async function getTickets(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
-
     const tickets = await db.ticket.findMany({
-      where: { agencyId: targetAgencyId },
+      where: { agencyId: auth.agencyId },
       include: { contact: true },
       orderBy: { createdAt: "desc" }
     })
@@ -22,25 +24,39 @@ export async function getTickets(agencyId: string) {
   }
 }
 
-export async function createTicket(agencyId: string, data: {
+export async function createTicket(_agencyId: string, data: {
   title: string
   description: string
   priority?: string
   contactId?: string
   assignedTo?: string
 }) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
+    let validContactId: string | null = null
+    if (data.contactId) {
+      const contact = await db.contact.findFirst({
+        where: { id: data.contactId, agencyId: auth.agencyId },
+        select: { id: true }
+      })
+      if (!contact) {
+        return { success: false, error: "Contact not found" }
+      }
+      validContactId = contact.id
+    }
+
+    const sessionUser = auth.session?.user as any
     const initialPayload: ParsedTicketData = {
       text: data.description,
       thread: [
         {
           id: `msg-${Date.now()}`,
-          senderId: session.user.id,
-          senderName: session.user.name || session.user.email || "Customer",
+          senderId: auth.userId,
+          senderName: sessionUser?.name || sessionUser?.email || "Customer",
           role: "customer",
           isInternal: false,
           content: data.description,
@@ -51,11 +67,11 @@ export async function createTicket(agencyId: string, data: {
 
     const ticket = await db.ticket.create({
       data: {
-        agencyId: targetAgencyId,
+        agencyId: auth.agencyId,
         title: data.title,
         description: JSON.stringify(initialPayload),
         priority: data.priority || "normal",
-        contactId: data.contactId || null,
+        contactId: validContactId,
         assignedTo: data.assignedTo || null,
         status: "open"
       },
@@ -74,12 +90,23 @@ export async function updateTicket(id: string, data: {
   priority?: string
   assignedTo?: string
 }) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    const existing = await db.ticket.findFirst({
+      where: { id, agencyId: auth.agencyId },
+      select: { id: true }
+    })
+
+    if (!existing) {
+      return { success: false, error: "Ticket not found" }
+    }
 
     const ticket = await db.ticket.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(data.status ? { status: data.status } : {}),
         ...(data.priority ? { priority: data.priority } : {}),
@@ -100,22 +127,27 @@ export async function updateTicketStatus(id: string, status: string) {
 }
 
 export async function addTicketReply(ticketId: string, content: string, isInternal: boolean = false) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    const existingTicket = await db.ticket.findUnique({
-      where: { id: ticketId }
+  try {
+    const existingTicket = await db.ticket.findFirst({
+      where: { id: ticketId, agencyId: auth.agencyId }
     })
 
-    if (!existingTicket) throw new Error("Ticket not found")
+    if (!existingTicket) {
+      return { success: false, error: "Ticket not found" }
+    }
 
     const parsed = parseTicketDescription(existingTicket.description)
+    const sessionUser = auth.session?.user as any
 
     const newReply: TicketThreadMessage = {
       id: `msg-${Date.now()}`,
-      senderId: session.user.id,
-      senderName: session.user.name || session.user.email || "Support Agent",
+      senderId: auth.userId,
+      senderName: sessionUser?.name || sessionUser?.email || "Support Agent",
       role: isInternal ? "system" : "agent",
       isInternal,
       content,
@@ -124,9 +156,8 @@ export async function addTicketReply(ticketId: string, content: string, isIntern
 
     parsed.thread.push(newReply)
 
-    // If agent replies publicly and ticket was open, mark as pending response or maintain state
     const updatedTicket = await db.ticket.update({
-      where: { id: ticketId },
+      where: { id: existingTicket.id },
       data: {
         description: JSON.stringify(parsed),
         status: !isInternal && existingTicket.status === "open" ? "pending" : existingTicket.status
@@ -141,47 +172,65 @@ export async function addTicketReply(ticketId: string, content: string, isIntern
   }
 }
 
-export async function generateAiTicketResolution(ticketTitle: string, ticketDescription: string, agencyId: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+export async function generateAiTicketResolution(ticketTitle: string, ticketDescription: string, _agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    // Fetch relevant knowledge base articles for this agency
+  try {
     const articles = await db.knowledgeArticle.findMany({
-      where: { agencyId },
+      where: { agencyId: auth.agencyId },
       take: 6,
       select: { title: true, content: true, category: true }
     })
 
-    // Construct an intelligent support resolution
-    let draftedResponse = ""
+    const kbContext =
+      articles.length > 0
+        ? articles
+            .map((a, idx) => `${idx + 1}. [${a.category}] ${a.title}: ${a.content.slice(0, 350)}`)
+            .join("\n")
+        : "No agency knowledge base articles available."
 
-    if (ticketTitle.toLowerCase().includes("password") || ticketTitle.toLowerCase().includes("login") || ticketTitle.toLowerCase().includes("access")) {
-      draftedResponse = `Hi there,\n\nThanks for reaching out! To resolve your login/access issue:\n1. Please visit your custom login portal and click "Forgot Password".\n2. Check your inbox (and spam folder) for the 6-digit reset link.\n3. Clear your browser cache or try an incognito window if the session persists.\n\nLet us know if you need us to trigger a manual password reset link for you!\n\nBest regards,\nCustomer Support Team`
-    } else if (ticketTitle.toLowerCase().includes("billing") || ticketTitle.toLowerCase().includes("invoice") || ticketTitle.toLowerCase().includes("refund")) {
-      draftedResponse = `Hello,\n\nThank you for contacting billing support regarding: "${ticketTitle}".\n\nI have reviewed your account. You can view, download past receipts, or update your payment card anytime under Settings > Billing.\n\nIf you need an invoice adjustment or refund review, our accounts team will verify the transaction ID and follow up within 2 hours.\n\nBest regards,\nBilling Support Team`
-    } else {
-      draftedResponse = `Hi there,\n\nThank you for reaching out regarding "${ticketTitle}".\n\nBased on your inquiry:\n- We are investigating the issue: "${ticketDescription.slice(0, 100)}..."\n- Our technical team has verified your workspace status and everything is operational.\n- Could you please confirm if this occurs on all devices or a specific browser?\n\nWe are on standby to help get this sorted for you!\n\nWarm regards,\nSupport Operations`
+    const prompt = `Draft a clear, empathetic, accurate customer support reply for the ticket below.
+
+Ticket Subject: ${ticketTitle}
+Ticket Details: ${ticketDescription}
+
+Agency Knowledge Base Context:
+${kbContext}
+
+Provide numbered troubleshooting or next steps when helpful. Keep the tone concise and professional.`
+
+    const res = await generateAiReply("support", prompt)
+    if (!res.success || !res.data) {
+      return { success: false, error: res.error || "AI resolution unavailable" }
     }
 
     return {
       success: true,
-      suggestedReply: draftedResponse,
+      suggestedReply: res.data,
       matchedArticlesCount: articles.length
     }
   } catch (error: any) {
-    return { success: false, error: error.message }
+    return { success: false, error: error.message || "AI resolution unavailable" }
   }
 }
 
 export async function deleteTicket(id: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    await db.ticket.delete({
-      where: { id }
+  try {
+    const deleted = await db.ticket.deleteMany({
+      where: { id, agencyId: auth.agencyId }
     })
+
+    if (deleted.count === 0) {
+      return { success: false, error: "Ticket not found" }
+    }
 
     revalidatePath("/support")
     return { success: true }
@@ -190,14 +239,15 @@ export async function deleteTicket(id: string) {
   }
 }
 
-export async function getArticles(agencyId: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
+export async function getArticles(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
     const articles = await db.knowledgeArticle.findMany({
-      where: { agencyId: targetAgencyId },
+      where: { agencyId: auth.agencyId },
       orderBy: { createdAt: "desc" }
     })
     return { success: true, articles }
@@ -206,22 +256,23 @@ export async function getArticles(agencyId: string) {
   }
 }
 
-export async function createArticle(agencyId: string, data: {
+export async function createArticle(_agencyId: string, data: {
   title: string
   content: string
   category: string
 }) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
     const article = await db.knowledgeArticle.create({
       data: {
         title: data.title,
         content: data.content,
         category: data.category || "General",
-        agencyId: targetAgencyId,
+        agencyId: auth.agencyId,
         status: "published"
       }
     })
@@ -238,12 +289,23 @@ export async function updateArticle(id: string, data: {
   content?: string
   category?: string
 }) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    const existing = await db.knowledgeArticle.findFirst({
+      where: { id, agencyId: auth.agencyId },
+      select: { id: true }
+    })
+
+    if (!existing) {
+      return { success: false, error: "Article not found" }
+    }
 
     const article = await db.knowledgeArticle.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(data.title ? { title: data.title } : {}),
         ...(data.content ? { content: data.content } : {}),
@@ -259,13 +321,19 @@ export async function updateArticle(id: string, data: {
 }
 
 export async function deleteArticle(id: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    await db.knowledgeArticle.delete({
-      where: { id }
+  try {
+    const deleted = await db.knowledgeArticle.deleteMany({
+      where: { id, agencyId: auth.agencyId }
     })
+
+    if (deleted.count === 0) {
+      return { success: false, error: "Article not found" }
+    }
 
     revalidatePath("/support/knowledge-base")
     return { success: true }

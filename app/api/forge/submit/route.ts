@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { sendSMS } from "@/app/actions/telephony"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
 
 export async function POST(request: Request) {
   // IP / Header Rate Limiting (60 requests per minute per IP)
@@ -26,22 +26,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email or Phone is required" }, { status: 400 })
     }
 
-    // Find site to get agencyId tenant scope
-    const site = siteId ? await db.forgeSite.findUnique({ where: { id: siteId } }) : null
-    const agencyId = site?.agencyId || (await db.agency.findFirst())?.id
+    // Resolve agency strictly from siteId or funnelId (no cross-tenant fallback)
+    let agencyId = ""
+    let validFunnelId: string | null = null
 
-    if (!agencyId) {
-      return NextResponse.json({ error: "Agency tenant scope missing" }, { status: 400 })
+    if (typeof siteId === "string" && siteId.trim()) {
+      const site = await db.forgeSite.findUnique({
+        where: { id: siteId.trim() },
+        select: { id: true, agencyId: true }
+      })
+      if (site) agencyId = site.agencyId
     }
 
-    const cleanEmail = email ? email.trim().toLowerCase() : `lead-${Date.now()}@nexlin.site`
-    const names = (fullName || "Lead").trim().split(" ")
-    const firstName = names[0]
+    if (typeof funnelId === "string" && funnelId.trim()) {
+      const funnel = await db.forgeFunnel.findUnique({
+        where: { id: funnelId.trim() },
+        include: { site: { select: { agencyId: true } } }
+      })
+      if (funnel?.site?.agencyId) {
+        if (!agencyId) {
+          agencyId = funnel.site.agencyId
+        }
+        if (funnel.site.agencyId === agencyId) {
+          validFunnelId = funnel.id
+        }
+      }
+    }
+
+    if (!agencyId) {
+      return NextResponse.json({ error: "Site or funnel not found" }, { status: 404 })
+    }
+
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null
+    const cleanPhone = phone ? String(phone).trim() : null
+    const names = String(fullName || "Lead").trim().split(/\s+/)
+    const firstName = names[0] || "Lead"
     const lastName = names.slice(1).join(" ") || ""
 
-    // 1. Ingest/Upsert directly into NEXLIN Core Contact table
+    // 1. Ingest/Upsert directly into NEXLIN Core Contact table scoped to resolved agencyId
     let contact = await db.contact.findFirst({
-      where: { agencyId, email: cleanEmail }
+      where: {
+        agencyId,
+        ...(cleanEmail ? { email: cleanEmail } : { phone: cleanPhone! })
+      }
     })
 
     if (!contact) {
@@ -50,8 +77,9 @@ export async function POST(request: Request) {
           agencyId,
           firstName,
           lastName,
-          email: cleanEmail,
-          phone: phone || undefined,
+          email: cleanEmail || undefined,
+          phone: cleanPhone || undefined,
+          tags: "forge_lead",
           leadScore: 50
         }
       })
@@ -59,35 +87,53 @@ export async function POST(request: Request) {
       contact = await db.contact.update({
         where: { id: contact.id },
         data: {
-          phone: phone || contact.phone,
+          phone: cleanPhone || contact.phone,
           leadScore: (contact.leadScore || 0) + 25
         }
       })
     }
 
-    // 2. Log in ForgeLead table
-    if (funnelId) {
+    // 2. Log in ForgeLead table if funnel belongs to this agency
+    if (validFunnelId) {
       await db.forgeLead.create({
         data: {
-          funnelId,
+          funnelId: validFunnelId,
           contactId: contact.id,
-          payload: JSON.stringify({ fullName, email, phone, monthlyIncome, formName, submittedAt: new Date().toISOString() })
+          payload: JSON.stringify({
+            fullName,
+            email: cleanEmail,
+            phone: cleanPhone,
+            monthlyIncome,
+            formName,
+            submittedAt: new Date().toISOString()
+          })
         }
       })
     }
 
-    // 3. Trigger Call Porter 60-Second Callback Alert to Agency Owner
-    const owner = await db.user.findFirst({
-      where: { agencyId, role: "Agency Owner" }
-    })
+    // 3. Create agency notification & trigger form submission workflows
+    await db.notification
+      .create({
+        data: {
+          agencyId,
+          type: "lead",
+          title: `New Forge Lead: ${firstName} ${lastName}`.trim(),
+          body: `${cleanEmail || cleanPhone || "Lead"} submitted ${formName || "Pre-Qual"}`,
+          link: "/crm/contacts"
+        }
+      })
+      .catch(() => {})
 
-    if (owner?.id) {
-      await sendSMS(owner.id, `🚀 Hot Forge Lead Captured: ${firstName} ${lastName} (${phone || email}) applied for ${formName || 'Pre-Qual'}. Call Porter callback triggered!`)
-    }
+    await triggerWorkflowsInternal(agencyId, "form_submitted", {
+      contactId: contact.id,
+      formName,
+      funnelId: validFunnelId,
+      siteId
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,
-      message: "Lead ingested into NEXLIN CRM & Call Porter triggered!",
+      message: "Lead ingested into NEXLIN CRM!",
       contactId: contact.id
     })
   } catch (error: any) {

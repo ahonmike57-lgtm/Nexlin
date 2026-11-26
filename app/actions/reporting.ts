@@ -2,36 +2,93 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
-import { getOrCreateAgency } from "./agency"
+import { requireTenantAuth } from "@/lib/permissions"
 import { subMonths, startOfMonth, endOfMonth, format } from "date-fns"
 
-export async function getDashboardMetrics(agencyId: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+function formatMonthDelta(current: number, previous: number): string {
+  if (previous === 0) {
+    return current > 0 ? "New this month" : "No prior month data"
+  }
+  const pct = ((current - previous) / previous) * 100
+  const sign = pct >= 0 ? "+" : ""
+  return `${sign}${pct.toFixed(1)}% from last month`
+}
 
-    const [totalContacts, totalDeals, totalCampaigns, deals] = await Promise.all([
+export async function getDashboardMetrics(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    const agencyId = auth.agencyId
+    const now = new Date()
+    const currentStart = startOfMonth(now)
+    const prevDate = subMonths(now, 1)
+    const prevStart = startOfMonth(prevDate)
+    const prevEnd = endOfMonth(prevDate)
+
+    const [
+      totalContacts,
+      totalDeals,
+      totalCampaigns,
+      deals,
+      currContacts,
+      prevContacts,
+      currDeals,
+      prevDeals,
+      currCampaigns,
+      prevCampaigns,
+    ] = await Promise.all([
       db.contact.count({ where: { agencyId } }),
       db.deal.count({ where: { agencyId } }),
       db.campaign.count({ where: { agencyId } }),
-      db.deal.findMany({ where: { agencyId }, select: { value: true } }),
+      db.deal.findMany({ where: { agencyId }, select: { value: true, createdAt: true } }),
+      db.contact.count({ where: { agencyId, createdAt: { gte: currentStart } } }),
+      db.contact.count({ where: { agencyId, createdAt: { gte: prevStart, lte: prevEnd } } }),
+      db.deal.count({ where: { agencyId, createdAt: { gte: currentStart } } }),
+      db.deal.count({ where: { agencyId, createdAt: { gte: prevStart, lte: prevEnd } } }),
+      db.campaign.count({ where: { agencyId, createdAt: { gte: currentStart } } }),
+      db.campaign.count({ where: { agencyId, createdAt: { gte: prevStart, lte: prevEnd } } }),
     ])
 
     const pipelineValue = deals.reduce((acc, d) => acc + (d.value || 0), 0)
+    const currPipeline = deals
+      .filter((d) => d.createdAt >= currentStart)
+      .reduce((acc, d) => acc + (d.value || 0), 0)
+    const prevPipeline = deals
+      .filter((d) => d.createdAt >= prevStart && d.createdAt <= prevEnd)
+      .reduce((acc, d) => acc + (d.value || 0), 0)
 
-    return { success: true, data: { totalContacts, totalDeals, totalCampaigns, pipelineValue } }
+    return {
+      success: true,
+      data: {
+        totalContacts,
+        totalDeals,
+        totalCampaigns,
+        pipelineValue,
+        deltas: {
+          contacts: formatMonthDelta(currContacts, prevContacts),
+          deals: formatMonthDelta(currDeals, prevDeals),
+          pipeline: formatMonthDelta(currPipeline, prevPipeline),
+          campaigns: formatMonthDelta(currCampaigns, prevCampaigns),
+        },
+      },
+    }
   } catch (error) {
     console.error("Failed to fetch metrics:", error)
     return { success: false, error: "Failed to fetch metrics" }
   }
 }
 
-export async function getAnalyticsData(agencyId: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+export async function getAnalyticsData(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
+    const agencyId = auth.agencyId
     const now = new Date()
 
     // Build last 6 months array
@@ -98,17 +155,23 @@ export async function getAnalyticsData(agencyId: string) {
 }
 
 export async function updateFormFields(formId: string, fields: any[]) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    await db.form.updateMany({
+  try {
+    const updated = await db.form.updateMany({
       where: { 
         id: formId,
-        ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+        agencyId: auth.agencyId
       },
       data: { fields: JSON.stringify(fields) }
     })
+
+    if (updated.count === 0) {
+      return { success: false, error: "Form not found" }
+    }
 
     revalidatePath("/forms")
     return { success: true }

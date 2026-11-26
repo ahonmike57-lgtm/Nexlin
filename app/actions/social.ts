@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
-import { encryptConfig, decryptConfig } from "@/lib/encryption"
+import { encryptConfig } from "@/lib/encryption"
+import { publishSocialPostInternal } from "@/lib/social"
 import { revalidatePath } from "next/cache"
 
 // ─── Social Accounts ─────────────────────────────────────────────────────────
@@ -39,9 +40,8 @@ export async function connectSocialAccount(platform: string, handle: string, raw
   }
 
   try {
-    const token = rawAccessToken || ("mock_token_" + Math.random().toString(36).substring(7))
-    // Encrypt OAuth token at rest before writing
-    const encryptedToken = encryptConfig(token)
+    const cleanToken = rawAccessToken?.trim()
+    const encryptedToken = cleanToken ? encryptConfig(cleanToken) : null
 
     const account = await db.socialAccount.create({
       data: {
@@ -55,7 +55,7 @@ export async function connectSocialAccount(platform: string, handle: string, raw
 
     revalidatePath("/social")
     const { accessToken, ...safe } = account
-    return { success: true, account: { ...safe, hasToken: true } }
+    return { success: true, account: { ...safe, hasToken: !!accessToken } }
   } catch (error) {
     console.error("Error connecting social account:", error)
     return { success: false, error: "Failed to connect account" }
@@ -150,104 +150,23 @@ export async function publishSocialPostNow(postId: string) {
       return { success: false, error: "Post not found" }
     }
 
-    const token = post.account ? await getDecryptedSocialToken(post.accountId, auth.agencyId) : null
-    const platform = post.account.platform.toLowerCase()
-
-    let dispatchSuccess = false
-    let externalPostId = ""
-
-    if (token && !token.startsWith("mock_")) {
-      try {
-        if (platform === "twitter" || platform === "x") {
-          const res = await fetch("https://api.twitter.com/2/tweets", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ text: post.content })
-          })
-          const data = await res.json()
-          if (data?.data?.id) {
-            dispatchSuccess = true
-            externalPostId = data.data.id
-          }
-        } else if (platform === "facebook" || platform === "instagram") {
-          const res = await fetch(`https://graph.facebook.com/v19.0/me/feed`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: post.content,
-              access_token: token
-            })
-          })
-          const data = await res.json()
-          if (data?.id) {
-            dispatchSuccess = true
-            externalPostId = data.id
-          }
-        } else if (platform === "linkedin") {
-          const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-              "X-Restli-Protocol-Version": "2.0.0"
-            },
-            body: JSON.stringify({
-              author: `urn:li:person:${post.account.handle.replace('@', '')}`,
-              lifecycleState: "PUBLISHED",
-              specificContent: {
-                "com.linkedin.ugc.ShareContent": {
-                  shareCommentary: { text: post.content },
-                  shareMediaCategory: "NONE"
-                }
-              },
-              visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
-            })
-          })
-          const data = await res.json()
-          if (data?.id) {
-            dispatchSuccess = true
-            externalPostId = data.id
-          }
-        }
-      } catch (e: any) {
-        console.error("Live social dispatch error:", e)
-      }
-    } else {
-      // Sandbox mode
-      dispatchSuccess = true
-    }
+    const result = await publishSocialPostInternal(post)
 
     const updated = await db.socialPost.update({
       where: { id: postId },
       data: {
-        status: dispatchSuccess ? "published" : "failed",
-        publishedAt: dispatchSuccess ? new Date() : null
+        status: result.ok ? "published" : "failed",
+        publishedAt: result.ok ? new Date() : null
       }
     })
 
     revalidatePath("/social")
-    return { success: true, post: updated, externalPostId }
+    if (!result.ok) {
+      return { success: false, error: result.error || "Failed to publish post", post: updated }
+    }
+    return { success: true, post: updated, externalPostId: result.externalPostId || "" }
   } catch (err: any) {
     console.error("Error publishing social post:", err)
     return { success: false, error: "Failed to publish post" }
-  }
-}
-
-/**
- * Internal-only: decrypt and return a live OAuth access token for API calls.
- * NEVER returns this to the client.
- */
-export async function getDecryptedSocialToken(accountId: string, agencyId: string): Promise<string | null> {
-  try {
-    const account = await db.socialAccount.findFirst({
-      where: { id: accountId, agencyId }
-    })
-    if (!account?.accessToken) return null
-    return decryptConfig(account.accessToken)
-  } catch {
-    return null
   }
 }

@@ -87,7 +87,7 @@ export default function CampaignEditorModal({ campaign, onClose, onSaved }: Camp
     await updateCampaign(campaign.id, { name, subject, content: body, status: "draft" })
     const res = await sendCampaign(campaign.id)
     if (res.success) {
-      toast.success(res.mock ? "Campaign sent (mock mode — add RESEND_API_KEY to go live)!" : `Campaign sent to ${(res as any).count} contacts!`)
+      toast.success(`Campaign sent to ${(res as any).count ?? 0} contacts!`)
       onSaved()
       onClose()
     } else {

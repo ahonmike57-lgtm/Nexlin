@@ -4,44 +4,47 @@ import twilio from "twilio"
 import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
 import { encryptConfig, decryptConfig } from "@/lib/encryption"
+import { deliverMessage } from "@/lib/messaging"
 import { pusherServer } from "@/lib/pusher"
 import { getActiveSubAccountId } from "./subaccounts"
 
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "AC_mock_sid"
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "mock_token"
-const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || "+1234567890"
-
-const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-
 export async function sendSMS(contactId: string, content: string) {
   const auth = await requireTenantAuth("user")
-  if (!auth.authorized) {
+  if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }
 
   try {
-    const contact = await db.contact.findUnique({ where: { id: contactId } })
-    if (!contact?.phone) {
+    const contact = await db.contact.findFirst({
+      where: { id: contactId, agencyId: auth.agencyId }
+    })
+    if (!contact) {
+      return { success: false, error: "Contact not found" }
+    }
+    if (!contact.phone) {
       return { success: false, error: "Contact does not have a phone number" }
     }
+    if (contact.dndEnabled) {
+      return { success: false, error: "Contact has opted out of SMS (DND enabled)." }
+    }
 
-    // Attempt to send real SMS if credentials exist, otherwise mock
-    let messageSid = "mock_sid"
-    if (TWILIO_ACCOUNT_SID !== "AC_mock_sid") {
-      const result = await client.messages.create({
-        body: content,
-        from: TWILIO_PHONE_NUMBER,
-        to: contact.phone,
-      })
-      messageSid = result.sid
+    const delivery = await deliverMessage({
+      agencyId: auth.agencyId,
+      channel: "sms",
+      contact,
+      content,
+    })
+
+    if (!delivery.ok) {
+      return { success: false, error: delivery.error || "Failed to send SMS" }
     }
 
     const subAgencyId = await getActiveSubAccountId()
 
     // Find or create SMS conversation
     const whereClause: any = {
-      contactId,
-      agencyId: contact.agencyId,
+      contactId: contact.id,
+      agencyId: auth.agencyId,
       channel: "sms",
     }
     if (subAgencyId) {
@@ -52,7 +55,7 @@ export async function sendSMS(contactId: string, content: string) {
 
     if (!conversation) {
       conversation = await db.conversation.create({
-        data: { contactId, agencyId: contact.agencyId, subAgencyId, channel: "sms" }
+        data: { contactId: contact.id, agencyId: auth.agencyId, subAgencyId, channel: "sms" }
       })
     }
 
@@ -71,13 +74,12 @@ export async function sendSMS(contactId: string, content: string) {
       console.error(e)
     }
 
-    return { success: true, data: newMessage, messageSid }
+    return { success: true, data: newMessage, messageSid: delivery.providerId }
   } catch (error) {
     console.error("Failed to send SMS:", error)
     return { success: false, error: "Failed to send SMS" }
   }
 }
-
 
 export async function buyPhoneNumber(areaCode: string) {
   const auth = await requireTenantAuth("admin")
@@ -95,48 +97,43 @@ export async function buyPhoneNumber(areaCode: string) {
         creds = JSON.parse(decryptConfig(credSnapshot.description))
       } catch {}
     }
-    const sid = creds?.twilioSid || (process.env.TWILIO_ACCOUNT_SID !== "AC_mock_sid" ? process.env.TWILIO_ACCOUNT_SID : null)
-    let token = process.env.TWILIO_AUTH_TOKEN !== "mock_token" ? process.env.TWILIO_AUTH_TOKEN : null
-    if (creds?.twilioToken) {
-      token = creds.twilioToken
-    }
 
-    let acquiredNumber = ""
+    const sid = creds?.twilioSid || process.env.TWILIO_ACCOUNT_SID?.trim() || null
+    const token = creds?.twilioToken || process.env.TWILIO_AUTH_TOKEN?.trim() || null
 
-    if (sid && token) {
-      try {
-        const twilioClient = twilio(sid, token)
-        const areaCodeInt = parseInt(areaCode.replace(/\D/g, "")) || 415
-        const available = await twilioClient.availablePhoneNumbers("US").local.list({ areaCode: areaCodeInt, limit: 1 })
-        if (available && available.length > 0) {
-          const purchased = await twilioClient.incomingPhoneNumbers.create({
-            phoneNumber: available[0].phoneNumber,
-            friendlyName: `Nexlin Agency ${auth.agencyId}`
-          })
-          acquiredNumber = purchased.phoneNumber
-        }
-      } catch (err: any) {
-        console.warn("Twilio phone purchase error:", err?.message || err)
+    if (!sid || !token) {
+      return {
+        success: false,
+        error: "Twilio credentials are not configured. Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to purchase numbers."
       }
     }
 
-    if (!acquiredNumber) {
-      const cleanArea = areaCode.replace(/\D/g, "").padEnd(3, "5").slice(0, 3)
-      acquiredNumber = "+1" + cleanArea + Math.floor(1000000 + Math.random() * 9000000).toString()
+    const twilioClient = twilio(sid, token)
+    const areaCodeInt = parseInt(areaCode.replace(/\D/g, "")) || 415
+    const available = await twilioClient.availablePhoneNumbers("US").local.list({ areaCode: areaCodeInt, limit: 1 })
+
+    if (!available || available.length === 0) {
+      return { success: false, error: `No available phone numbers found in area code ${areaCodeInt}` }
     }
-    
+
+    const purchased = await twilioClient.incomingPhoneNumbers.create({
+      phoneNumber: available[0].phoneNumber,
+      friendlyName: `Nexlin Agency ${auth.agencyId}`
+    })
+
     const newPhone = await db.phoneNumber.create({
       data: {
         agencyId: auth.agencyId,
-        number: acquiredNumber,
+        number: purchased.phoneNumber,
         status: "active",
         provider: "twilio"
       }
     })
 
     return { success: true, data: newPhone }
-  } catch (error) {
-    return { success: false, error: "Failed to purchase number" }
+  } catch (error: any) {
+    console.warn("Twilio phone purchase error:", error?.message || error)
+    return { success: false, error: error?.message || "Failed to purchase number" }
   }
 }
 
@@ -152,12 +149,11 @@ export async function submitPortRequest(data: {
   }
 
   try {
-    // Encrypt the carrier account PIN before storing — it's sensitive credential data
     const encryptedPin = encryptConfig(data.accountPin)
 
     const portReq = await db.portRequest.create({
       data: {
-        agencyId: auth.agencyId,   // always from session
+        agencyId: auth.agencyId,
         numberToPort: data.numberToPort,
         currentCarrier: data.currentCarrier,
         accountNumber: data.accountNumber,
@@ -191,7 +187,6 @@ export async function getAgencyPhoneData() {
     const numbers = await db.phoneNumber.findMany({ where: { agencyId: auth.agencyId } })
     const rawRequests = await db.portRequest.findMany({ where: { agencyId: auth.agencyId } })
 
-    // Mask account PIN — never send decrypted PIN to client
     const portRequests = rawRequests.map(r => ({
       ...r,
       accountPin: r.accountPin ? "••••" : null
@@ -202,4 +197,3 @@ export async function getAgencyPhoneData() {
     return { success: false, error: "Failed to fetch phone data" }
   }
 }
-

@@ -26,26 +26,10 @@ export async function POST(req: NextRequest) {
 
     const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY)?.trim()
     if (!apiKey) {
-      // Return simulated stream if API key is not configured locally
-      const encoder = new TextEncoder()
-      const fallbackStream = new ReadableStream({
-        async start(controller) {
-          const text = `NEXLIN AI Streaming Response for: "${prompt}"\n\n1. Strategy & Context Analyzed\n2. Recommending Next Best Action\n3. Ready for dispatch.`
-          const words = text.split(" ")
-          for (const word of words) {
-            controller.enqueue(encoder.encode(`${word} `))
-            await new Promise(r => setTimeout(r, 40))
-          }
-          controller.close()
-        }
-      })
-      return new Response(fallbackStream, {
-        headers: { "Content-Type": "text/plain; charset=utf-8" }
-      })
+      return new Response("AI service not configured", { status: 503 })
     }
 
-    // Call Gemini API Stream if API key is present (use gemini-2.0-flash with gemini-1.5-flash fallback)
-    let response = await fetch(
+    const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${apiKey}`,
       {
         method: "POST",
@@ -57,23 +41,8 @@ export async function POST(req: NextRequest) {
       }
     )
 
-    if (!response.ok) {
-      // Fallback to gemini-1.5-flash if 2.0-flash is unavailable in the region
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined
-          })
-        }
-      )
-    }
-
-    if (!response.body) {
-      return new Response("Failed to start stream", { status: 500 })
+    if (!response.ok || !response.body) {
+      return new Response("Failed to start AI stream", { status: response.status || 502 })
     }
 
     return new Response(response.body, {

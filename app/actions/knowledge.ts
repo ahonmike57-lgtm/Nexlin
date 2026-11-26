@@ -2,12 +2,17 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 
-export async function getKnowledgeArticles(agencyId: string) {
+export async function getKnowledgeArticles(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     const articles = await db.knowledgeArticle.findMany({
-      where: { agencyId },
+      where: { agencyId: auth.agencyId },
       orderBy: {
         createdAt: "desc",
       },
@@ -18,22 +23,24 @@ export async function getKnowledgeArticles(agencyId: string) {
   }
 }
 
-export async function createKnowledgeArticle(agencyId: string, data: {
+export async function createKnowledgeArticle(_agencyId: string, data: {
   title: string
   content: string
   category?: string
   authorId?: string
 }) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
     const article = await db.knowledgeArticle.create({
       data: {
         title: data.title,
         content: data.content,
         category: data.category || "General",
-        agencyId,
+        agencyId: auth.agencyId,
         status: "published"
       },
     })
@@ -49,12 +56,23 @@ export async function updateKnowledgeArticle(id: string, data: {
   content?: string
   category?: string
 }) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    const existing = await db.knowledgeArticle.findFirst({
+      where: { id, agencyId: auth.agencyId },
+      select: { id: true }
+    })
+
+    if (!existing) {
+      return { success: false, error: "Knowledge article not found" }
+    }
 
     const article = await db.knowledgeArticle.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(data.title ? { title: data.title } : {}),
         ...(data.content ? { content: data.content } : {}),
@@ -69,13 +87,20 @@ export async function updateKnowledgeArticle(id: string, data: {
 }
 
 export async function deleteKnowledgeArticle(id: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    await db.knowledgeArticle.delete({
-      where: { id }
+  try {
+    const deleted = await db.knowledgeArticle.deleteMany({
+      where: { id, agencyId: auth.agencyId }
     })
+
+    if (deleted.count === 0) {
+      return { success: false, error: "Knowledge article not found" }
+    }
+
     revalidatePath("/support/knowledge-base")
     return { success: true }
   } catch (error: any) {

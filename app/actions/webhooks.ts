@@ -2,69 +2,62 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { checkPermission } from "@/lib/permissions"
+import { requireTenantAuth } from "@/lib/permissions"
+import { assertSafeOutboundUrl } from "@/lib/ssrf"
+import { dispatchWebhooksInternal } from "@/lib/webhooks"
 
-export async function createWebhook(agencyId: string, data: { name: string; url: string; event: string }) {
+export async function createWebhook(_agencyId: string, data: { name: string; url: string; event: string }) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Insufficient permissions" }
+  }
+
   try {
-    const isAllowed = await checkPermission(agencyId, "Agency Admin")
-    if (!isAllowed) return { success: false, error: "Insufficient permissions" }
+    const safeUrl = assertSafeOutboundUrl(data.url)
 
     const webhook = await db.webhook.create({
       data: {
-        agencyId,
-        name: data.name,
-        url: data.url,
-        event: data.event,
+        agencyId: auth.agencyId,
+        name: data.name.trim(),
+        url: safeUrl.toString(),
+        event: data.event.trim(),
       }
     })
     
     revalidatePath("/settings/integrations/webhooks")
     return { success: true, webhook }
   } catch (error: any) {
-    return { success: false, error: error.message }
+    return { success: false, error: error.message || "Failed to create webhook" }
   }
 }
 
-export async function deleteWebhook(id: string, agencyId: string) {
-  try {
-    const isAllowed = await checkPermission(agencyId, "Agency Admin")
-    if (!isAllowed) return { success: false, error: "Insufficient permissions" }
+export async function deleteWebhook(id: string, _agencyId?: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Insufficient permissions" }
+  }
 
-    await db.webhook.delete({
-      where: { id, agencyId }
+  try {
+    const deleted = await db.webhook.deleteMany({
+      where: { id, agencyId: auth.agencyId }
     })
+
+    if (deleted.count === 0) {
+      return { success: false, error: "Webhook not found" }
+    }
     
     revalidatePath("/settings/integrations/webhooks")
     return { success: true }
   } catch (error: any) {
-    return { success: false, error: error.message }
+    return { success: false, error: error.message || "Failed to delete webhook" }
   }
 }
 
-export async function dispatchWebhooks(agencyId: string, event: string, payload: any) {
-  try {
-    const webhooks = await db.webhook.findMany({
-      where: { agencyId, event, isActive: true }
-    })
-
-    if (webhooks.length === 0) return { success: true, dispatched: 0 }
-
-    for (const webhook of webhooks) {
-      // Dispatch in background
-      fetch(webhook.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event,
-          timestamp: new Date().toISOString(),
-          data: payload
-        })
-      }).catch(err => console.error(`Failed to dispatch webhook ${webhook.id}:`, err))
-    }
-
-    return { success: true, dispatched: webhooks.length }
-  } catch (error) {
-    console.error("Webhook dispatch error:", error)
-    return { success: false }
+export async function dispatchWebhooks(_agencyId: string, event: string, payload: any) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
   }
+
+  return dispatchWebhooksInternal(auth.agencyId, event, payload)
 }

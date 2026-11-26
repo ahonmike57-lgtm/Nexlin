@@ -36,7 +36,7 @@ export default function PhoneNumbersClient({
         toast.success("Successfully purchased new number!")
         setNumbers([...numbers, res.data])
       } else {
-        toast.error("Failed to buy number.")
+        toast.error(res.error || "Failed to buy number.")
       }
     } catch (e) {
       toast.error("An error occurred.")
@@ -63,7 +63,7 @@ export default function PhoneNumbersClient({
           accountPin: ""
         })
       } else {
-        toast.error("Failed to submit port request.")
+        toast.error(res.error || "Failed to submit port request.")
       }
     } catch (e) {
       toast.error("An error occurred.")

@@ -22,7 +22,7 @@ export default function ReportingClient({ initialMetrics, analyticsData }: { ini
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{initialMetrics.totalContacts}</div>
-            <p className="text-xs text-text-secondary">+20.1% from last month</p>
+            <p className="text-xs text-text-secondary">{initialMetrics.deltas?.contacts || "All time"}</p>
           </CardContent>
         </Card>
         <Card>
@@ -32,7 +32,7 @@ export default function ReportingClient({ initialMetrics, analyticsData }: { ini
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{initialMetrics.totalDeals}</div>
-            <p className="text-xs text-text-secondary">+15% from last month</p>
+            <p className="text-xs text-text-secondary">{initialMetrics.deltas?.deals || "All time"}</p>
           </CardContent>
         </Card>
         <Card>
@@ -42,7 +42,7 @@ export default function ReportingClient({ initialMetrics, analyticsData }: { ini
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${initialMetrics.pipelineValue.toLocaleString()}</div>
-            <p className="text-xs text-text-secondary">+10% from last month</p>
+            <p className="text-xs text-text-secondary">{initialMetrics.deltas?.pipeline || "All time"}</p>
           </CardContent>
         </Card>
         <Card>
@@ -52,7 +52,7 @@ export default function ReportingClient({ initialMetrics, analyticsData }: { ini
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{initialMetrics.totalCampaigns}</div>
-            <p className="text-xs text-text-secondary">+5% from last month</p>
+            <p className="text-xs text-text-secondary">{initialMetrics.deltas?.campaigns || "All time"}</p>
           </CardContent>
         </Card>
       </div>

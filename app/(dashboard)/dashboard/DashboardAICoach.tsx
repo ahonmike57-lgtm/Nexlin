@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Sparkles, X, Copy, Send, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { generateAiReply } from "@/app/actions/ai"
-import { createCampaign, sendCampaign } from "@/app/actions/marketing"
+import { createCampaign, updateCampaign, sendCampaign } from "@/app/actions/marketing"
+import { toast } from "sonner"
 
 export default function DashboardAICoach({ agencyId }: { agencyId: string }) {
   const [open, setOpen] = useState(false)
@@ -31,8 +32,19 @@ export default function DashboardAICoach({ agencyId }: { agencyId: string }) {
     setSending(true)
     const created = await createCampaign(agencyId, "AI Re-engagement Campaign")
     if (created.success && created.data) {
-      await sendCampaign(created.data.id)
-      setSent(true)
+      await updateCampaign(created.data.id, {
+        subject: "Checking in — we'd love to reconnect",
+        content,
+      })
+      const sendRes = await sendCampaign(created.data.id)
+      if (sendRes.success) {
+        setSent(true)
+        toast.success(`Campaign sent to ${(sendRes as any).count ?? 0} contacts!`)
+      } else {
+        toast.error(sendRes.error || "Failed to send campaign")
+      }
+    } else {
+      toast.error(created.error || "Failed to create campaign")
     }
     setSending(false)
   }
@@ -47,7 +59,7 @@ export default function DashboardAICoach({ agencyId }: { agencyId: string }) {
       <div className="bg-primary text-white rounded-xl p-6">
         <h3 className="text-sm font-medium opacity-80 mb-2">AI Business Coach</h3>
         <p className="text-sm mb-4 opacity-90">
-          Your sales follow-up rate dropped by 15% yesterday. Want me to draft a re-engagement email for your contacts?
+          Re-engage inactive leads with a personalized AI-drafted campaign for your agency contacts.
         </p>
         <button
           onClick={() => { setOpen(true); handleGenerate() }}

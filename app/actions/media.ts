@@ -1,16 +1,20 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { unlink } from "fs/promises"
+import path from "path"
 import { db as prisma } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 
-export async function getMediaFiles(agencyId: string) {
+export async function getMediaFiles(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-
     const files = await prisma.mediaFile.findMany({
-      where: { agencyId: session.user.agencyId || agencyId },
+      where: { agencyId: auth.agencyId },
       orderBy: { createdAt: "desc" },
     })
 
@@ -20,20 +24,21 @@ export async function getMediaFiles(agencyId: string) {
   }
 }
 
-export async function uploadMediaFile(agencyId: string, data: {
+export async function uploadMediaFile(_agencyId: string, data: {
   name: string
   size: number
   type: string
   url: string
 }) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
+  try {
     const file = await prisma.mediaFile.create({
       data: {
-        agencyId: targetAgencyId,
+        agencyId: auth.agencyId,
         name: data.name,
         size: data.size,
         type: data.type,
@@ -48,28 +53,33 @@ export async function uploadMediaFile(agencyId: string, data: {
   }
 }
 
-import { unlink } from "fs/promises"
-import path from "path"
-
 export async function deleteMediaFile(fileId: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    // Retrieve file before deleting to remove from disk if local
-    const file = await prisma.mediaFile.findUnique({
-      where: { id: fileId }
+  try {
+    const file = await prisma.mediaFile.findFirst({
+      where: { id: fileId, agencyId: auth.agencyId }
     })
 
-    if (file && file.url.startsWith("/uploads/")) {
-      const localFilePath = path.join(process.cwd(), "public", file.url)
-      await unlink(localFilePath).catch(() => {})
+    if (!file) {
+      return { success: false, error: "File not found" }
+    }
+
+    if (file.url.startsWith("/uploads/")) {
+      const uploadsRoot = path.resolve(process.cwd(), "public", "uploads")
+      const targetPath = path.resolve(process.cwd(), "public", file.url.replace(/^\/+/, ""))
+      if (targetPath.startsWith(uploadsRoot + path.sep)) {
+        await unlink(targetPath).catch(() => {})
+      }
     }
 
     await prisma.mediaFile.deleteMany({
-      where: { 
-        id: fileId,
-        ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+      where: {
+        id: file.id,
+        agencyId: auth.agencyId
       }
     })
     

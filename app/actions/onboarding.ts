@@ -1,5 +1,6 @@
 "use server"
 
+import crypto from "crypto"
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
 
@@ -10,36 +11,76 @@ export async function completeOnboarding(data: {
 }) {
   try {
     const session = await getSession()
-    if (!session || !session.user || !session.user.id) {
+    if (!session?.user?.id) {
       return { success: false, error: "Not authenticated" }
     }
 
     const userId = session.user.id
+    const businessName = data.businessName?.trim()
+    if (!businessName) {
+      return { success: false, error: "Business name is required" }
+    }
+
+    const existingUser = await db.user.findUnique({
+      where: { id: userId },
+      include: { agency: true },
+    })
+
+    if (existingUser?.agency) {
+      let existingBrandMeta: Record<string, any> = {}
+      if (existingUser.agency.brandColors) {
+        try {
+          existingBrandMeta = JSON.parse(existingUser.agency.brandColors)
+        } catch {}
+      }
+
+      await db.agency.update({
+        where: { id: existingUser.agency.id },
+        data: {
+          name: businessName,
+          whiteLabelName: businessName,
+          brandColors: JSON.stringify({
+            ...existingBrandMeta,
+            timezone: data.timezone,
+            industry: data.industry,
+          }),
+        },
+      })
+
+      return { success: true }
+    }
 
     let platform = await db.platform.findFirst()
     if (!platform) {
       platform = await db.platform.create({
-        data: { name: "NEXLIN GHL" }
+        data: { name: "NEXLIN GHL" },
       })
     }
 
-    // 1. Create the new Agency
+    const slug = businessName.toLowerCase().replace(/[^a-z0-9]/g, "") || "agency"
+    const suffix = crypto.randomBytes(3).toString("hex")
+
+    // 1. Create the new Agency with collision-safe subdomain
     const agency = await db.agency.create({
       data: {
         platformId: platform.id,
-        name: data.businessName,
-        whiteLabelName: data.businessName,
-        subdomain: `${data.businessName.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
-      }
+        name: businessName,
+        whiteLabelName: businessName,
+        subdomain: `${slug}-${suffix}`,
+        brandColors: JSON.stringify({
+          timezone: data.timezone,
+          industry: data.industry,
+        }),
+      },
     })
 
     // 2. Create the first default SubAgency (workspace)
     await db.subAgency.create({
       data: {
         agencyId: agency.id,
-        name: `${data.businessName} (Main Workspace)`,
+        name: `${businessName} (Main Workspace)`,
         email: session.user.email || "",
-      }
+      },
     })
 
     // 3. Update the User to be an Agency Owner
@@ -47,8 +88,8 @@ export async function completeOnboarding(data: {
       where: { id: userId },
       data: {
         agencyId: agency.id,
-        role: "AGENCY_OWNER"
-      }
+        role: "Agency Owner",
+      },
     })
 
     return { success: true }

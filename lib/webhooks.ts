@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import twilio from "twilio"
 import { db } from "@/lib/db"
+import { assertSafeOutboundUrl } from "@/lib/ssrf"
 
 /**
  * Constant-time comparison of two shared secrets.
@@ -168,5 +169,63 @@ export async function logWebhookDelivery(data: {
   } catch (err) {
     console.error("Failed to log webhook delivery:", err)
     return null
+  }
+}
+
+/**
+ * Dispatch outbound agency webhooks with SSRF protection, timeouts, and delivery audit logging.
+ */
+export async function dispatchWebhooksInternal(agencyId: string, event: string, payload: any) {
+  try {
+    const webhooks = await db.webhook.findMany({
+      where: { agencyId, event, isActive: true },
+    })
+
+    if (webhooks.length === 0) return { success: true, dispatched: 0 }
+
+    let dispatched = 0
+    for (const webhook of webhooks) {
+      const bodyPayload = {
+        event,
+        timestamp: new Date().toISOString(),
+        data: payload,
+      }
+
+      try {
+        const safeUrl = assertSafeOutboundUrl(webhook.url)
+        const res = await fetch(safeUrl.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyPayload),
+          signal: AbortSignal.timeout(10000),
+        })
+
+        await logWebhookDelivery({
+          webhookId: webhook.id,
+          url: safeUrl.toString(),
+          event,
+          payload: bodyPayload,
+          statusCode: res.status,
+          agencyId,
+        }).catch(() => {})
+
+        if (res.ok) dispatched++
+      } catch (err: any) {
+        await logWebhookDelivery({
+          webhookId: webhook.id,
+          url: webhook.url,
+          event,
+          payload: bodyPayload,
+          statusCode: 500,
+          error: err?.message || "Webhook dispatch failed",
+          agencyId,
+        }).catch(() => {})
+      }
+    }
+
+    return { success: true, dispatched }
+  } catch (error) {
+    console.error("Webhook dispatch error:", error)
+    return { success: false, dispatched: 0 }
   }
 }

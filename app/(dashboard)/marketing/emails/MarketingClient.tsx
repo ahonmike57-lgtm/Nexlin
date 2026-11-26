@@ -75,9 +75,7 @@ export default function MarketingClient({ initialCampaigns, agencyId }: { initia
     setConfirmSendId(null)
     const res = await sendCampaign(campaignId)
     if (res.success) {
-      toast.success(res.mock
-        ? "Sent! (Mock mode — add RESEND_API_KEY to send real emails)"
-        : `Sent to ${(res as any).count} contacts!`)
+      toast.success(`Sent to ${(res as any).count ?? 0} contacts!`)
       setCampaigns(prev => prev.map(c => c.id === campaignId ? { ...c, status: "completed" } : c))
     } else {
       toast.error(res.error || "Failed to send")
@@ -162,7 +160,7 @@ export default function MarketingClient({ initialCampaigns, agencyId }: { initia
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card><CardContent className="p-5"><div className="flex justify-between mb-1"><span className="text-xs text-text-secondary">Total Campaigns</span><Mail className="w-4 h-4 text-primary" /></div><div className="text-3xl font-bold">{campaigns.length}</div></CardContent></Card>
             <Card><CardContent className="p-5"><div className="flex justify-between mb-1"><span className="text-xs text-text-secondary">Active</span><CheckCircle className="w-4 h-4 text-success" /></div><div className="text-3xl font-bold">{campaigns.filter(c => c.status === "active" || c.status === "completed").length}</div></CardContent></Card>
-            <Card><CardContent className="p-5"><div className="flex justify-between mb-1"><span className="text-xs text-text-secondary">Avg. Open Rate</span><Eye className="w-4 h-4 text-warning" /></div><div className="text-3xl font-bold">42.8%</div></CardContent></Card>
+            <Card><CardContent className="p-5"><div className="flex justify-between mb-1"><span className="text-xs text-text-secondary">Sent Rate</span><Eye className="w-4 h-4 text-warning" /></div><div className="text-3xl font-bold">{campaigns.length > 0 ? `${Math.round((campaigns.filter(c => c.status === "completed").length / campaigns.length) * 100)}%` : "—"}</div></CardContent></Card>
             <Card className="bg-primary text-white border-none"><CardContent className="p-5">
               <h3 className="text-sm font-medium text-white/80 mb-1 flex items-center gap-2"><Sparkles className="w-4 h-4" />AI Optimization</h3>
               <p className="text-xs mb-3 text-white/70">Create a campaign and use AI to write the body.</p>
@@ -341,7 +339,7 @@ export default function MarketingClient({ initialCampaigns, agencyId }: { initia
                 <p className="font-semibold text-text-primary mb-1 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-primary" /> Live Delivery
                 </p>
-                <p className="text-text-secondary text-xs">Add your <code className="bg-bg-secondary px-1 rounded">TWILIO_ACCOUNT_SID</code>, <code className="bg-bg-secondary px-1 rounded">TWILIO_AUTH_TOKEN</code>, and <code className="bg-bg-secondary px-1 rounded">TWILIO_PHONE_NUMBER</code> to your <code className="bg-bg-secondary px-1 rounded">.env</code> file to enable real SMS delivery. Currently running in mock mode.</p>
+                <p className="text-text-secondary text-xs">Ensure <code className="bg-bg-secondary px-1 rounded">TWILIO_ACCOUNT_SID</code>, <code className="bg-bg-secondary px-1 rounded">TWILIO_AUTH_TOKEN</code>, and an agency phone number (or <code className="bg-bg-secondary px-1 rounded">TWILIO_PHONE_NUMBER</code>) are configured for live SMS delivery.</p>
               </CardContent>
             </Card>
           </div>
