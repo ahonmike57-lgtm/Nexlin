@@ -40,14 +40,14 @@ export async function getDashboardMetrics(_agencyId?: string) {
       currCampaigns,
       prevCampaigns,
     ] = await Promise.all([
-      db.contact.count({ where: { agencyId } }),
-      db.deal.count({ where: { agencyId } }),
+      db.contact.count({ where: { agencyId, deletedAt: null } }),
+      db.deal.count({ where: { agencyId, deletedAt: null } }),
       db.campaign.count({ where: { agencyId } }),
-      db.deal.findMany({ where: { agencyId }, select: { value: true, createdAt: true } }),
-      db.contact.count({ where: { agencyId, createdAt: { gte: currentStart } } }),
-      db.contact.count({ where: { agencyId, createdAt: { gte: prevStart, lte: prevEnd } } }),
-      db.deal.count({ where: { agencyId, createdAt: { gte: currentStart } } }),
-      db.deal.count({ where: { agencyId, createdAt: { gte: prevStart, lte: prevEnd } } }),
+      db.deal.findMany({ where: { agencyId, deletedAt: null }, select: { value: true, createdAt: true } }),
+      db.contact.count({ where: { agencyId, deletedAt: null, createdAt: { gte: currentStart } } }),
+      db.contact.count({ where: { agencyId, deletedAt: null, createdAt: { gte: prevStart, lte: prevEnd } } }),
+      db.deal.count({ where: { agencyId, deletedAt: null, createdAt: { gte: currentStart } } }),
+      db.deal.count({ where: { agencyId, deletedAt: null, createdAt: { gte: prevStart, lte: prevEnd } } }),
       db.campaign.count({ where: { agencyId, createdAt: { gte: currentStart } } }),
       db.campaign.count({ where: { agencyId, createdAt: { gte: prevStart, lte: prevEnd } } }),
     ])
@@ -106,7 +106,7 @@ export async function getAnalyticsData(_agencyId?: string) {
       months.map(async (m) => ({
         month: m.label,
         count: await db.contact.count({
-          where: { agencyId, createdAt: { gte: m.start, lte: m.end } }
+          where: { agencyId, deletedAt: null, createdAt: { gte: m.start, lte: m.end } }
         })
       }))
     )
@@ -115,7 +115,7 @@ export async function getAnalyticsData(_agencyId?: string) {
     const dealsByMonth = await Promise.all(
       months.map(async (m) => {
         const monthDeals = await db.deal.findMany({
-          where: { agencyId, createdAt: { gte: m.start, lte: m.end } },
+          where: { agencyId, deletedAt: null, createdAt: { gte: m.start, lte: m.end } },
           select: { value: true, stage: true }
         })
         const revenue = monthDeals
@@ -127,11 +127,12 @@ export async function getAnalyticsData(_agencyId?: string) {
 
     // Conversion funnel
     const [totalLeads, openDeals, wonDeals] = await Promise.all([
-      db.contact.count({ where: { agencyId } }),
-      db.deal.count({ where: { agencyId } }),
+      db.contact.count({ where: { agencyId, deletedAt: null } }),
+      db.deal.count({ where: { agencyId, deletedAt: null } }),
       db.deal.count({
         where: {
           agencyId,
+          deletedAt: null,
           OR: [
             { stage: { contains: "won", mode: "insensitive" } },
             { stage: { contains: "closed", mode: "insensitive" } }

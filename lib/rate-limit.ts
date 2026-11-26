@@ -7,11 +7,12 @@ interface RateLimitRecord {
   timestamps: number[]
 }
 
+const MAX_STORE_KEYS = 10_000
 const rateLimitStore = new Map<string, RateLimitRecord>()
 
-// Cleanup stale rate limit records every 5 minutes
+// Cleanup stale rate limit records every 5 minutes without keeping the event loop alive
 if (typeof setInterval !== "undefined") {
-  setInterval(() => {
+  const cleanupTimer = setInterval(() => {
     const now = Date.now()
     for (const [key, record] of rateLimitStore.entries()) {
       record.timestamps = record.timestamps.filter((ts) => now - ts < 300000)
@@ -20,6 +21,7 @@ if (typeof setInterval !== "undefined") {
       }
     }
   }, 300000)
+  ;(cleanupTimer as { unref?: () => void }).unref?.()
 }
 
 export interface RateLimitOptions {
@@ -44,6 +46,12 @@ export function checkRateLimit(
 
   let record = rateLimitStore.get(identifier)
   if (!record) {
+    if (rateLimitStore.size >= MAX_STORE_KEYS) {
+      const oldestKey = rateLimitStore.keys().next().value
+      if (oldestKey !== undefined) {
+        rateLimitStore.delete(oldestKey)
+      }
+    }
     record = { timestamps: [] }
     rateLimitStore.set(identifier, record)
   }

@@ -6,7 +6,11 @@ export async function POST(request: Request) {
   try {
     const rawBody = await request.text()
     const hmac = request.headers.get("x-shopify-hmac-sha256")
-    const secret = process.env.SHOPIFY_WEBHOOK_SECRET
+    const secret = process.env.SHOPIFY_WEBHOOK_SECRET?.trim()
+
+    if (!secret && process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "SHOPIFY_WEBHOOK_SECRET not configured" }, { status: 503 })
+    }
 
     if (secret && !verifyShopifySignature(rawBody, hmac, secret)) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
@@ -21,32 +25,30 @@ export async function POST(request: Request) {
     }
 
     const cleanEmail = email.trim().toLowerCase()
+    const shopDomain = request.headers.get("x-shopify-shop-domain")?.trim().toLowerCase() || ""
 
-    const shopDomain = request.headers.get("x-shopify-shop-domain")?.toLowerCase() || ""
+    // Resolve agency by shop domain FIRST — prevents cross-tenant contact collisions
+    let agency = null
+    if (shopDomain) {
+      agency = await db.agency.findFirst({
+        where: {
+          OR: [
+            { customDomain: { equals: shopDomain, mode: "insensitive" } },
+            { subdomain: { equals: shopDomain.replace(".myshopify.com", ""), mode: "insensitive" } }
+          ]
+        }
+      })
+    }
+
+    if (!agency) {
+      return NextResponse.json({ error: "Agency not resolved for Shopify store domain" }, { status: 404 })
+    }
 
     let contact = await db.contact.findFirst({
-      where: { email: cleanEmail }
+      where: { agencyId: agency.id, email: cleanEmail, deletedAt: null }
     })
 
     if (!contact) {
-      // Resolve agency by matched shop domain or custom domain
-      let agency = null
-      if (shopDomain) {
-        agency = await db.agency.findFirst({
-          where: {
-            OR: [
-              { customDomain: shopDomain },
-              { subdomain: shopDomain.replace(".myshopify.com", "") }
-            ]
-          }
-        })
-      }
-
-      if (!agency) {
-        // Cannot safely attribute new contact without verified agency identifier
-        return NextResponse.json({ error: "Agency not resolved for Shopify store domain" }, { status: 404 })
-      }
-
       contact = await db.contact.create({
         data: {
           agencyId: agency.id,

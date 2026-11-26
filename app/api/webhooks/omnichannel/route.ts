@@ -66,10 +66,11 @@ export async function POST(req: NextRequest) {
     const cleanIdentifier = String(fromIdentifier).trim()
     const isEmail = cleanIdentifier.includes("@")
 
-    // 1. Locate or Create Contact
+    // 1. Locate or Create Contact (excluding soft-deleted contacts)
     let contact = await db.contact.findFirst({
       where: {
         agencyId,
+        deletedAt: null,
         OR: [
           ...(isEmail ? [{ email: cleanIdentifier.toLowerCase() }] : []),
           ...(!isEmail ? [{ phone: cleanIdentifier }] : [])

@@ -1,93 +1,87 @@
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { Resend } from "resend";
-import crypto from "crypto";
-
-const prisma = new PrismaClient();
-
-// ─── In-process rate limiter ─────────────────────────────────────────────────
-// Limits password reset attempts per IP to 5 per 15 minutes.
-// For multi-instance deployments, replace with Redis (e.g., Upstash).
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return true;
-  }
-
-  entry.count++;
-  return false;
-}
-
-// Purge expired entries periodically (runs in process, no external deps)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of rateLimitMap.entries()) {
-    if (now > val.resetAt) rateLimitMap.delete(key);
-  }
-}, RATE_LIMIT_WINDOW_MS);
-
-// ─── Route Handler ────────────────────────────────────────────────────────────
+import crypto from "crypto"
+import { NextResponse } from "next/server"
+import { Resend } from "resend"
+import { db } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(req: Request) {
   try {
-    // Extract real IP — respects Vercel / Cloudflare forwarded headers
-    const forwarded = req.headers.get("x-forwarded-for");
-    const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown";
+    const forwarded = req.headers.get("x-forwarded-for")
+    const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown"
 
-    if (isRateLimited(ip)) {
+    const ipLimit = checkRateLimit(`forgot-pw-ip:${ip}`, {
+      maxRequests: 5,
+      windowSeconds: 900,
+    })
+    if (!ipLimit.allowed) {
       return NextResponse.json(
         { error: "Too many requests. Please wait 15 minutes before trying again." },
-        { status: 429 }
-      );
+        { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } }
+      )
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
-    const { email } = await req.json();
+    const { email } = await req.json()
 
-    if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return NextResponse.json({ error: "A valid email address is required" }, { status: 400 })
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase()
 
-    const user = await prisma.user.findUnique({
+    const emailLimit = checkRateLimit(`forgot-pw-email:${cleanEmail}`, {
+      maxRequests: 3,
+      windowSeconds: 900,
+    })
+    if (!emailLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait 15 minutes before trying again." },
+        { status: 429, headers: { "Retry-After": String(emailLimit.resetInSeconds) } }
+      )
+    }
+
+    const resendKey = process.env.RESEND_API_KEY?.trim()
+    if (!resendKey) {
+      console.error("Forgot password failed: RESEND_API_KEY is not configured")
+      return NextResponse.json(
+        { error: "Password reset email service is not configured" },
+        { status: 503 }
+      )
+    }
+
+    const user = await db.user.findUnique({
       where: { email: cleanEmail },
-    });
+      select: { id: true },
+    })
 
-    // Always return success — prevents email enumeration via response difference
+    // Always return success to prevent email enumeration
     if (!user) {
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true })
     }
 
-    // Generate a cryptographically secure token
-    const token = crypto.randomUUID();
-    const expires = new Date();
-    expires.setHours(expires.getHours() + 1);
+    // Generate cryptographically secure token and store its SHA-256 hash
+    const rawToken = crypto.randomUUID()
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex")
+    const expires = new Date(Date.now() + 60 * 60 * 1000)
 
-    // Invalidate any existing tokens for this email before creating a new one
-    await prisma.verificationToken.deleteMany({
+    await db.verificationToken.deleteMany({
       where: { identifier: cleanEmail },
-    });
+    })
 
-    await prisma.verificationToken.create({
-      data: { identifier: cleanEmail, token, expires },
-    });
+    await db.verificationToken.create({
+      data: { identifier: cleanEmail, token: tokenHash, expires },
+    })
 
-    const resetLink = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`;
+    const appUrl = (
+      process.env.NEXTAUTH_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      new URL(req.url).origin
+    ).replace(/\/$/, "")
+
+    const resetLink = `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`
+    const resend = new Resend(resendKey)
 
     await resend.emails.send({
-      from: "onboarding@resend.dev",
+      from: process.env.RESEND_FROM_EMAIL || "Nexlin <onboarding@resend.dev>",
       to: cleanEmail,
       subject: "Reset your Nexlin password",
       html: `
@@ -101,12 +95,11 @@ export async function POST(req: Request) {
           <p style="font-size: 14px; color: #666;">This link will expire in 1 hour. If you did not request this, no action is required.</p>
         </div>
       `,
-    });
+    })
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Forgot password error:", error);
-    // Generic error — don't leak internal details
-    return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
+    console.error("Forgot password error:", error)
+    return NextResponse.json({ error: "Failed to process request" }, { status: 500 })
   }
 }

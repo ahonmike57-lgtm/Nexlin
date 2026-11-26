@@ -283,8 +283,8 @@ export async function executeWorkflowInternal(
   subAgencyId?: string | null
 ) {
   try {
-    const workflow = await db.workflow.findUnique({
-      where: { id: workflowId },
+    const workflow = await db.workflow.findFirst({
+      where: { id: workflowId, deletedAt: null },
       include: {
         actions: { orderBy: { order: "asc" } },
         agency: { select: { id: true, name: true, customDomain: true, subdomain: true } },
@@ -299,7 +299,7 @@ export async function executeWorkflowInternal(
 
     if (contactId) {
       const verifiedContact = await db.contact.findFirst({
-        where: { id: contactId, agencyId: workflow.agencyId },
+        where: { id: contactId, agencyId: workflow.agencyId, deletedAt: null },
         select: { id: true },
       })
       if (verifiedContact) {
@@ -310,6 +310,7 @@ export async function executeWorkflowInternal(
       const fallback = await db.contact.findFirst({
         where: {
           agencyId: workflow.agencyId,
+          deletedAt: null,
           ...(effectiveSubAgencyId ? { subAgencyId: effectiveSubAgencyId } : {}),
         },
         orderBy: { createdAt: "desc" },
@@ -333,7 +334,7 @@ export async function executeWorkflowInternal(
 
     const contact = targetContactId
       ? await db.contact.findFirst({
-          where: { id: targetContactId, agencyId: workflow.agencyId },
+          where: { id: targetContactId, agencyId: workflow.agencyId, deletedAt: null },
           include: { deals: { take: 1, orderBy: { updatedAt: "desc" } } },
         })
       : null
@@ -378,6 +379,7 @@ export async function triggerWorkflowsInternal(
     const whereClause: any = {
       agencyId,
       status: "active",
+      deletedAt: null,
       triggers: {
         some: { type: eventType },
       },

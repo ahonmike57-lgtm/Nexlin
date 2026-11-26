@@ -100,6 +100,8 @@ model SubAgency {
   conversations Conversation[]
   workflows     Workflow[]
   users         User[]
+
+  @@index([agencyId])
 }
 
 model User {
@@ -127,6 +129,8 @@ model User {
   installedApps    TenantApp[]
   assignedContacts Contact[]  @relation("AssignedContacts")
   assignedDeals    Deal[]     @relation("AssignedDeals")
+
+  @@index([agencyId])
 }
 
 model Contact {
@@ -163,6 +167,7 @@ model Contact {
   @@index([agencyId, createdAt(sort: Desc)])
   @@index([agencyId, email])
   @@index([agencyId, phone])
+  @@index([agencyId, deletedAt])
 }
 
 model Deal {
@@ -188,6 +193,7 @@ model Deal {
 
   @@index([agencyId, pipelineId, stageId])
   @@index([agencyId, updatedAt(sort: Desc)])
+  @@index([agencyId, deletedAt])
 }
 
 model Pipeline {
@@ -201,6 +207,8 @@ model Pipeline {
   updatedAt   DateTime        @updatedAt
   stages      PipelineStage[]
   deals       Deal[]
+
+  @@index([agencyId])
 }
 
 model PipelineStage {
@@ -259,6 +267,9 @@ model AuditLog {
   entityId  String
   details   String? // JSON string
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([entity, entityId])
 }
 
 // --- NextAuth Models ---
@@ -372,6 +383,8 @@ model Campaign {
   status    String    @default("draft") // draft, scheduled, sending, completed
   sentAt    DateTime?
   createdAt DateTime  @default(now())
+
+  @@index([agencyId, createdAt(sort: Desc)])
 }
 
 // --- Phase 6 Feature Models ---
@@ -390,6 +403,8 @@ model Workflow {
 
   triggers WorkflowTrigger[]
   actions  WorkflowAction[]
+
+  @@index([agencyId, status, deletedAt])
 }
 
 model ProcessedEvent {
@@ -407,6 +422,8 @@ model WorkflowTrigger {
   config     String? // JSON string
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([workflowId, type])
 }
 
 model WorkflowAction {
@@ -418,6 +435,8 @@ model WorkflowAction {
   config     String? // JSON string
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([workflowId, order])
 }
 
 model Appointment {
@@ -445,6 +464,8 @@ model PhoneNumber {
   provider  String   @default("twilio")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([agencyId])
 }
 
 model PortRequest {
@@ -473,6 +494,8 @@ model Ticket {
   assignedTo  String? // userId
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([agencyId, status, createdAt(sort: Desc)])
 }
 
 model KnowledgeArticle {
@@ -485,6 +508,8 @@ model KnowledgeArticle {
   status    String   @default("draft") // draft, published
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([agencyId, createdAt(sort: Desc)])
 }
 
 model VoiceAgent {
@@ -501,6 +526,8 @@ model VoiceAgent {
   missedCallAIFollowUp Boolean  @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
+
+  @@index([agencyId, isActive])
 }
 
 model SocialAccount {
@@ -515,6 +542,8 @@ model SocialAccount {
   updatedAt   DateTime @updatedAt
 
   posts SocialPost[]
+
+  @@index([agencyId])
 }
 
 model SocialPost {
@@ -530,6 +559,9 @@ model SocialPost {
   publishedAt  DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+
+  @@index([agencyId, scheduledFor])
+  @@index([status, scheduledFor])
 }
 
 model AdCampaign {
@@ -546,6 +578,8 @@ model AdCampaign {
   conversions Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([agencyId, createdAt(sort: Desc)])
 }
 
 // --- Phase 12 Feature Models ---
@@ -577,6 +611,9 @@ model ReviewRequest {
   status    String   @default("sent") // sent, delivered, opened, clicked, reviewed
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([agencyId, status, createdAt(sort: Desc)])
+  @@index([status, createdAt])
 }
 
 model Form {
@@ -590,6 +627,8 @@ model Form {
   updatedAt DateTime @updatedAt
 
   submissions FormSubmission[]
+
+  @@index([agencyId])
 }
 
 model FormSubmission {
@@ -602,6 +641,8 @@ model FormSubmission {
   contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   data      String // JSON object of submitted data
   createdAt DateTime @default(now())
+
+  @@index([agencyId, formId, createdAt(sort: Desc)])
 }
 
 model MediaFile {
@@ -615,6 +656,8 @@ model MediaFile {
   folder    String? // optional logical folder
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([agencyId, createdAt(sort: Desc)])
 }
 
 // --- Native Integrations & Webhooks ---
@@ -629,6 +672,8 @@ model Webhook {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([agencyId, event, isActive])
 }
 
 // --- MCP & Apps Models ---
@@ -696,6 +741,9 @@ model Snapshot {
   updatedAt   DateTime @updatedAt
   
   assets      SnapshotAsset[]
+
+  @@index([agencyId, version])
+  @@index([agencyId, name])
 }
 
 model SnapshotAsset {
@@ -767,6 +815,8 @@ model Affiliate {
   
   links       AffiliateLink[]
   payouts     CommissionPayout[]
+
+  @@index([agencyId])
 }
 
 model AffiliateLink {
@@ -805,6 +855,7 @@ model AiSettings {
   updatedAt DateTime @updatedAt
 
   @@unique([agencyId, provider])
+  @@index([agencyId, isActive])
 }
 
 model PlatformAdmin {
@@ -842,6 +893,9 @@ model ImpersonationLog {
   endedAt     DateTime?
   ipAddress   String?
   reason      String?
+
+  @@index([adminId, startedAt(sort: Desc)])
+  @@index([agencyId, startedAt(sort: Desc)])
 }
 
 model ApiKey {
@@ -858,6 +912,9 @@ model ApiKey {
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([keyHash, status])
+  @@index([agencyId])
 }
 
 model WebhookDelivery {
@@ -873,6 +930,8 @@ model WebhookDelivery {
   success        Boolean  @default(false)
   retryCount     Int      @default(0)
   deliveredAt    DateTime @default(now())
+
+  @@index([agencyId, deliveredAt(sort: Desc)])
 }
 
 // --- NEXLIN Forge — Conversational AI Website & Funnel Builder ---

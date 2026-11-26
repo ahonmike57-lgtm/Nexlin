@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
-import { verifyMetaSignature, logWebhookDelivery } from "@/lib/webhooks"
+import { verifyMetaSignature, verifySharedSecret, logWebhookDelivery } from "@/lib/webhooks"
 import { db } from "@/lib/db"
 import { findAgencyByWhatsappPhoneNumberId, broadcastNewMessage } from "@/lib/messaging"
 
 export async function GET(req: NextRequest) {
+  const verifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN?.trim()
+  if (!verifyToken) {
+    return NextResponse.json(
+      { error: "WhatsApp webhook verification not configured" },
+      { status: 503 }
+    )
+  }
+
   const { searchParams } = new URL(req.url)
   const mode = searchParams.get("hub.mode")
   const token = searchParams.get("hub.verify_token")
   const challenge = searchParams.get("hub.challenge")
 
-  const verifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN || "nexlin_meta_webhook_secret_2026"
-
-  if (mode === "subscribe" && token === verifyToken) {
-    console.log("Meta WhatsApp Webhook Verified Successfully!")
+  if (mode === "subscribe" && verifySharedSecret(token, verifyToken)) {
     return new NextResponse(challenge, { status: 200 })
   }
 
@@ -20,22 +25,19 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const startTime = Date.now()
   let bodyText = ""
+  let resolvedAgencyId: string | undefined
 
   try {
     bodyText = await req.text()
     const signature = req.headers.get("x-hub-signature-256")
-    const appSecret = process.env.META_APP_SECRET
+    const appSecret = process.env.META_APP_SECRET?.trim()
 
-    // Enforce HMAC signature check when META_APP_SECRET is configured
+    if (!appSecret && process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "META_APP_SECRET not configured" }, { status: 503 })
+    }
+
     if (appSecret && !verifyMetaSignature(bodyText, signature, appSecret)) {
-      await logWebhookDelivery({
-        event: "whatsapp.inbound.rejected",
-        payload: { reason: "Invalid HMAC signature" },
-        statusCode: 401,
-        error: "Signature verification failed"
-      })
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
     }
 
@@ -55,23 +57,11 @@ export async function POST(req: NextRequest) {
                 const normalizedFrom = fromNumber.startsWith("+") ? fromNumber : `+${fromNumber}`
                 const textContent = msg.text?.body || msg.caption || "[Media Message]"
 
-                // Route to correct tenant by recipient phone_number_id
-                let targetAgencyId: string | null = null
-                if (recipientPhoneNumberId) {
-                  targetAgencyId = await findAgencyByWhatsappPhoneNumberId(recipientPhoneNumberId)
-                }
+                // Route strictly to the agency owning recipientPhoneNumberId
+                const targetAgencyId = recipientPhoneNumberId
+                  ? await findAgencyByWhatsappPhoneNumberId(recipientPhoneNumberId)
+                  : null
 
-                if (!targetAgencyId) {
-                  // Fallback: check if contact already exists in a known agency
-                  const existingContact = await db.contact.findFirst({
-                    where: { OR: [{ phone: fromNumber }, { phone: normalizedFrom }] }
-                  })
-                  if (existingContact) {
-                    targetAgencyId = existingContact.agencyId
-                  }
-                }
-
-                // If still unmapped, reject to protect against cross-tenant data leaks
                 if (!targetAgencyId) {
                   console.warn(
                     `[WhatsApp Webhook] Unmapped recipient phone_number_id (${recipientPhoneNumberId}); skipping message from ${fromNumber} to prevent tenant leakage.`
@@ -79,10 +69,13 @@ export async function POST(req: NextRequest) {
                   continue
                 }
 
-                // Find or create contact strictly scoped to target agency
+                resolvedAgencyId = targetAgencyId
+
+                // Find or create contact strictly scoped to target agency (ignoring trashed contacts)
                 let contact = await db.contact.findFirst({
                   where: {
                     agencyId: targetAgencyId,
+                    deletedAt: null,
                     OR: [{ phone: fromNumber }, { phone: normalizedFrom }]
                   }
                 })
@@ -148,21 +141,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await logWebhookDelivery({
-      event: "whatsapp.inbound.processed",
-      payload,
-      statusCode: 200
-    })
+    if (resolvedAgencyId) {
+      await logWebhookDelivery({
+        event: "whatsapp.inbound.processed",
+        payload,
+        statusCode: 200,
+        agencyId: resolvedAgencyId,
+      })
+    }
 
     return NextResponse.json({ status: "success" }, { status: 200 })
   } catch (error: any) {
     console.error("WhatsApp Webhook Ingestion Error:", error)
-    await logWebhookDelivery({
-      event: "whatsapp.inbound.error",
-      payload: bodyText,
-      statusCode: 500,
-      error: error.message
-    })
+    if (resolvedAgencyId) {
+      await logWebhookDelivery({
+        event: "whatsapp.inbound.error",
+        payload: bodyText,
+        statusCode: 500,
+        error: error.message,
+        agencyId: resolvedAgencyId,
+      })
+    }
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

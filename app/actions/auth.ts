@@ -1,10 +1,12 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 import bcrypt from "bcryptjs"
 
 const BCRYPT_ROUNDS = 12
 const MIN_PASSWORD_LENGTH = 8
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function registerUser(data: {
   firstName: string,
@@ -18,6 +20,18 @@ export async function registerUser(data: {
 
     if (!email || !data.password) {
       return { success: false, error: "Email and password are required" }
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+      return { success: false, error: "Please enter a valid email address" }
+    }
+
+    const rateLimit = checkRateLimit(`register:${email}`, {
+      maxRequests: 5,
+      windowSeconds: 900,
+    })
+    if (!rateLimit.allowed) {
+      return { success: false, error: "Too many registration attempts. Please try again later." }
     }
 
     if (data.password.length < MIN_PASSWORD_LENGTH) {

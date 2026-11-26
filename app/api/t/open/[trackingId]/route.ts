@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 
 // 1x1 transparent GIF buffer
@@ -8,28 +7,47 @@ const TRANSPARENT_GIF_BUFFER = Buffer.from(
 )
 
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ trackingId: string }> }
 ) {
   const { trackingId } = await params
 
   try {
-    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown"
-    const userAgent = req.headers.get("user-agent") || "unknown"
-
-    // Parse trackingId format: campaignId_contactId or general tracking string
     if (trackingId && trackingId.includes("_")) {
       const [campaignId, contactId] = trackingId.split("_")
-      
-      // Update contact lead score (+5 for opening email)
-      if (contactId) {
-        await db.contact.updateMany({
-          where: { id: contactId },
-          data: {
-            leadScore: { increment: 5 },
-            updatedAt: new Date()
+
+      if (campaignId && contactId) {
+        const campaign = await db.campaign.findUnique({
+          where: { id: campaignId },
+          select: { id: true, agencyId: true },
+        })
+
+        if (campaign) {
+          let isFirstOpen = false
+          try {
+            await db.processedEvent.create({
+              data: {
+                eventId: `email_open:${campaign.id}:${contactId}`,
+                source: "email_open",
+              },
+            })
+            isFirstOpen = true
+          } catch {
+            // Unique violation -> open already counted for this campaign/contact
           }
-        }).catch(() => {})
+
+          if (isFirstOpen) {
+            await db.contact
+              .updateMany({
+                where: { id: contactId, agencyId: campaign.agencyId, deletedAt: null },
+                data: {
+                  leadScore: { increment: 5 },
+                  updatedAt: new Date(),
+                },
+              })
+              .catch(() => {})
+          }
+        }
       }
     }
   } catch (error) {

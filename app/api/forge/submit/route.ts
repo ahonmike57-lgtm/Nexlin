@@ -67,6 +67,7 @@ export async function POST(request: Request) {
     let contact = await db.contact.findFirst({
       where: {
         agencyId,
+        deletedAt: null,
         ...(cleanEmail ? { email: cleanEmail } : { phone: cleanPhone! })
       }
     })

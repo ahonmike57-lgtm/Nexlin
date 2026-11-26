@@ -1,52 +1,75 @@
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import crypto from "crypto"
+import { NextResponse } from "next/server"
+import bcrypt from "bcryptjs"
+import { db } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 
-const prisma = new PrismaClient();
+const BCRYPT_ROUNDS = 12
+const MIN_PASSWORD_LENGTH = 8
 
 export async function POST(req: Request) {
   try {
-    const { token, password } = await req.json();
+    const forwarded = req.headers.get("x-forwarded-for")
+    const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown"
 
-    if (!token || !password) {
-      return NextResponse.json({ error: "Token and password are required" }, { status: 400 });
+    const ipLimit = checkRateLimit(`reset-pw-ip:${ip}`, {
+      maxRequests: 10,
+      windowSeconds: 900,
+    })
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait 15 minutes before trying again." },
+        { status: 429, headers: { "Retry-After": String(ipLimit.resetInSeconds) } }
+      )
     }
 
-    // Find the token in the database
-    const verificationToken = await prisma.verificationToken.findUnique({
-      where: { token },
-    });
+    const { token, password } = await req.json()
+    const cleanToken = typeof token === "string" ? token.trim() : ""
+
+    if (!cleanToken || typeof password !== "string" || !password) {
+      return NextResponse.json({ error: "Token and password are required" }, { status: 400 })
+    }
+
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      return NextResponse.json(
+        { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
+        { status: 400 }
+      )
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(cleanToken).digest("hex")
+
+    const verificationToken = await db.verificationToken.findFirst({
+      where: {
+        OR: [{ token: tokenHash }, { token: cleanToken }],
+      },
+    })
 
     if (!verificationToken) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid token" }, { status: 400 })
     }
 
-    // Check if token has expired
     if (new Date() > verificationToken.expires) {
-      // Clean up expired token
-      await prisma.verificationToken.delete({
-        where: { token },
-      });
-      return NextResponse.json({ error: "Token has expired" }, { status: 400 });
+      await db.verificationToken.deleteMany({
+        where: { identifier: verificationToken.identifier },
+      })
+      return NextResponse.json({ error: "Token has expired" }, { status: 400 })
     }
 
-    // Hash the new password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS)
 
-    // Update the user's password
-    await prisma.user.update({
+    await db.user.update({
       where: { email: verificationToken.identifier },
       data: { passwordHash },
-    });
+    })
 
-    // Delete the token so it can't be used again
-    await prisma.verificationToken.delete({
-      where: { token },
-    });
+    await db.verificationToken.deleteMany({
+      where: { identifier: verificationToken.identifier },
+    })
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Reset password error:", error);
-    return NextResponse.json({ error: "Failed to reset password" }, { status: 500 });
+    console.error("Reset password error:", error)
+    return NextResponse.json({ error: "Failed to reset password" }, { status: 500 })
   }
 }

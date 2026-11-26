@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
 
     const agencyId = phoneNumber.agencyId
 
-    // Find or create contact by phone number
-    let contact = await db.contact.findFirst({ where: { phone: from, agencyId } })
+    // Find or create contact by phone number (excluding soft-deleted contacts)
+    let contact = await db.contact.findFirst({ where: { phone: from, agencyId, deletedAt: null } })
     if (!contact) {
       contact = await db.contact.create({
         data: {

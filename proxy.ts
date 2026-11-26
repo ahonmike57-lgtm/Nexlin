@@ -8,7 +8,6 @@ const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/accept-invite",
-  "/mock-oauth",
   "/",
 ]
 
@@ -24,7 +23,8 @@ export default withAuth(
     const token = (req as any).nextauth?.token
 
     // ── Forward custom domain header ──────────────────
-    const hostname = req.headers.get("host")!.replace(".localhost:3000", `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'}`)
+    const rawHost = req.headers.get("host") || ""
+    const hostname = rawHost.replace(".localhost:3000", `.${process.env.NEXT_PUBLIC_ROOT_DOMAIN || 'localhost:3000'}`)
     const requestHeaders = new Headers(req.headers)
     requestHeaders.set("x-custom-domain", hostname)
 
@@ -73,6 +73,11 @@ export default withAuth(
           "/api/auth",
           "/api/health",
           "/api/webhooks",
+          "/api/inngest",
+          "/api/voice/incoming",
+          "/api/twilio/incoming-call",
+          "/api/v1/webhooks/inbound/",
+          "/api/forge/submit",
           "/api/geo",
           "/api/og",
           "/api/t/",

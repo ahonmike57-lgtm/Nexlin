@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google"
 import GithubProvider from "next-auth/providers/github"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { verifyTotpCode } from "@/lib/totp"
 import bcrypt from "bcryptjs"
 
@@ -45,6 +46,14 @@ export const authOptions: NextAuthOptions = {
         
         const cleanEmail = credentials.email.trim().toLowerCase()
         const cleanPassword = credentials.password.trim()
+
+        const rateLimit = checkRateLimit(`login:${cleanEmail}`, {
+          maxRequests: 10,
+          windowSeconds: 900,
+        })
+        if (!rateLimit.allowed) {
+          throw new Error("TOO_MANY_ATTEMPTS")
+        }
 
         // 1. Check PlatformAdmin
         const admin = await db.platformAdmin.findFirst({

@@ -27,6 +27,11 @@ export default function LoginPage() {
     })
 
     if (result?.error) {
+      if (result.error === "TOO_MANY_ATTEMPTS") {
+        setError("Too many sign-in attempts. Please wait 15 minutes and try again.")
+        setLoading(false)
+        return
+      }
       if (result.error === "2FA_REQUIRED") {
         setNeedsTwoFactor(true)
         setError("")

@@ -75,9 +75,9 @@ export async function sendCampaign(campaignId: string) {
     // Set status to sending
     await db.campaign.update({ where: { id: campaign.id }, data: { status: "sending" } })
 
-    // Fetch all unsuppressed contacts with valid emails
+    // Fetch all unsuppressed, non-deleted contacts with valid emails
     const contacts = await db.contact.findMany({
-      where: { agencyId: campaign.agencyId, email: { not: null }, emailSuppressed: false },
+      where: { agencyId: campaign.agencyId, email: { not: null }, emailSuppressed: false, deletedAt: null },
       select: { id: true, email: true, firstName: true, lastName: true }
     })
 
@@ -179,11 +179,12 @@ export async function sendSmsBroadcast(_agencyId: string, message: string, tagFi
       select: { id: true, name: true }
     })
 
-    // Fetch non-DND contacts with phone numbers in caller's agency
+    // Fetch non-DND, non-deleted contacts with phone numbers in caller's agency
     const whereClause: any = {
       agencyId: auth.agencyId,
       phone: { not: null },
       dndEnabled: false,
+      deletedAt: null,
     }
     if (tagFilter?.trim()) {
       whereClause.tags = { contains: tagFilter.trim(), mode: "insensitive" }

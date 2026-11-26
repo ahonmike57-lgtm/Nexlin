@@ -21,10 +21,10 @@ export default async function DashboardPage() {
 
   const agencyId = await getOrCreateAgency()
 
-  // Fetch real data scoped to this agency
-  const totalContacts = await db.contact.count({ where: { agencyId } })
+  // Fetch real data scoped to this agency (excluding soft-deleted records)
+  const totalContacts = await db.contact.count({ where: { agencyId, deletedAt: null } })
 
-  const deals = await db.deal.findMany({ where: { agencyId } })
+  const deals = await db.deal.findMany({ where: { agencyId, deletedAt: null } })
   const totalRevenue = deals.reduce((acc, deal) => acc + deal.value, 0)
 
   const wonDeals = deals.filter(d => d.stage.toLowerCase() === "won" || d.stage.toLowerCase() === "closed won")
@@ -48,8 +48,8 @@ export default async function DashboardPage() {
   }))
 
   // Calculate Recent Activity
-  const recentContacts = await db.contact.findMany({ where: { agencyId }, orderBy: { updatedAt: 'desc' }, take: 4 })
-  const recentDealsQuery = await db.deal.findMany({ where: { agencyId }, orderBy: { updatedAt: 'desc' }, take: 4 })
+  const recentContacts = await db.contact.findMany({ where: { agencyId, deletedAt: null }, orderBy: { updatedAt: 'desc' }, take: 4 })
+  const recentDealsQuery = await db.deal.findMany({ where: { agencyId, deletedAt: null }, orderBy: { updatedAt: 'desc' }, take: 4 })
 
   const activities = [
     ...recentContacts.map(c => ({
