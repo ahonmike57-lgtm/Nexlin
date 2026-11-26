@@ -1,13 +1,19 @@
 "use server"
 
 import { db as prisma } from "@/lib/db"
+import { requireTenantAuth } from "@/lib/permissions"
 import { revalidatePath } from "next/cache"
 import crypto from "crypto"
 
-export async function getAffiliates(agencyId: string) {
+export async function getAffiliates(_agencyId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     const affiliates = await prisma.affiliate.findMany({
-      where: { agencyId },
+      where: { agencyId: auth.agencyId },
       include: {
         links: true,
         payouts: true
@@ -20,14 +26,24 @@ export async function getAffiliates(agencyId: string) {
   }
 }
 
-export async function createAffiliate(agencyId: string, name: string, email: string, targetUrl: string) {
+export async function createAffiliate(_agencyId: string, name: string, email: string, targetUrl: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    // 1. Create the affiliate
+    const parsedUrl = new URL(targetUrl.trim())
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      return { success: false, error: "Target URL must use http:// or https://" }
+    }
+
+    // 1. Create the affiliate strictly in caller's agency
     const affiliate = await prisma.affiliate.create({
       data: {
-        agencyId,
-        name,
-        email,
+        agencyId: auth.agencyId,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
       }
     })
 
@@ -39,7 +55,7 @@ export async function createAffiliate(agencyId: string, name: string, email: str
       data: {
         affiliateId: affiliate.id,
         code,
-        targetUrl
+        targetUrl: parsedUrl.toString()
       }
     })
 
@@ -51,11 +67,16 @@ export async function createAffiliate(agencyId: string, name: string, email: str
   }
 }
 
-// Logic to record a click (would be called from a middleware or page component)
+// Logic to record a click (public referral redirect endpoint)
 export async function trackAffiliateClick(code: string) {
+  const cleanCode = code?.trim()
+  if (!cleanCode) {
+    return { success: false, error: "Invalid referral code" }
+  }
+
   try {
     await prisma.affiliateLink.update({
-      where: { code },
+      where: { code: cleanCode },
       data: { clicks: { increment: 1 } }
     })
     return { success: true }
@@ -64,13 +85,31 @@ export async function trackAffiliateClick(code: string) {
   }
 }
 
-// Logic to record a conversion/sale
+// Logic to record a conversion/sale (tenant admin only)
 export async function trackAffiliateConversion(code: string, saleAmount: number) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  const cleanCode = code?.trim()
+  if (!cleanCode || !Number.isFinite(saleAmount) || saleAmount <= 0) {
+    return { success: false, error: "Invalid referral code or sale amount" }
+  }
+
   try {
-    const link = await prisma.affiliateLink.update({
-      where: { code },
-      data: { conversions: { increment: 1 } },
+    const existingLink = await prisma.affiliateLink.findUnique({
+      where: { code: cleanCode },
       include: { affiliate: true }
+    })
+
+    if (!existingLink || existingLink.affiliate.agencyId !== auth.agencyId) {
+      return { success: false, error: "Affiliate link not found" }
+    }
+
+    await prisma.affiliateLink.update({
+      where: { id: existingLink.id },
+      data: { conversions: { increment: 1 } }
     })
 
     // 30% default commission for example
@@ -78,7 +117,7 @@ export async function trackAffiliateConversion(code: string, saleAmount: number)
 
     await prisma.commissionPayout.create({
       data: {
-        affiliateId: link.affiliateId,
+        affiliateId: existingLink.affiliateId,
         amount: commission,
         status: "pending",
         description: `Commission for sale of $${saleAmount}`

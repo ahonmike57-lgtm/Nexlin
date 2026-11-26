@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google"
 import GithubProvider from "next-auth/providers/github"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
+import { verifyTotpCode } from "@/lib/totp"
 import bcrypt from "bcryptjs"
 
 const authSecret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
@@ -34,7 +35,8 @@ export const authOptions: NextAuthOptions = {
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        password: { label: "Password", type: "password" },
+        totpCode: { label: "2FA Code", type: "text" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -78,6 +80,41 @@ export const authOptions: NextAuthOptions = {
           const isValidUser = await bcrypt.compare(cleanPassword, user.passwordHash).catch(() => false)
 
           if (isValidUser) {
+            if (user.twoFactorEnabled && user.twoFactorSecret) {
+              const rawCode = (credentials.totpCode || "").trim()
+              if (!rawCode) {
+                throw new Error("2FA_REQUIRED")
+              }
+
+              let verified = verifyTotpCode(user.twoFactorSecret, rawCode)
+
+              if (!verified && user.backupCodes) {
+                let storedHashes: string[] = []
+                try {
+                  const parsed = JSON.parse(user.backupCodes)
+                  if (Array.isArray(parsed)) storedHashes = parsed
+                } catch {}
+
+                const candidate = rawCode.replace(/-/g, "").trim().toUpperCase()
+                for (let i = 0; i < storedHashes.length; i++) {
+                  const matched = await bcrypt.compare(candidate, storedHashes[i]).catch(() => false)
+                  if (matched) {
+                    const remaining = storedHashes.filter((_, idx) => idx !== i)
+                    await db.user.update({
+                      where: { id: user.id },
+                      data: { backupCodes: JSON.stringify(remaining) }
+                    })
+                    verified = true
+                    break
+                  }
+                }
+              }
+
+              if (!verified) {
+                throw new Error("INVALID_2FA_CODE")
+              }
+            }
+
             return { 
               id: user.id, 
               name: user.name, 
@@ -105,11 +142,26 @@ export const authOptions: NextAuthOptions = {
         token.agencyId = (user as any).agencyId
       }
       
-      // Impersonation Support
-      if (trigger === "update" && session?.impersonateAgencyId) {
-        if (token.isPlatformAdmin) {
-          token.agencyId = session.impersonateAgencyId
-          token.isImpersonating = true
+      // Impersonation Support (start & stop)
+      if (trigger === "update" && session && "impersonateAgencyId" in session) {
+        if (session.impersonateAgencyId === null) {
+          token.agencyId = undefined
+          token.isImpersonating = false
+        } else if (typeof session.impersonateAgencyId === "string" && token.isPlatformAdmin && token.sub) {
+          const admin = await db.platformAdmin.findUnique({
+            where: { id: token.sub },
+            select: { status: true, role: true }
+          })
+          if (admin && admin.status === "active" && ["owner", "developer", "support"].includes(admin.role)) {
+            const targetAgency = await db.agency.findUnique({
+              where: { id: session.impersonateAgencyId },
+              select: { id: true }
+            })
+            if (targetAgency) {
+              token.agencyId = targetAgency.id
+              token.isImpersonating = true
+            }
+          }
         }
       }
       

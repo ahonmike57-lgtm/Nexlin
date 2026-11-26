@@ -3,10 +3,14 @@
 import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
 
-export async function checkAndAutoTopUpWallet(threshold = 10, autoTopUpAmount = 50) {
+export async function checkAndAutoTopUpWallet(threshold = 10, _autoTopUpAmount = 50) {
   const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  if (!Number.isFinite(threshold) || threshold <= 0) {
+    return { success: false, error: "Threshold must be a positive number" }
   }
 
   try {
@@ -17,13 +21,13 @@ export async function checkAndAutoTopUpWallet(threshold = 10, autoTopUpAmount = 
     if (!wallet) return { success: false, error: "Billing wallet not found" }
 
     if (wallet.balance < threshold) {
-      // Simulate automatic Stripe charge & wallet top up
-      const updated = await db.billingWallet.update({
-        where: { id: wallet.id },
-        data: { balance: wallet.balance + autoTopUpAmount }
-      })
-
-      return { success: true, toppedUp: true, newBalance: updated.balance }
+      return {
+        success: false,
+        toppedUp: false,
+        requiresPaymentMethod: true,
+        balance: wallet.balance,
+        error: "Automatic wallet top-up requires a verified off-session payment confirmation and cannot credit balance directly."
+      }
     }
 
     return { success: true, toppedUp: false, balance: wallet.balance }

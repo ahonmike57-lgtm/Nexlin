@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { pusherServer } from "@/lib/pusher"
-import { triggerWorkflows } from "@/app/actions/workflow-engine"
+import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { logWebhookDelivery } from "@/lib/webhooks"
+import { logWebhookDelivery, verifyApiKeyForAgency, verifySharedSecret } from "@/lib/webhooks"
 
 /**
  * Unified Omni-Channel Inbound Message Gateway
@@ -22,8 +22,38 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const verifiedKey = await verifyApiKeyForAgency(req.headers.get("authorization"))
+    const sharedSecretValid = !verifiedKey
+      ? verifySharedSecret(req.headers.get("x-webhook-secret"), process.env.OMNICHANNEL_WEBHOOK_SECRET)
+      : false
+
+    if (!verifiedKey && !sharedSecretValid) {
+      return NextResponse.json({ error: "Unauthorized webhook request" }, { status: 401 })
+    }
+
     const payload = await req.json()
-    const agencyId = payload.agencyId
+    let agencyId = ""
+
+    if (verifiedKey) {
+      if (payload.agencyId && payload.agencyId !== verifiedKey.agencyId) {
+        return NextResponse.json({ error: "Forbidden: agencyId mismatch" }, { status: 403 })
+      }
+      agencyId = verifiedKey.agencyId
+    } else {
+      const requestedAgencyId = typeof payload.agencyId === "string" ? payload.agencyId.trim() : ""
+      if (!requestedAgencyId) {
+        return NextResponse.json({ error: "Missing required field: agencyId" }, { status: 400 })
+      }
+      const existingAgency = await db.agency.findUnique({
+        where: { id: requestedAgencyId },
+        select: { id: true }
+      })
+      if (!existingAgency) {
+        return NextResponse.json({ error: "Agency not found" }, { status: 404 })
+      }
+      agencyId = existingAgency.id
+    }
+
     const channel = (payload.channel || "sms").toLowerCase() // "sms", "email", "whatsapp", "live_chat"
     const fromIdentifier = payload.from || payload.sender || payload.email || payload.phone
     const content = payload.content || payload.message || payload.text || ""
@@ -129,7 +159,7 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     // 6. Trigger Workflows
-    await triggerWorkflows(agencyId, "inbound_message_received", {
+    await triggerWorkflowsInternal(agencyId, "inbound_message_received", {
       contactId: contact.id,
       conversationId: conversation.id,
       channel,

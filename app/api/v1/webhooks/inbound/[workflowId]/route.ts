@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { inngest } from "@/lib/inngest/client"
-import { logWebhookDelivery } from "@/lib/webhooks"
+import { logWebhookDelivery, verifyApiKeyForAgency, verifySharedSecret } from "@/lib/webhooks"
 import { checkRateLimit } from "@/lib/rate-limit"
 
 /**
@@ -29,11 +29,50 @@ export async function POST(
   try {
     const workflow = await db.workflow.findUnique({
       where: { id: workflowId },
-      include: { agency: true }
+      include: { agency: true, triggers: true }
     })
 
     if (!workflow) {
       return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
+    }
+
+    if (workflow.status !== "active") {
+      return NextResponse.json({ error: "Workflow is not active" }, { status: 403 })
+    }
+
+    const authHeader = req.headers.get("authorization")
+    if (authHeader) {
+      const verified = await verifyApiKeyForAgency(authHeader)
+      if (!verified) {
+        return NextResponse.json({ error: "Invalid API key" }, { status: 401 })
+      }
+      if (verified.agencyId !== workflow.agencyId) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+    } else {
+      let triggerSecret = ""
+      for (const trigger of workflow.triggers) {
+        if (trigger.type !== "inbound_webhook" && !trigger.config) continue
+        if (!trigger.config) continue
+        try {
+          const cfg = JSON.parse(trigger.config)
+          if (typeof cfg?.secret === "string" && cfg.secret.trim()) {
+            triggerSecret = cfg.secret.trim()
+            break
+          }
+        } catch {}
+      }
+
+      if (triggerSecret) {
+        const providedSecret = req.headers.get("x-webhook-secret") || req.nextUrl.searchParams.get("secret")
+        if (!verifySharedSecret(providedSecret, triggerSecret)) {
+          return NextResponse.json({ error: "Invalid webhook secret" }, { status: 401 })
+        }
+      } else if (process.env.INBOUND_WEBHOOK_SECRET) {
+        if (!verifySharedSecret(req.headers.get("x-webhook-secret"), process.env.INBOUND_WEBHOOK_SECRET)) {
+          return NextResponse.json({ error: "Invalid webhook secret" }, { status: 401 })
+        }
+      }
     }
 
     const bodyText = await req.text()

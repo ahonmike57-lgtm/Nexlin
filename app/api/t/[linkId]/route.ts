@@ -1,7 +1,23 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { triggerWorkflows } from "@/app/actions/workflow-engine"
+import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
 import { pusherServer } from "@/lib/pusher"
+
+function sanitizeRedirectTarget(rawTarget: unknown, requestUrl: string): string | URL {
+  if (typeof rawTarget === "string") {
+    const trimmed = rawTarget.trim()
+    if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+      return new URL(trimmed, requestUrl)
+    }
+    try {
+      const parsed = new URL(trimmed)
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.toString()
+      }
+    } catch {}
+  }
+  return new URL("/", requestUrl)
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ linkId: string }> }) {
   try {
@@ -18,7 +34,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ link
     }
 
     const data = JSON.parse(link.description)
-    const targetUrl = data.targetUrl || "/"
+    const safeRedirectTarget = sanitizeRedirectTarget(data.targetUrl, request.url)
 
     // 1. Increment click count on trigger link
     await db.snapshot.update({
@@ -59,11 +75,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ link
         }).catch(() => {})
 
         // Trigger active automations
-        await triggerWorkflows(link.agencyId, "trigger_link_clicked", {
+        await triggerWorkflowsInternal(link.agencyId, "trigger_link_clicked", {
           linkId,
           linkName: link.name,
           contactId: contact.id,
-          targetUrl
+          targetUrl: typeof safeRedirectTarget === "string" ? safeRedirectTarget : safeRedirectTarget.toString()
         }).catch(() => {})
 
         // Push real-time toast to active agency users
@@ -77,7 +93,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ link
       }
     }
 
-    return NextResponse.redirect(targetUrl)
+    return NextResponse.redirect(safeRedirectTarget)
   } catch (error) {
     console.error("Trigger link redirect error:", error)
     return NextResponse.redirect(new URL("/", request.url))

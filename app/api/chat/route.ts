@@ -1,19 +1,44 @@
-import { google } from '@ai-sdk/google'
+import { NextResponse } from 'next/server'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { streamText } from 'ai'
 import { db } from '@/lib/db'
+import { requireTenantAuth } from '@/lib/permissions'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30
 
 export async function POST(req: Request) {
-  const { messages, contactId } = await req.json()
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
-  // Fetch the contact context if provided
+  const rateLimit = checkRateLimit(`ai-chat:${auth.userId}`, { maxRequests: 30, windowSeconds: 60 })
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many AI chat requests" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.resetInSeconds) } }
+    )
+  }
+
+  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY
+  if (!apiKey) {
+    return NextResponse.json({ error: "AI service not configured" }, { status: 503 })
+  }
+
+  const body = await req.json().catch(() => ({}))
+  const { messages, contactId } = body || {}
+  if (!Array.isArray(messages)) {
+    return NextResponse.json({ error: "Invalid messages payload" }, { status: 400 })
+  }
+
+  // Fetch the contact context if provided (strictly scoped to caller's agency)
   let systemPrompt = "You are a helpful AI assistant for Nexlin CRM."
   
-  if (contactId) {
-    const contact = await db.contact.findUnique({
-      where: { id: contactId },
+  if (typeof contactId === "string" && contactId.trim()) {
+    const contact = await db.contact.findFirst({
+      where: { id: contactId.trim(), agencyId: auth.agencyId },
       include: { agency: true }
     })
     
@@ -29,9 +54,9 @@ If they ask questions you do not know the answer to, politely explain that a hum
     }
   }
 
-  // Use Google's Gemini 1.5 Pro model via the AI SDK
+  const googleProvider = createGoogleGenerativeAI({ apiKey })
   const result = streamText({
-    model: google('gemini-1.5-flash'),
+    model: googleProvider('gemini-2.0-flash'),
     system: systemPrompt,
     messages,
   })

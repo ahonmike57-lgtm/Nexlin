@@ -1,74 +1,42 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { requireTenantAuth } from "@/lib/permissions"
+import { executeWorkflowInternal, triggerWorkflowsInternal } from "@/lib/workflow-engine"
 import { getActiveSubAccountId } from "./subaccounts"
-import { inngest } from "@/lib/inngest/client"
 
 export async function executeWorkflow(workflowId: string, contactId?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const workflow = await db.workflow.findUnique({
-      where: { id: workflowId },
+    const workflow = await db.workflow.findFirst({
+      where: { id: workflowId, agencyId: auth.agencyId },
+      select: { id: true },
     })
 
     if (!workflow) {
-      throw new Error("Workflow not found")
+      return { success: false, error: "Workflow not found" }
     }
 
-    let targetContactId = contactId
-    if (!targetContactId) {
-      const subAgencyId = await getActiveSubAccountId()
-      const whereClause: any = {}
-      if (subAgencyId) {
-        whereClause.subAgencyId = subAgencyId
-      }
-      const fallback = await db.contact.findFirst({ where: whereClause, orderBy: { createdAt: "desc" } })
-      if (fallback) targetContactId = fallback.id
-    }
-
-    await inngest.send({
-      name: "workflow.execute",
-      data: {
-        workflowId,
-        contactId: targetContactId
-      }
-    })
-
-    return { success: true, logs: ["Dispatched to Inngest"] }
+    const subAgencyId = await getActiveSubAccountId()
+    return await executeWorkflowInternal(workflow.id, contactId, subAgencyId)
   } catch (error) {
     console.error("Failed to execute workflow:", error)
     return { success: false, error: "Failed to dispatch workflow" }
   }
 }
 
-export async function triggerWorkflows(agencyId: string, eventType: string, payload?: any) {
-  try {
-    const subAgencyId = await getActiveSubAccountId()
-    const whereClause: any = {
-      agencyId,
-      status: "active",
-      triggers: {
-        some: { type: eventType }
-      }
-    }
-    if (subAgencyId) {
-      whereClause.subAgencyId = subAgencyId
-    }
-
-    const activeWorkflows = await db.workflow.findMany({
-      where: whereClause
-    })
-
-    console.log(`[Workflow Engine] Found ${activeWorkflows.length} active workflows for event: ${eventType}`)
-
-    for (const workflow of activeWorkflows) {
-      await executeWorkflow(workflow.id, payload?.contactId).catch(console.error)
-    }
-
-    return { success: true, count: activeWorkflows.length }
-  } catch (error) {
-    console.error("Failed to trigger workflows:", error)
-    return { success: false }
+export async function triggerWorkflows(_agencyId: string, eventType: string, payload?: any) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
   }
+
+  const subAgencyId = await getActiveSubAccountId()
+  return await triggerWorkflowsInternal(auth.agencyId, eventType, payload, subAgencyId)
 }
 
 /**

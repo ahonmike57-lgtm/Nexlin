@@ -1,23 +1,19 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 
 export async function getSubAccounts() {
   try {
-    const session = await getSession()
-    if (!session?.user?.email) return []
+    const auth = await requireTenantAuth("user")
+    if (!auth.authorized || !auth.agencyId) return []
 
-    const user = await db.user.findUnique({
-      where: { email: session.user.email },
-      include: { agency: { include: { subAgencies: true } } }
+    return await db.subAgency.findMany({
+      where: { agencyId: auth.agencyId },
+      orderBy: { createdAt: "desc" }
     })
-
-    if (!user || !user.agency) return []
-    
-    return user.agency.subAgencies
   } catch (error) {
     console.error("Failed to fetch subaccounts", error)
     return []
@@ -26,9 +22,27 @@ export async function getSubAccounts() {
 
 export async function setActiveSubAccount(subAgencyId: string | null) {
   try {
+    const auth = await requireTenantAuth("user")
+    if (!auth.authorized || !auth.agencyId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
     const cookieStore = await cookies()
     if (subAgencyId) {
-      cookieStore.set("activeSubAccountId", subAgencyId, { path: "/" })
+      const owned = await db.subAgency.findFirst({
+        where: { id: subAgencyId, agencyId: auth.agencyId },
+        select: { id: true }
+      })
+      if (!owned) {
+        return { success: false, error: "Sub-account not found" }
+      }
+
+      cookieStore.set("activeSubAccountId", owned.id, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      })
     } else {
       cookieStore.delete("activeSubAccountId")
     }
@@ -45,16 +59,23 @@ export async function getActiveSubAccountId() {
   return activeId?.value || null
 }
 
-export async function createSubAccount(agencyId: string, name: string) {
+export async function createSubAccount(_agencyId: string, name: string) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    const auth = await requireTenantAuth("admin")
+    if (!auth.authorized || !auth.agencyId) {
+      return { success: false, error: auth.error || "Unauthorized" }
+    }
+
+    const cleanName = name?.trim()
+    if (!cleanName) {
+      return { success: false, error: "Sub-account name is required" }
+    }
 
     const sub = await db.subAgency.create({
       data: { 
-        agencyId, 
-        name,
-        email: `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}@example.com` // Mock email for creation
+        agencyId: auth.agencyId, 
+        name: cleanName,
+        email: `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'subaccount'}@example.com`
       }
     })
 
@@ -67,15 +88,21 @@ export async function createSubAccount(agencyId: string, name: string) {
 
 export async function deleteSubAccount(subAgencyId: string) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    const auth = await requireTenantAuth("admin")
+    if (!auth.authorized || !auth.agencyId) {
+      return { success: false, error: auth.error || "Unauthorized" }
+    }
 
-    await db.subAgency.deleteMany({
+    const deleted = await db.subAgency.deleteMany({
       where: { 
         id: subAgencyId,
-        ...(session.user.agencyId ? { agencyId: session.user.agencyId } : {})
+        agencyId: auth.agencyId
       }
     })
+
+    if (deleted.count === 0) {
+      return { success: false, error: "Sub-account not found" }
+    }
 
     // Also clear cookie if this was the active sub-account
     const cookieStore = await cookies()

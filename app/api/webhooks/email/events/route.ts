@@ -1,6 +1,46 @@
+import crypto from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { logWebhookDelivery } from "@/lib/webhooks"
+import { logWebhookDelivery, verifySharedSecret } from "@/lib/webhooks"
+
+function verifySvixSignature(
+  rawBody: string,
+  svixId: string | null,
+  svixTimestamp: string | null,
+  svixSignature: string | null,
+  secret: string | undefined
+): boolean {
+  const cleanSecret = secret?.trim()
+  if (!cleanSecret || !svixId || !svixTimestamp || !svixSignature) return false
+
+  const tsSeconds = Number(svixTimestamp)
+  if (!Number.isFinite(tsSeconds)) return false
+  if (Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > 300) return false
+
+  try {
+    const keyBytes = cleanSecret.startsWith("whsec_")
+      ? Buffer.from(cleanSecret.slice(6), "base64")
+      : Buffer.from(cleanSecret, "utf8")
+
+    const expectedSig = crypto
+      .createHmac("sha256", keyBytes)
+      .update(`${svixId}.${svixTimestamp}.${rawBody}`)
+      .digest("base64")
+
+    const expectedBuf = Buffer.from(expectedSig, "utf8")
+    const entries = svixSignature.trim().split(/\s+/)
+    for (const entry of entries) {
+      if (!entry.startsWith("v1,")) continue
+      const candidate = Buffer.from(entry.slice(3), "utf8")
+      if (candidate.length === expectedBuf.length && crypto.timingSafeEqual(candidate, expectedBuf)) {
+        return true
+      }
+    }
+    return false
+  } catch {
+    return false
+  }
+}
 
 /**
  * Webhook Ingestion Endpoint for Email Event Delivery (Bounces, Spam Complaints, Unsubscribes).
@@ -8,7 +48,41 @@ import { logWebhookDelivery } from "@/lib/webhooks"
  */
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json()
+    const rawBody = await req.text()
+    const authHeader = req.headers.get("authorization")
+    const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || null
+    const emailSecret = process.env.EMAIL_WEBHOOK_SECRET?.trim()
+    const resendSecret = process.env.RESEND_WEBHOOK_SECRET?.trim()
+
+    const sharedOk =
+      verifySharedSecret(req.headers.get("x-webhook-secret") || bearerToken, emailSecret) ||
+      verifySharedSecret(req.headers.get("x-webhook-secret") || bearerToken, resendSecret)
+
+    const svixOk = verifySvixSignature(
+      rawBody,
+      req.headers.get("svix-id"),
+      req.headers.get("svix-timestamp"),
+      req.headers.get("svix-signature"),
+      resendSecret
+    )
+
+    if (!sharedOk && !svixOk) {
+      if (!emailSecret && !resendSecret && process.env.NODE_ENV === "production") {
+        return NextResponse.json(
+          { error: "Email event webhook verification not configured" },
+          { status: 503 }
+        )
+      }
+      return NextResponse.json({ error: "Unauthorized webhook request" }, { status: 401 })
+    }
+
+    let payload: any
+    try {
+      payload = JSON.parse(rawBody)
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 })
+    }
+
     const eventType = payload.type || payload.event || "email.bounced"
     const data = payload.data || payload
 
@@ -54,7 +128,8 @@ export async function POST(req: NextRequest) {
     await logWebhookDelivery({
       event: eventType,
       payload,
-      statusCode: 200
+      statusCode: 200,
+      agencyId: contacts[0]?.agencyId
     }).catch(() => {})
 
     console.log(`[Email Deliverability] Suppressed email ${cleanEmail} due to ${reason}`)

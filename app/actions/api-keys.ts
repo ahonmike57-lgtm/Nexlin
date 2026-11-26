@@ -52,7 +52,16 @@ export async function getApiKeys() {
   try {
     const keys = await db.apiKey.findMany({
       where: { agencyId: auth.agencyId },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        keyPrefix: true,
+        scopes: true,
+        status: true,
+        lastUsedAt: true,
+        createdAt: true,
+      }
     })
 
     return {

@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { pusherServer } from "@/lib/pusher"
-import { logWebhookDelivery } from "@/lib/webhooks"
+import { logWebhookDelivery, verifyApiKeyForAgency, verifySharedSecret } from "@/lib/webhooks"
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get("authorization")
+    const bearerToken = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || null
+    const verifiedKey = await verifyApiKeyForAgency(authHeader)
+    const emailWebhookSecret = process.env.EMAIL_WEBHOOK_SECRET?.trim()
+    const sharedSecretOk = !verifiedKey
+      ? verifySharedSecret(req.headers.get("x-webhook-secret") || bearerToken, emailWebhookSecret)
+      : false
+
+    if (!verifiedKey && !sharedSecretOk) {
+      if (!emailWebhookSecret && !authHeader && process.env.NODE_ENV === "production") {
+        return NextResponse.json(
+          { error: "Inbound email webhook verification not configured" },
+          { status: 503 }
+        )
+      }
+      return NextResponse.json({ error: "Unauthorized webhook request" }, { status: 401 })
+    }
+
     let from = ""
     let to = ""
     let subject = ""
@@ -38,25 +56,36 @@ export async function POST(req: NextRequest) {
     const cleanEmail = (emailMatch[1] || from).trim().toLowerCase()
     const senderName = from.replace(/<[^>]+>/, "").trim() || cleanEmail.split("@")[0]
 
-    // 1. Resolve Target Agency
-    let targetAgency = await db.agency.findFirst({
-      where: {
-        OR: [
-          { customDomain: to ? { contains: to.split("@")[1] || "" } : undefined },
-          { subdomain: to ? { contains: (to.split("@")[0] || "").toLowerCase() } : undefined }
-        ]
+    // 1. Resolve Target Agency strictly (locked to API key or exact recipient domain/subdomain)
+    let agencyId = ""
+    if (verifiedKey) {
+      agencyId = verifiedKey.agencyId
+    } else {
+      const rawTo = Array.isArray(to) ? String(to[0] || "") : String(to || "")
+      const cleanTo = (rawTo.match(/<([^>]+)>/)?.[1] || rawTo).trim().toLowerCase()
+      if (!cleanTo.includes("@")) {
+        return NextResponse.json({ error: "Target agency could not be resolved" }, { status: 404 })
       }
-    })
+      const [toLocal, toDomain] = cleanTo.split("@")
+      if (!toLocal || !toDomain) {
+        return NextResponse.json({ error: "Target agency could not be resolved" }, { status: 404 })
+      }
 
-    if (!targetAgency) {
-      targetAgency = await db.agency.findFirst()
+      const targetAgency = await db.agency.findFirst({
+        where: {
+          OR: [
+            { customDomain: { equals: toDomain, mode: "insensitive" } },
+            { subdomain: { equals: toLocal, mode: "insensitive" } }
+          ]
+        },
+        select: { id: true }
+      })
+
+      if (!targetAgency) {
+        return NextResponse.json({ error: "No matching agency for recipient address" }, { status: 404 })
+      }
+      agencyId = targetAgency.id
     }
-
-    if (!targetAgency) {
-      return NextResponse.json({ error: "No target agency configured" }, { status: 404 })
-    }
-
-    const agencyId = targetAgency.id
 
     // 2. Find or Create Contact
     let contact = await db.contact.findFirst({

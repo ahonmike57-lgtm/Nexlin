@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { withAgency } from "@/lib/tenant"
-import { triggerDealStageChangedWorkflow, triggerWorkflows } from "./workflow-engine"
+import { triggerDealStageChangedWorkflowInternal, triggerWorkflowsInternal } from "@/lib/workflow-engine"
 
 export const createCPQQuote = withAgency(
   async ({ db, agencyId }, data: {
@@ -145,8 +145,8 @@ export const signCPQQuote = withAgency(
         where: { id: quoteData.dealId },
         data: { stage: "won", updatedAt: new Date() }
       })
-      await triggerDealStageChangedWorkflow(agencyId, quoteData.dealId, "won", quoteData.contactId).catch(() => {})
-      await triggerWorkflows(agencyId, "quote_signed", { quoteId: data.quoteId, dealId: quoteData.dealId, contactId: quoteData.contactId }).catch(() => {})
+      await triggerDealStageChangedWorkflowInternal(agencyId, quoteData.dealId, "won", quoteData.contactId).catch(() => {})
+      await triggerWorkflowsInternal(agencyId, "quote_signed", { quoteId: data.quoteId, dealId: quoteData.dealId, contactId: quoteData.contactId }).catch(() => {})
       dealUpdated = true
     }
 

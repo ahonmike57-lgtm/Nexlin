@@ -60,8 +60,17 @@ export const getWorkflow = withAgency(
   }
 )
 
+async function assertWorkflowOwned(db: any, workflowId: string) {
+  const workflow = await db.workflow.findFirst({
+    where: { id: workflowId },
+    select: { id: true }
+  })
+  if (!workflow) throw new Error("Workflow not found")
+}
+
 export const addWorkflowTrigger = withAgency(
   async ({ db }, workflowId: string, type: string) => {
+    await assertWorkflowOwned(db, workflowId)
     const trigger = await db.workflowTrigger.create({
       data: { workflowId, type }
     })
@@ -72,6 +81,7 @@ export const addWorkflowTrigger = withAgency(
 
 export const addWorkflowAction = withAgency(
   async ({ db }, workflowId: string, type: string, order: number) => {
+    await assertWorkflowOwned(db, workflowId)
     const action = await db.workflowAction.create({
       data: { workflowId, type, order }
     })
@@ -82,6 +92,7 @@ export const addWorkflowAction = withAgency(
 
 export const deleteWorkflowTrigger = withAgency(
   async ({ db }, id: string, workflowId: string) => {
+    await assertWorkflowOwned(db, workflowId)
     await db.workflowTrigger.deleteMany({ where: { id, workflowId } })
     revalidatePath(`/automations/${workflowId}`)
     return { id }
@@ -90,6 +101,7 @@ export const deleteWorkflowTrigger = withAgency(
 
 export const deleteWorkflowAction = withAgency(
   async ({ db }, id: string, workflowId: string) => {
+    await assertWorkflowOwned(db, workflowId)
     await db.workflowAction.deleteMany({ where: { id, workflowId } })
     revalidatePath(`/automations/${workflowId}`)
     return { id }
@@ -130,6 +142,7 @@ export const updateWorkflow = withAgency(
 
 export const saveWorkflowNodes = withAgency(
   async ({ db }, workflowId: string, nodes: { id: string, isTrigger: boolean, config: any }[]) => {
+    await assertWorkflowOwned(db, workflowId)
     await db.$transaction(
       nodes.map(node => {
         if (node.isTrigger) {

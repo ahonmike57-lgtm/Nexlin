@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { verifyTwilioWebhookRequest } from "@/lib/webhooks"
 import Pusher from "pusher"
-import twilio from "twilio"
 
 const pusher = new Pusher({
   appId: process.env.PUSHER_APP_ID || "",
@@ -14,26 +14,25 @@ const pusher = new Pusher({
 export async function POST(req: NextRequest) {
   // Twilio sends as form-encoded
   const formData = await req.formData()
-  const from = formData.get("From") as string
-  const body = formData.get("Body") as string
-  const to = formData.get("To") as string // Our Twilio number
+  const params: Record<string, string> = {}
+  formData.forEach((value, key) => {
+    params[key] = value.toString()
+  })
+
+  // Validate Twilio signature strictly
+  const signatureCheck = verifyTwilioWebhookRequest(req, params)
+  if (!signatureCheck.valid) {
+    return new NextResponse(signatureCheck.error || "Invalid Twilio signature", {
+      status: signatureCheck.status || 401,
+    })
+  }
+
+  const from = (formData.get("From") as string) || ""
+  const body = (formData.get("Body") as string) || ""
+  const to = (formData.get("To") as string) || "" // Our Twilio number
 
   if (!from || !body) {
     return new NextResponse("Missing required fields", { status: 400 })
-  }
-
-  // Validate Twilio signature if auth token is present
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  const twilioSignature = req.headers.get("x-twilio-signature")
-  if (authToken && twilioSignature) {
-    const params: Record<string, string> = {}
-    formData.forEach((value, key) => {
-      params[key] = value.toString()
-    })
-    const isValid = twilio.validateRequest(authToken, twilioSignature, req.url, params)
-    if (!isValid) {
-      return new NextResponse("Invalid Twilio signature", { status: 401 })
-    }
   }
 
   try {

@@ -1,10 +1,32 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { deliverMessage } from '@/lib/messaging';
+import { verifyTwilioWebhookRequest } from '@/lib/webhooks';
+
+function escapeXml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData().catch(() => new FormData());
+    const params: Record<string, string> = {};
+    formData.forEach((value, key) => {
+      params[key] = value.toString();
+    });
+
+    const signatureCheck = verifyTwilioWebhookRequest(req, params);
+    if (!signatureCheck.valid) {
+      return new NextResponse(signatureCheck.error || 'Unauthorized', {
+        status: signatureCheck.status || 401,
+      });
+    }
+
     const from = (formData.get('From') as string) || '';
     const to = (formData.get('To') as string) || '';
     const callSid = (formData.get('CallSid') as string) || '';
@@ -20,6 +42,7 @@ export async function POST(req: Request) {
     }
 
     const agencyName = agency?.name || 'Nexlin Business Solutions';
+    const safeAgencyNameXml = escapeXml(agencyName);
 
     // If missed call text-back is enabled, send instantaneous SMS to caller
     if (from && agency) {
@@ -61,7 +84,7 @@ export async function POST(req: Request) {
     const twiml = `
 <?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna">Thank you for calling ${agencyName}. Your call has been logged, and our team has dispatched a priority message to your mobile phone. Please leave a brief message after the beep.</Say>
+  <Say voice="Polly.Joanna">Thank you for calling ${safeAgencyNameXml}. Your call has been logged, and our team has dispatched a priority message to your mobile phone. Please leave a brief message after the beep.</Say>
   <Record maxLength="60" finishOnKey="#" playBeep="true" />
   <Say voice="Polly.Joanna">Thank you. Goodbye.</Say>
   <Hangup />

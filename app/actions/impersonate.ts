@@ -1,6 +1,7 @@
 "use server"
 
-import { requirePlatformAuth, logImpersonationStart, logImpersonationEnd } from "@/lib/permissions"
+import { getSession } from "@/lib/auth"
+import { requirePlatformAuth, logImpersonationStart } from "@/lib/permissions"
 import { db } from "@/lib/db"
 
 export async function startImpersonation(agencyId: string, reason?: string) {
@@ -43,8 +44,26 @@ export async function startImpersonation(agencyId: string, reason?: string) {
 
 export async function stopImpersonation(logId?: string) {
   try {
+    const session = await getSession()
+    const user = session?.user as any
+    if (!user?.isPlatformAdmin || !user?.id) {
+      return { success: false, error: "Forbidden" }
+    }
+
+    const admin = await db.platformAdmin.findUnique({
+      where: { id: user.id },
+      select: { status: true }
+    })
+
+    if (!admin || admin.status !== "active") {
+      return { success: false, error: "Forbidden" }
+    }
+
     if (logId) {
-      await logImpersonationEnd(logId)
+      await db.impersonationLog.updateMany({
+        where: { id: logId, adminId: user.id },
+        data: { endedAt: new Date() }
+      })
     }
     return { success: true }
   } catch (error: any) {

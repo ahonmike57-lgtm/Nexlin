@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import { verifyTotpCode } from "@/lib/totp"
 import crypto from "crypto"
 import bcrypt from "bcryptjs"
 import { revalidatePath } from "next/cache"
@@ -40,47 +41,10 @@ export async function generateTwoFactorSetup() {
 }
 
 /**
- * Compute TOTP token for given secret and timestamp (RFC 6238 HMAC-SHA1)
- */
-function computeTotp(secret: string, timeStep: number): string {
-  const base32Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-  let bits = ""
-  for (let i = 0; i < secret.length; i++) {
-    const val = base32Chars.indexOf(secret.charAt(i).toUpperCase())
-    if (val === -1) continue
-    bits += val.toString(2).padStart(5, "0")
-  }
-  const bytes = []
-  for (let i = 0; i + 8 <= bits.length; i += 8) {
-    bytes.push(parseInt(bits.substr(i, 8), 2))
-  }
-  const key = Buffer.from(bytes)
-
-  const timeBuffer = Buffer.alloc(8)
-  timeBuffer.writeBigInt64BE(BigInt(timeStep))
-
-  const hmac = crypto.createHmac("sha1", key).update(timeBuffer).digest()
-  const offset = hmac[hmac.length - 1] & 0xf
-  const code =
-    ((hmac[offset] & 0x7f) << 24) |
-    ((hmac[offset + 1] & 0xff) << 16) |
-    ((hmac[offset + 2] & 0xff) << 8) |
-    (hmac[offset + 3] & 0xff)
-
-  return (code % 1000000).toString().padStart(6, "0")
-}
-
-/**
  * Verify 6-digit TOTP Token with ±1 step time drift tolerance
  */
 export async function verifyTotpToken(secret: string, token: string): Promise<boolean> {
-  const currentStep = Math.floor(Date.now() / 1000 / 30)
-  for (let stepOffset = -1; stepOffset <= 1; stepOffset++) {
-    if (computeTotp(secret, currentStep + stepOffset) === token.trim()) {
-      return true
-    }
-  }
-  return false
+  return verifyTotpCode(secret, token)
 }
 
 /**

@@ -10,7 +10,12 @@ export async function getOrCreateAgency() {
     throw new Error("Unauthorized")
   }
 
-  if ((session.user as any).isPlatformAdmin) {
+  const sessionUser = session.user as any
+  if (sessionUser.isImpersonating && sessionUser.agencyId) {
+    return sessionUser.agencyId as string
+  }
+
+  if (sessionUser.isPlatformAdmin) {
     redirect("/platform")
   }
 

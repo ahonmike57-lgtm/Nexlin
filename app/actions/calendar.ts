@@ -1,10 +1,10 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 import { revalidatePath } from "next/cache"
 import { getActiveSubAccountId } from "./subaccounts"
-import { triggerWorkflows } from "./workflow-engine"
+import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
 import { Resend } from "resend"
 import { format } from "date-fns"
 
@@ -51,12 +51,23 @@ function generateIcsContent(event: {
  * Create Appointment with strict double-booking conflict detection and RFC 5545 invite generation.
  */
 export async function createAppointment(
-  agencyId: string,
+  _agencyId: string,
   data: { title: string; contactId: string; startTime: Date; endTime: Date }
 ) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    const auth = await requireTenantAuth("user")
+    if (!auth.authorized || !auth.agencyId) {
+      return { success: false, error: auth.error || "Unauthorized" }
+    }
+    const agencyId = auth.agencyId
+
+    const ownedContact = await db.contact.findFirst({
+      where: { id: data.contactId, agencyId },
+      select: { id: true },
+    })
+    if (!ownedContact) {
+      return { success: false, error: "Contact not found" }
+    }
 
     const subAgencyId = await getActiveSubAccountId()
     const start = new Date(data.startTime)
@@ -113,13 +124,13 @@ export async function createAppointment(
     }).catch(() => {})
 
     // 4. Trigger Automated Workflows
-    await triggerWorkflows(agencyId, "appointment_booked", {
+    await triggerWorkflowsInternal(agencyId, "appointment_booked", {
       appointmentId: appointment.id,
       contactId: appointment.contactId,
       title: appointment.title,
       startTime: appointment.startTime.toISOString(),
       endTime: appointment.endTime.toISOString(),
-    }).catch(() => {})
+    }, subAgencyId).catch(() => {})
 
     // 5. Send Confirmation Email with RFC 5545 .ics Calendar Attachment
     if (contact?.email && process.env.RESEND_API_KEY) {

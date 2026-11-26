@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useRef, useCallback } from "react"
+import { usePathname } from "next/navigation"
 import { Globe, Check, X, ChevronDown, Search, RotateCcw, MapPin, Sparkles } from "lucide-react"
 
 export interface LanguageOption {
@@ -52,7 +53,22 @@ declare global {
   }
 }
 
+function isPublicTranslatablePath(pathname: string | null): boolean {
+  if (!pathname) return false
+  return (
+    pathname === "/" ||
+    pathname === "/blog" ||
+    pathname.startsWith("/blog/") ||
+    pathname.startsWith("/forms/") ||
+    pathname.startsWith("/f/") ||
+    pathname.startsWith("/p/") ||
+    pathname.startsWith("/book/")
+  )
+}
+
 export default function AutoTranslator() {
+  const pathname = usePathname()
+  const isPublicRoute = isPublicTranslatablePath(pathname)
   const [currentLang, setCurrentLang] = useState<string>("en")
   const [detectedGeo, setDetectedGeo] = useState<{
     country: string
@@ -67,8 +83,13 @@ export default function AutoTranslator() {
   const [isTranslating, setIsTranslating] = useState(false)
   const popupRef = useRef<HTMLDivElement>(null)
 
-  // 1. Initialize Google Translate Script
+  // 1. Initialize Google Translate Script only on public routes
   useEffect(() => {
+    if (!isPublicRoute) {
+      document.documentElement.dir = "ltr"
+      return
+    }
+
     // Add custom styles to suppress Google Translate default banners and bars
     const style = document.createElement("style")
     style.id = "nexlin-google-translate-styles"
@@ -132,7 +153,7 @@ export default function AutoTranslator() {
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+  }, [isPublicRoute])
 
   // 2. Helper to trigger Google Translate on DOM
   const triggerGoogleTranslate = useCallback((langCode: string, isManual = true) => {
@@ -182,8 +203,13 @@ export default function AutoTranslator() {
     attemptTranslate(10)
   }, [])
 
-  // 3. Fetch IP Geolocation & Auto-Translate
+  // 3. Fetch IP Geolocation & Auto-Translate only on public routes
   useEffect(() => {
+    if (!isPublicRoute) {
+      document.documentElement.dir = "ltr"
+      return
+    }
+
     const initGeoAndLanguage = async () => {
       try {
         const storedPref = localStorage.getItem("nexlin_user_language")
@@ -222,7 +248,7 @@ export default function AutoTranslator() {
     }
 
     initGeoAndLanguage()
-  }, [triggerGoogleTranslate])
+  }, [isPublicRoute, triggerGoogleTranslate])
 
   const handleSelectLanguage = (code: string) => {
     setCurrentLang(code)
@@ -260,6 +286,10 @@ export default function AutoTranslator() {
       l.nativeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       l.code.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  if (!isPublicRoute) {
+    return null
+  }
 
   return (
     <>

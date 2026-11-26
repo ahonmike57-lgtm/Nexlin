@@ -50,7 +50,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div 
-      className="w-full h-full"
+      className="notranslate w-full h-full"
+      translate="no"
       style={{
         ...(colors?.primary ? { '--primary': colors.primary, '--color-primary': colors.primary } : {}),
         ...(colors?.accent ? { '--secondary': colors.accent, '--color-secondary': colors.accent } : {}),

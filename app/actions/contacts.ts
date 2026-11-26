@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { withAgency } from "@/lib/tenant"
-import { triggerWorkflows } from "./workflow-engine"
+import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
 import { getActiveSubAccountId } from "./subaccounts"
 
 export const getContacts = withAgency(async ({ db, userId, userRole }) => {
@@ -39,7 +39,7 @@ export const createContact = withAgency(
     })
 
     // Trigger any active workflows for contact creation
-    await triggerWorkflows(agencyId, "contact_created", { contactId: contact.id })
+    await triggerWorkflowsInternal(agencyId, "contact_created", { contactId: contact.id }, subAgencyId)
 
     revalidatePath("/crm/contacts")
     return contact

@@ -1,5 +1,6 @@
 "use server"
 
+import { requireTenantAuth } from "@/lib/permissions"
 import { generateAiReply } from "./ai"
 
 export interface RoleplayScorecard {
@@ -17,6 +18,11 @@ export async function generateRoleplayScorecard(
   personaTitle: string,
   transcript: Array<{ role: "user" | "assistant"; content: string }>
 ) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
     const formattedTranscript = transcript
       .map((m) => `${m.role === "user" ? "Sales Rep" : personaTitle}: ${m.content}`)

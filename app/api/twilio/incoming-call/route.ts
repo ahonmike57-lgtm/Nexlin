@@ -2,51 +2,71 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { pusherServer } from "@/lib/pusher"
 import { decryptConfig } from "@/lib/encryption"
+import { requireTenantAuth } from "@/lib/permissions"
+import { verifyApiKeyForAgency, verifySharedSecret, verifyTwilioWebhookRequest } from "@/lib/webhooks"
 
 export async function POST(req: Request) {
   try {
     let from = ""
     let to = ""
     let accountSid = ""
-    let suppliedAgencyId = ""
+    let targetAgencyId = ""
 
     const contentType = req.headers.get("content-type") || ""
 
     if (contentType.includes("application/x-www-form-urlencoded")) {
       const formData = await req.formData()
+      const params: Record<string, string> = {}
+      formData.forEach((value, key) => {
+        params[key] = value.toString()
+      })
+
+      const signatureCheck = verifyTwilioWebhookRequest(req, params)
+      if (!signatureCheck.valid) {
+        return NextResponse.json(
+          { success: false, error: signatureCheck.error || "Unauthorized" },
+          { status: signatureCheck.status || 401 }
+        )
+      }
+
       from = (formData.get("From") as string) || ""
       to = (formData.get("To") as string) || ""
       accountSid = (formData.get("AccountSid") as string) || ""
     } else {
+      const auth = await requireTenantAuth("user")
+      const apiKeyAuth = auth.authorized ? null : await verifyApiKeyForAgency(req.headers.get("authorization"))
+      const sharedSecret = process.env.TWILIO_WEBHOOK_SECRET || process.env.OMNICHANNEL_WEBHOOK_SECRET
+      const sharedSecretValid = !auth.authorized && !apiKeyAuth
+        ? verifySharedSecret(req.headers.get("x-webhook-secret"), sharedSecret)
+        : false
+
+      if (!auth.authorized && !apiKeyAuth && !sharedSecretValid) {
+        return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+      }
+
       const json = await req.json().catch(() => ({}))
       from = json.from || json.From || ""
       to = json.to || json.To || ""
       accountSid = json.accountSid || json.AccountSid || ""
-      suppliedAgencyId = json.agencyId || ""
+
+      if (auth.authorized && auth.agencyId) {
+        targetAgencyId = auth.agencyId
+      } else if (apiKeyAuth) {
+        targetAgencyId = apiKeyAuth.agencyId
+      }
     }
 
     if (!from) {
       return NextResponse.json({ success: false, error: "Missing sender phone number (From)" }, { status: 400 })
     }
 
-    // Secure Agency Resolution: Never trust client-supplied agencyId. Look up by destination phone number (To) or AccountSid
-    let targetAgencyId = ""
-
-    if (to) {
+    // Secure Agency Resolution for webhook callers: resolve strictly from destination number (To) or AccountSid
+    if (!targetAgencyId && to) {
       const matchedNumber = await db.phoneNumber.findFirst({
         where: { OR: [{ number: to }, { number: `+${to.replace(/[^0-9]/g, "")}` }] },
         select: { agencyId: true }
       })
       if (matchedNumber) targetAgencyId = matchedNumber.agencyId
-    }
-
-    if (!targetAgencyId && suppliedAgencyId) {
-      // Confirm supplied agencyId exists in database
-      const existingAgency = await db.agency.findUnique({
-        where: { id: suppliedAgencyId },
-        select: { id: true }
-      })
-      if (existingAgency) targetAgencyId = existingAgency.id
     }
 
     if (!targetAgencyId && accountSid) {
