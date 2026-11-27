@@ -172,7 +172,7 @@ export async function reassignTenantAdmin(data: {
     })
 
     // 2. Check if user already exists for this email
-    let user = await db.user.findUnique({ where: { email: cleanEmail } })
+    const user = await db.user.findUnique({ where: { email: cleanEmail } })
 
     if (user) {
       // Elevate existing user to Agency Owner and link to this tenant agency

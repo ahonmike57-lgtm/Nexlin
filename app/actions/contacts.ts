@@ -1,8 +1,10 @@
 "use server"
 
+import crypto from "crypto"
 import { revalidatePath } from "next/cache"
 import { withAgency } from "@/lib/tenant"
 import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
+import { inngest } from "@/lib/inngest/client"
 import { getActiveSubAccountId } from "./subaccounts"
 
 export const getContacts = withAgency(async ({ db, userId, userRole }) => {
@@ -97,7 +99,6 @@ export const anonymizeContact = withAgency(
     const contact = await db.contact.findFirst({ where: { id: contactId } })
     if (!contact) throw new Error("Contact not found")
 
-    const crypto = require("crypto")
     const hash = crypto.createHash("sha256").update(contact.id).digest("hex").slice(0, 8)
 
     await db.contact.updateMany({
@@ -126,7 +127,6 @@ export const anonymizeContact = withAgency(
  */
 export const triggerBulkImportJob = withAgency(
   async ({ agencyId }, rows: any[], tags?: string) => {
-    const { inngest } = require("@/lib/inngest/client")
     await inngest.send({
       name: "contacts.bulk_import",
       data: {

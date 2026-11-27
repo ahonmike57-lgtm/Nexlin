@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { VIBECODE_PROMPTS } from "@/lib/vibecode-prompts"
 import { listSavedPrompts, deletePromptTemplate } from "@/app/actions/prompts"
 import { toast } from "sonner"
@@ -30,13 +30,7 @@ export default function PromptsClient() {
   const [loadingSaved, setLoadingSaved] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (tab === "saved") {
-      loadSaved()
-    }
-  }, [tab])
-
-  const loadSaved = async () => {
+  const loadSaved = useCallback(async () => {
     setLoadingSaved(true)
     const res = await listSavedPrompts()
     setLoadingSaved(false)
@@ -45,7 +39,13 @@ export default function PromptsClient() {
     } else {
       toast.error(res.error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (tab === "saved") {
+      void loadSaved()
+    }
+  }, [tab, loadSaved])
 
   const handleDelete = async (id: string) => {
     const res = await deletePromptTemplate(id)

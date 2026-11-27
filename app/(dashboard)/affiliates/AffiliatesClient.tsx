@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -19,18 +19,18 @@ export default function AffiliatesClient({ agencyId }: { agencyId: string }) {
   const [newEmail, setNewEmail] = useState("")
   const [targetUrl, setTargetUrl] = useState("https://yourdomain.com/signup")
 
-  useEffect(() => {
-    loadAffiliates()
-  }, [])
-
-  const loadAffiliates = async () => {
+  const loadAffiliates = useCallback(async () => {
     setIsLoading(true)
     const res = await getAffiliates(agencyId)
     if (res.success && res.data) {
       setAffiliates(res.data)
     }
     setIsLoading(false)
-  }
+  }, [agencyId])
+
+  useEffect(() => {
+    void loadAffiliates()
+  }, [loadAffiliates])
 
   const handleCreate = async () => {
     if (!newName || !newEmail || !targetUrl) return

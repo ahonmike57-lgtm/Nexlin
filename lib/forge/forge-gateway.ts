@@ -43,7 +43,7 @@ export async function generateForgeTask(
 
   let modelUsed = routing.primary
   let outputRaw: string | null = null
-  let costEstimate = 0.004
+  const costEstimate = 0.004
 
   try {
     const promptPayload = `Task: ${taskType}\nContext: ${context.prompt}\nVertical: ${context.vertical || 'general'}`

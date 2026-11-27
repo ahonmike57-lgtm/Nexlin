@@ -110,7 +110,7 @@ ${history.length > 0 ? history.join("\n") : "No recent communications."}
 
     let parsed
     try {
-      let rawJson = aiRes.data.replace(/```json/gi, '').replace(/```/g, '').trim()
+      const rawJson = aiRes.data.replace(/```json/gi, '').replace(/```/g, '').trim()
       parsed = JSON.parse(rawJson)
     } catch (e) {
       console.error("Failed to parse AI JSON:", aiRes.data)

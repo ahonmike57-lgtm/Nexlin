@@ -13,7 +13,7 @@ export default async function MediaPage() {
   const agencyId = await getOrCreateAgency()
 
   const res = await getMediaFiles(agencyId)
-  let files = res.success && res.files ? res.files : []
+  const files = res.success && res.files ? res.files : []
 
   // Return real agency media files
   return <MediaClient initialFiles={files} agencyId={agencyId} />

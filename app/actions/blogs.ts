@@ -373,7 +373,7 @@ export async function getAllPublicBlogPosts(options?: {
   const categoryFilter = options?.category && options.category !== "All" ? options.category.toLowerCase() : null
   const searchQuery = options?.search ? options.search.toLowerCase().trim() : null
 
-  let dbArticles: PublicBlogPost[] = []
+  const dbArticles: PublicBlogPost[] = []
   try {
     const posts = await db.snapshot.findMany({
       where: { version: "blog_post" },

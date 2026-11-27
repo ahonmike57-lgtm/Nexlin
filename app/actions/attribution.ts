@@ -20,7 +20,7 @@ export async function getMultiTouchAttribution(model: AttributionModel = "linear
     const totalRevenue = deals.reduce((sum, d) => sum + d.value, 0)
 
     // Calculate revenue credit distribution by touchpoint channel
-    let channels = {
+    const channels = {
       "Google Ads": 0,
       "Facebook Ads": 0,
       "Email Campaign": 0,

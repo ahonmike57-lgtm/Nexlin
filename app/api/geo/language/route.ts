@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
       req.headers.get("geoip-country-code")
 
     let countryCode = headerCountry ? headerCountry.toUpperCase().trim() : null
-    let clientIp =
+    const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
       req.headers.get("cf-connecting-ip") ||
