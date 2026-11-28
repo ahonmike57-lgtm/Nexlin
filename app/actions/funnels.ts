@@ -1,7 +1,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { db as rawDb } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { withAgency } from "@/lib/tenant"
+import { triggerFormSubmissionWorkflowInternal } from "@/lib/workflow-engine"
 import { getActiveSubAccountId } from "./subaccounts"
 
 export const getFunnels = withAgency(async ({ db }) => {
@@ -56,22 +59,30 @@ export const getFunnel = withAgency(
 )
 
 export const updateFunnelStepContent = withAgency(
-  async ({ db }, stepId: string, content: string) => {
-    const step = await db.funnelStep.updateMany({
-      where: { id: stepId },
+  async ({ agencyId }, stepId: string, content: string) => {
+    const ownedStep = await rawDb.funnelStep.findFirst({
+      where: { id: stepId, funnel: { agencyId } },
+      select: { id: true }
+    })
+
+    if (!ownedStep) {
+      throw new Error("Funnel step not found")
+    }
+
+    await rawDb.funnelStep.update({
+      where: { id: ownedStep.id },
       data: { content }
     })
 
-    return { id: stepId, updated: step.count > 0 }
+    return { id: ownedStep.id, updated: true }
   }
 )
 
 export async function getLiveFunnelStep(subdomain: string, slug: string) {
   try {
-    const { db } = await import("@/lib/db")
     const pathToMatch = !slug || slug === 'home' ? '/' : `/${slug}`
 
-    const funnel = await db.funnel.findUnique({
+    const funnel = await rawDb.funnel.findUnique({
       where: { subdomain },
       include: {
         steps: {
@@ -93,23 +104,78 @@ export async function getLiveFunnelStep(subdomain: string, slug: string) {
 
 export async function submitLiveFunnelForm(subdomain: string, formData: any) {
   try {
-    const { db } = await import("@/lib/db")
-    const funnel = await db.funnel.findUnique({
+    const rl = checkRateLimit(`funnel-submit:${subdomain}`, {
+      maxRequests: 20,
+      windowSeconds: 60,
+    })
+    if (!rl.allowed) {
+      return { success: false, error: "Too many submissions. Please try again shortly." }
+    }
+
+    const funnel = await rawDb.funnel.findUnique({
       where: { subdomain },
-      select: { agencyId: true, subAgencyId: true }
+      select: { id: true, agencyId: true, subAgencyId: true, status: true }
     })
 
     if (!funnel) return { success: false, error: "Funnel not found" }
 
-    const contact = await db.contact.create({
-      data: {
+    const status = (funnel.status || "").toLowerCase()
+    if (status === "archived" || status === "disabled") {
+      return { success: false, error: "This funnel is no longer accepting submissions" }
+    }
+
+    const rawEmail = typeof formData?.email === "string" ? formData.email.trim().toLowerCase() : ""
+    const rawPhone = typeof formData?.phone === "string" ? formData.phone.trim() : ""
+    const email = rawEmail || null
+    const phone = rawPhone || null
+
+    if (!email && !phone) {
+      return { success: false, error: "Please provide an email address or phone number." }
+    }
+
+    const fullName = typeof formData?.name === "string" ? formData.name.trim() : ""
+    const [firstName, ...rest] = fullName ? fullName.split(/\s+/) : ["Funnel", "Lead"]
+    const lastName = rest.join(" ") || null
+
+    let contact = await rawDb.contact.findFirst({
+      where: {
         agencyId: funnel.agencyId,
-        subAgencyId: funnel.subAgencyId,
-        firstName: formData.name || "Unknown",
-        email: formData.email || "",
-        phone: formData.phone || ""
+        deletedAt: null,
+        ...(email ? { email } : { phone }),
       }
     })
+
+    if (!contact) {
+      contact = await rawDb.contact.create({
+        data: {
+          agencyId: funnel.agencyId,
+          subAgencyId: funnel.subAgencyId,
+          firstName: firstName || "Funnel",
+          lastName,
+          email,
+          phone,
+          leadScore: 30,
+          tags: "funnel_submission",
+        }
+      })
+    } else {
+      contact = await rawDb.contact.update({
+        where: { id: contact.id },
+        data: {
+          ...(phone && !contact.phone ? { phone } : {}),
+          ...(email && !contact.email ? { email } : {}),
+          leadScore: (contact.leadScore || 0) + 15,
+        }
+      })
+    }
+
+    await triggerFormSubmissionWorkflowInternal(
+      funnel.agencyId,
+      funnel.id,
+      contact.id,
+      formData,
+      funnel.subAgencyId
+    ).catch(() => {})
 
     return { success: true, data: contact }
   } catch (error) {

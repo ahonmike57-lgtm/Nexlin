@@ -13,7 +13,7 @@ export async function executeWorkflow(workflowId: string, contactId?: string) {
 
   try {
     const workflow = await db.workflow.findFirst({
-      where: { id: workflowId, agencyId: auth.agencyId },
+      where: { id: workflowId, agencyId: auth.agencyId, deletedAt: null },
       select: { id: true },
     })
 

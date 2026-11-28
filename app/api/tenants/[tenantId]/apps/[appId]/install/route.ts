@@ -1,32 +1,35 @@
-import { getSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { encryptConfig } from "@/lib/encryption"
+import { requirePlatformAuth, requireTenantAuth } from "@/lib/permissions"
 import { NextResponse } from "next/server"
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ tenantId: string, appId: string }> }
+  { params }: { params: Promise<{ tenantId: string; appId: string }> }
 ) {
   try {
-    const session = await getSession()
-    
-    // Strict Tenancy Scoping
-    const isPlatformAdmin = (session?.user as any)?.isPlatformAdmin
-    const userAgencyId = (session?.user as any)?.agencyId
-
-    if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { tenantId, appId } = await params
 
-    // Only allow Admins/Users of this specific tenant, or Platform Admins
-    if (!isPlatformAdmin && userAgencyId !== tenantId) {
-       return NextResponse.json({ error: "Forbidden: Cannot install apps for other tenants" }, { status: 403 })
+    const tenantAuth = await requireTenantAuth("admin")
+    const isAuthorizedTenantAdmin = tenantAuth.authorized && tenantAuth.agencyId === tenantId
+
+    let actorId = tenantAuth.authorized ? tenantAuth.userId : null
+    if (!isAuthorizedTenantAdmin) {
+      const platformAuth = await requirePlatformAuth(["owner", "developer"])
+      if (platformAuth.authorized) {
+        actorId = platformAuth.admin.id
+      }
+    }
+
+    if (!actorId) {
+      return NextResponse.json(
+        { error: "Forbidden: Tenant admin or platform admin privileges required" },
+        { status: 403 }
+      )
     }
 
     const app = await db.app.findUnique({
-      where: { id: appId }
+      where: { id: appId },
     })
 
     if (!app) {
@@ -36,15 +39,16 @@ export async function POST(
     const body = await req.json()
     const rawConfig = body.config || {}
 
-    // Mock Validation against configSchema 
-    // In production, we'd use Zod or AJV to validate rawConfig against JSON.parse(app.configSchema)
     if (app.configSchema) {
       try {
         const schema = JSON.parse(app.configSchema)
         const requiredKeys = Object.keys(schema)
         for (const key of requiredKeys) {
           if (!(key in rawConfig)) {
-            return NextResponse.json({ error: `Missing required config field: ${key}` }, { status: 400 })
+            return NextResponse.json(
+              { error: `Missing required config field: ${key}` },
+              { status: 400 }
+            )
           }
         }
       } catch (e) {
@@ -52,7 +56,6 @@ export async function POST(
       }
     }
 
-    // Encrypt the config before it hits the database
     const encryptedConfig = encryptConfig(JSON.stringify(rawConfig))
 
     const tenantApp = await db.tenantApp.create({
@@ -60,15 +63,18 @@ export async function POST(
         agencyId: tenantId,
         appId: appId,
         config: encryptedConfig,
-        installedBy: session.user.id,
-        status: "active"
-      }
+        installedBy: actorId,
+        status: "active",
+      },
     })
 
     return NextResponse.json({ success: true, installId: tenantApp.id })
   } catch (error: any) {
-    if (error.code === 'P2002') {
-      return NextResponse.json({ error: "App is already installed for this tenant" }, { status: 409 })
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { error: "App is already installed for this tenant" },
+        { status: 409 }
+      )
     }
     console.error("Failed to install app:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

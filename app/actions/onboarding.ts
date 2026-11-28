@@ -8,6 +8,7 @@ export async function completeOnboarding(data: {
   businessName: string
   industry: string
   timezone: string
+  primaryColor?: string
 }) {
   try {
     const session = await getSession()
@@ -21,12 +22,25 @@ export async function completeOnboarding(data: {
       return { success: false, error: "Business name is required" }
     }
 
+    const cleanPrimaryColor =
+      typeof data.primaryColor === "string" && /^#[0-9a-fA-F]{3,8}$/.test(data.primaryColor.trim())
+        ? data.primaryColor.trim()
+        : undefined
+
     const existingUser = await db.user.findUnique({
       where: { id: userId },
       include: { agency: true },
     })
 
     if (existingUser?.agency) {
+      const roleStr = (existingUser.role || "").toLowerCase()
+      if (!roleStr.includes("owner") && !roleStr.includes("admin")) {
+        return {
+          success: false,
+          error: "Forbidden: Only an agency admin can update workspace onboarding settings.",
+        }
+      }
+
       let existingBrandMeta: Record<string, any> = {}
       if (existingUser.agency.brandColors) {
         try {
@@ -43,6 +57,7 @@ export async function completeOnboarding(data: {
             ...existingBrandMeta,
             timezone: data.timezone,
             industry: data.industry,
+            ...(cleanPrimaryColor ? { primary: cleanPrimaryColor } : {}),
           }),
         },
       })
@@ -70,6 +85,7 @@ export async function completeOnboarding(data: {
         brandColors: JSON.stringify({
           timezone: data.timezone,
           industry: data.industry,
+          ...(cleanPrimaryColor ? { primary: cleanPrimaryColor } : {}),
         }),
       },
     })

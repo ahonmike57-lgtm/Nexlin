@@ -16,12 +16,20 @@ export async function getBlogPosts() {
       orderBy: { createdAt: "desc" }
     })
 
-    const parsed = posts.map(p => ({
-      id: p.id,
-      name: p.name,
-      createdAt: p.createdAt,
-      ...(p.description ? JSON.parse(p.description) : {})
-    }))
+    const parsed = posts.map(p => {
+      let meta: Record<string, any> = {}
+      if (p.description) {
+        try {
+          meta = JSON.parse(p.description)
+        } catch {}
+      }
+      return {
+        id: p.id,
+        name: p.name,
+        createdAt: p.createdAt,
+        ...meta
+      }
+    })
 
     return { success: true, posts: parsed }
   } catch (error: any) {

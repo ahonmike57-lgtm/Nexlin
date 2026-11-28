@@ -113,6 +113,14 @@ export async function getTeamMembers() {
   }
 }
 
+const ALLOWED_TEAM_ROLES = new Set([
+  "Team Member",
+  "Agency Admin",
+  "Sales Rep",
+  "Support Agent",
+  "Read Only",
+])
+
 export async function inviteTeamMember(email: string, role: string) {
   const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
@@ -120,25 +128,42 @@ export async function inviteTeamMember(email: string, role: string) {
   }
 
   try {
-    const subAgencyId = await getActiveSubAccountId()
-
-    // Check for duplicate
-    const existing = await db.user.findFirst({
-      where: { email: email.trim().toLowerCase(), agencyId: auth.agencyId }
-    })
-    if (existing) {
-      return { success: false, error: "A team member with this email already exists." }
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { success: false, error: "Please enter a valid email address." }
     }
 
-    // In production this would send an email invite.
-    // For now we create a stub user with no passwordHash — they must set password via invite link.
+    const normalizedRole = ALLOWED_TEAM_ROLES.has(role) ? role : null
+    if (!normalizedRole) {
+      return {
+        success: false,
+        error: "Invalid role. Allowed roles: Team Member, Agency Admin, Sales Rep, Support Agent, Read Only.",
+      }
+    }
+
+    const subAgencyId = await getActiveSubAccountId()
+
+    // Check globally so unique-email conflicts across agencies are handled cleanly
+    const existing = await db.user.findUnique({
+      where: { email: cleanEmail },
+      select: { id: true, agencyId: true }
+    })
+    if (existing) {
+      return {
+        success: false,
+        error: existing.agencyId === auth.agencyId
+          ? "A team member with this email already exists in this agency."
+          : "A user account with this email already exists."
+      }
+    }
+
     const user = await db.user.create({
       data: {
-        agencyId: auth.agencyId,          // always from session
+        agencyId: auth.agencyId,
         subAgencyId,
-        email: email.trim().toLowerCase(),
-        role,
-        name: email.split("@")[0]
+        email: cleanEmail,
+        role: normalizedRole,
+        name: cleanEmail.split("@")[0]
       }
     })
 
@@ -271,11 +296,11 @@ export async function exportAgencyData() {
         where: { id: agencyId },
         select: { id: true, name: true, subdomain: true, planTier: true, createdAt: true }
       }),
-      db.contact.findMany({ where: { agencyId }, orderBy: { createdAt: "desc" } }),
-      db.deal.findMany({ where: { agencyId }, orderBy: { createdAt: "desc" } }),
+      db.contact.findMany({ where: { agencyId, deletedAt: null }, orderBy: { createdAt: "desc" } }),
+      db.deal.findMany({ where: { agencyId, deletedAt: null }, orderBy: { createdAt: "desc" } }),
       db.appointment.findMany({ where: { agencyId }, orderBy: { startTime: "desc" } }),
       db.pipeline.findMany({ where: { agencyId }, include: { stages: true } }),
-      db.workflow.findMany({ where: { agencyId } })
+      db.workflow.findMany({ where: { agencyId, deletedAt: null } })
     ])
 
     const exportPayload = {

@@ -103,10 +103,18 @@ export async function saveBrandingSettings(data: any) {
       where: { agencyId: auth.agencyId, name: "white_label_branding" }
     })
 
+    const {
+      smtpPassword: _smtpPassword,
+      password: _password,
+      secret: _secret,
+      token: _token,
+      ...safeSnapshotData
+    } = (data && typeof data === "object" ? data : {}) as Record<string, any>
+
     if (existing) {
       await db.snapshot.update({
         where: { id: existing.id },
-        data: { description: JSON.stringify(data) }
+        data: { description: JSON.stringify(safeSnapshotData) }
       })
     } else {
       await db.snapshot.create({
@@ -114,7 +122,7 @@ export async function saveBrandingSettings(data: any) {
           agencyId: auth.agencyId,
           name: "white_label_branding",
           version: "v1",
-          description: JSON.stringify(data)
+          description: JSON.stringify(safeSnapshotData)
         }
       })
     }

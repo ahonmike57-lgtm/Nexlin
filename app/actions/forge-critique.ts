@@ -3,7 +3,6 @@
 import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
 import { generateForgeTask } from "@/lib/forge/forge-gateway"
-import { revalidatePath } from "next/cache"
 
 export async function runDesignCritique(pageId: string) {
   const auth = await requireTenantAuth("user")
@@ -14,7 +13,7 @@ export async function runDesignCritique(pageId: string) {
   try {
     const page = await db.forgePage.findUnique({
       where: { id: pageId },
-      include: { site: true }
+      include: { site: true },
     })
 
     if (!page || page.site.agencyId !== auth.agencyId) {
@@ -22,19 +21,35 @@ export async function runDesignCritique(pageId: string) {
     }
 
     const res = await generateForgeTask("design_critique", {
-      prompt: "Critique design contrast, text overflow, and section spacing for generated components.",
-      pageId
+      prompt: `Critique contrast, typography, hierarchy, spacing, and mobile responsiveness for these components:\n${(page.componentTree || "[]").slice(0, 6000)}\nReturn strictly valid JSON with keys: "overallScore" (number 0-100), "contrastStatus" (string), "spacingStatus" (string), "mobileResponsive" (boolean), "suggestions" (string[]).`,
+      pageId,
     })
 
-    const critiqueReport = {
-      overallScore: 94,
-      contrastStatus: "Pass (WCAG AA Compliant)",
-      spacingStatus: "Optimal (8px Grid Aligned)",
-      mobileResponsive: true,
-      suggestions: ["Ensure CTA button text has minimum 4.5:1 contrast ratio", "Keep inventory cards equal height on mobile viewports"]
+    if (!res.success || !res.output || typeof res.output !== "object") {
+      return {
+        success: false,
+        error: res.error || "AI design critique unavailable. Configure an AI key in Settings -> AI.",
+      }
     }
 
-    return { success: true, critique: critiqueReport }
+    const out = res.output as Record<string, any>
+    if (typeof out.overallScore !== "number" || !Array.isArray(out.suggestions)) {
+      return {
+        success: false,
+        error: "AI design critique returned an invalid report format.",
+      }
+    }
+
+    return {
+      success: true,
+      critique: {
+        overallScore: Math.min(100, Math.max(0, Math.round(out.overallScore))),
+        contrastStatus: String(out.contrastStatus || "Reviewed"),
+        spacingStatus: String(out.spacingStatus || "Reviewed"),
+        mobileResponsive: Boolean(out.mobileResponsive ?? true),
+        suggestions: out.suggestions.map(String),
+      },
+    }
   } catch (error: any) {
     return { success: false, error: error.message }
   }

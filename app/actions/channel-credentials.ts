@@ -83,6 +83,7 @@ export async function getChannelCredentials() {
           smtpHost: "smtp.sendgrid.net",
           smtpPort: "587",
           smtpUser: "",
+          smtpPasswordMasked: "",
           isWhatsappConnected: false,
           isEmailConnected: false
         }
@@ -99,8 +100,15 @@ export async function getChannelCredentials() {
     return {
       success: true,
       data: {
-        ...decrypted,
-        whatsappAccessTokenMasked: decrypted.whatsappAccessToken ? "••••••••" + decrypted.whatsappAccessToken.slice(-4) : "",
+        whatsappPhoneNumberId: decrypted.whatsappPhoneNumberId || "",
+        whatsappWabaId: decrypted.whatsappWabaId || "",
+        whatsappAccessTokenMasked: decrypted.whatsappAccessToken ? "••••••••" + String(decrypted.whatsappAccessToken).slice(-4) : "",
+        whatsappDisplayNumber: decrypted.whatsappDisplayNumber || "",
+        emailAddress: decrypted.emailAddress || "",
+        smtpHost: decrypted.smtpHost || "smtp.sendgrid.net",
+        smtpPort: decrypted.smtpPort || "587",
+        smtpUser: decrypted.smtpUser || "",
+        smtpPasswordMasked: decrypted.smtpPassword ? "••••••••" : "",
         isWhatsappConnected: !!decrypted.whatsappPhoneNumberId && !!decrypted.whatsappAccessToken,
         isEmailConnected: !!decrypted.emailAddress
       }
@@ -120,7 +128,7 @@ export async function saveChannelCredentials(credentials: {
   smtpUser?: string
   smtpPassword?: string
 }) {
-  const auth = await requireTenantAuth("user")
+  const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }
@@ -137,11 +145,22 @@ export async function saveChannelCredentials(credentials: {
       } catch {}
     }
 
+    const incomingToken = credentials.whatsappAccessToken?.trim()
+    const resolvedWhatsappToken =
+      incomingToken && !incomingToken.startsWith("••••")
+        ? incomingToken
+        : (current.whatsappAccessToken || "")
+
+    const resolvedPhoneNumberId =
+      credentials.whatsappPhoneNumberId !== undefined
+        ? credentials.whatsappPhoneNumberId.trim()
+        : (current.whatsappPhoneNumberId || "")
+
     let verifiedDisplayNumber = current.whatsappDisplayNumber || ""
-    if (credentials.whatsappPhoneNumberId && credentials.whatsappAccessToken) {
+    if (resolvedPhoneNumberId && resolvedWhatsappToken && incomingToken && !incomingToken.startsWith("••••")) {
       const verification = await verifyWhatsappCredentials(
-        credentials.whatsappPhoneNumberId,
-        credentials.whatsappAccessToken
+        resolvedPhoneNumberId,
+        resolvedWhatsappToken
       )
       if (!verification.ok) {
         return { success: false, error: verification.error }
@@ -151,17 +170,23 @@ export async function saveChannelCredentials(credentials: {
       }
     }
 
+    const incomingSmtpPass = credentials.smtpPassword?.trim()
+    const resolvedSmtpPassword =
+      incomingSmtpPass && !incomingSmtpPass.startsWith("••••")
+        ? incomingSmtpPass
+        : (current.smtpPassword || "")
+
     const updated = {
       ...current,
-      whatsappPhoneNumberId: credentials.whatsappPhoneNumberId !== undefined ? credentials.whatsappPhoneNumberId : (current.whatsappPhoneNumberId || ""),
-      whatsappWabaId: credentials.whatsappWabaId !== undefined ? credentials.whatsappWabaId : (current.whatsappWabaId || ""),
-      whatsappAccessToken: credentials.whatsappAccessToken !== undefined ? credentials.whatsappAccessToken : (current.whatsappAccessToken || ""),
+      whatsappPhoneNumberId: resolvedPhoneNumberId,
+      whatsappWabaId: credentials.whatsappWabaId !== undefined ? credentials.whatsappWabaId.trim() : (current.whatsappWabaId || ""),
+      whatsappAccessToken: resolvedWhatsappToken,
       whatsappDisplayNumber: verifiedDisplayNumber,
-      emailAddress: credentials.emailAddress !== undefined ? credentials.emailAddress : (current.emailAddress || ""),
+      emailAddress: credentials.emailAddress !== undefined ? credentials.emailAddress.trim() : (current.emailAddress || ""),
       smtpHost: credentials.smtpHost || current.smtpHost || "smtp.sendgrid.net",
       smtpPort: credentials.smtpPort || current.smtpPort || "587",
-      smtpUser: credentials.smtpUser || current.smtpUser || "",
-      smtpPassword: credentials.smtpPassword || current.smtpPassword || ""
+      smtpUser: credentials.smtpUser !== undefined ? credentials.smtpUser : (current.smtpUser || ""),
+      smtpPassword: resolvedSmtpPassword
     }
 
     const encryptedPayload = encryptConfig(JSON.stringify(updated))

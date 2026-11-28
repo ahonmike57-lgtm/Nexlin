@@ -1,15 +1,20 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getOrCreateAgency } from "./agency"
+import { requireTenantAuth } from "@/lib/permissions"
 import { generateForgeTask } from "@/lib/forge/forge-gateway"
 import { revalidatePath } from "next/cache"
 
 export async function createForgeSite(name: string, domain?: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const agencyId = await getOrCreateAgency()
-    const cleanDomain = domain 
-      ? domain.trim().toLowerCase() 
+    const agencyId = auth.agencyId
+    const cleanDomain = domain
+      ? domain.trim().toLowerCase()
       : `${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now().toString().slice(-4)}.nexlin.site`
 
     const site = await db.forgeSite.create({
@@ -17,18 +22,17 @@ export async function createForgeSite(name: string, domain?: string) {
         agencyId,
         name: name.trim(),
         domain: cleanDomain,
-        status: "draft"
-      }
+        status: "draft",
+      },
     })
 
-    // Create default home page
     const page = await db.forgePage.create({
       data: {
         siteId: site.id,
         slug: "home",
         componentTree: JSON.stringify([]),
-        version: 1
-      }
+        version: 1,
+      },
     })
 
     revalidatePath("/forge")
@@ -38,36 +42,52 @@ export async function createForgeSite(name: string, domain?: string) {
   }
 }
 
-export async function generateForgePageFromPrompt(pageId?: string, prompt?: string, vertical = "dealership") {
+export async function generateForgePageFromPrompt(
+  pageId?: string,
+  prompt?: string,
+  vertical = "general"
+) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const agencyId = await getOrCreateAgency()
-    const userPrompt = prompt || "Build a high-converting auto dealership landing page with inventory showcase, credit pre-qualification form, and testimonials."
+    const agencyId = auth.agencyId
+    const userPrompt = (prompt || "").trim()
+    if (!userPrompt) {
+      return { success: false, error: "Please enter a prompt describing what to generate." }
+    }
 
     let page: any = null
 
     if (pageId) {
       page = await db.forgePage.findUnique({
         where: { id: pageId },
-        include: { site: true }
+        include: { site: true },
       })
     }
 
-    // Auto-provision site & page if not found or pageId missing
     if (!page || page.site.agencyId !== agencyId) {
       let site = await db.forgeSite.findFirst({
         where: { agencyId },
-        include: { pages: true }
+        include: { pages: true },
       })
 
       if (!site) {
+        const agency = await db.agency.findUnique({
+          where: { id: agencyId },
+          select: { name: true },
+        })
+        const siteName = agency?.name || "My Site"
         site = await db.forgeSite.create({
           data: {
             agencyId,
-            name: "Rodriguez Auto Sales",
-            domain: `rodriguezauto-${Date.now().toString().slice(-4)}.nexlin.site`,
-            status: "draft"
+            name: siteName,
+            domain: `${siteName.toLowerCase().replace(/[^a-z0-9]/g, "-") || "site"}-${Date.now().toString().slice(-4)}.nexlin.site`,
+            status: "draft",
           },
-          include: { pages: true }
+          include: { pages: true },
         })
       }
 
@@ -77,100 +97,84 @@ export async function generateForgePageFromPrompt(pageId?: string, prompt?: stri
             siteId: site.id,
             slug: "home",
             componentTree: JSON.stringify([]),
-            version: 1
+            version: 1,
           },
-          include: { site: true }
+          include: { site: true },
         })
       } else {
         page = await db.forgePage.findUnique({
           where: { id: site.pages[0].id },
-          include: { site: true }
+          include: { site: true },
         })
       }
     }
 
-    // Step 1: Layout Task
-    await generateForgeTask("layout_generation", { prompt: userPrompt, pageId: page.id, vertical })
+    const layoutPrompt = `Generate landing page sections as strictly valid JSON matching this schema:
+{
+  "sections": [
+    { "id": "hero-1", "type": "hero", "title": "...", "subtitle": "...", "ctaText": "...", "ctaTarget": "#lead", "background": "dark" },
+    { "id": "showcase-2", "type": "inventory_showcase", "title": "...", "items": [{ "name": "...", "price": "...", "mileage": "...", "badge": "..." }] },
+    { "id": "lead-3", "type": "lead_form", "title": "...", "subtitle": "...", "fields": [{ "name": "fullName", "label": "Full Name", "type": "text", "required": true }, { "name": "email", "label": "Email", "type": "email", "required": true }], "buttonText": "Submit" },
+    { "id": "testimonials-4", "type": "testimonials", "title": "...", "reviews": [{ "name": "...", "comment": "...", "rating": 5 }] }
+  ]
+}
+User request: ${userPrompt}
+Return ONLY raw JSON.`
 
-    // Build structured sections customized by prompt keywords
-    const isServicePrompt = userPrompt.toLowerCase().includes("service") || userPrompt.toLowerCase().includes("repair")
-    const isFinancingPrompt = userPrompt.toLowerCase().includes("financ") || userPrompt.toLowerCase().includes("pre-qual")
+    const layoutRes = await generateForgeTask("layout_generation", {
+      prompt: layoutPrompt,
+      pageId: page.id,
+      vertical,
+    })
 
-    const generatedSections = [
-      {
-        id: "hero-1",
-        type: "hero",
-        title: isServicePrompt 
-          ? "Express Vehicle Service & Repair Center" 
-          : isFinancingPrompt 
-          ? "Instant $0 Down Auto Financing Pre-Approval" 
-          : "Drive Home Your Dream Vehicle Today",
-        subtitle: isServicePrompt
-          ? "Certified mechanics, genuine OEM parts, and same-day express service appointments."
-          : "Premium pre-owned inventory with guaranteed fast credit approval in 60 seconds.",
-        ctaText: isServicePrompt ? "Schedule Service Appointment" : "Get Approved in 2 Minutes",
-        ctaTarget: "#prequal",
-        background: "dark",
-        isStreamingNew: true
-      },
-      {
-        id: "inventory-2",
-        type: "inventory_showcase",
-        title: isServicePrompt ? "Popular Express Service Packages" : "Featured Dealership Inventory",
-        items: isServicePrompt ? [
-          { name: "Full Synthetic Oil & Filter Change", price: "$69.95", mileage: "Includes 30-Pt Check", badge: "Express" },
-          { name: "Front & Rear Brake Replacement", price: "$249.00", mileage: "OEM Ceramic Pads", badge: "Popular" },
-          { name: "Complete Executive Detailing", price: "$149.50", mileage: "Interior & Exterior", badge: "Special" }
-        ] : [
-          { name: "2023 Ford F-150 Lariat 4x4", price: "$42,990", mileage: "18,400 mi", badge: "Hot Deal" },
-          { name: "2022 Chevrolet Tahoe LT", price: "$51,500", mileage: "24,100 mi", badge: "Verified" },
-          { name: "2021 Toyota Camry SE", price: "$23,800", mileage: "31,000 mi", badge: "Low Miles" }
-        ],
-        isStreamingNew: true
-      },
-      {
-        id: "prequal-3",
-        type: "lead_form",
-        title: isServicePrompt ? "Book Service Appointment Online" : "Instant Credit Pre-Qualification",
-        subtitle: "No impact on your credit score. Fast 60-second decision.",
-        fields: [
-          { name: "fullName", label: "Full Name", type: "text", required: true },
-          { name: "email", label: "Email Address", type: "email", required: true },
-          { name: "phone", label: "Phone Number", type: "tel", required: true },
-          { name: "monthlyIncome", label: isServicePrompt ? "Select Service Type" : "Estimated Monthly Income", type: "select", options: isServicePrompt ? ["Oil Change", "Brake Repair", "Full Detail"] : ["$2,000 - $4,000", "$4,000 - $7,000", "$7,000+"] }
-        ],
-        buttonText: isServicePrompt ? "Confirm Service Booking" : "Submit Pre-Qual Application",
-        isStreamingNew: true
-      },
-      {
-        id: "testimonials-4",
-        type: "testimonials",
-        title: "What Our Customers Say",
-        reviews: [
-          { name: "Marcus V.", comment: "Got approved for my F-150 in 10 minutes! Incredible team.", rating: 5 },
-          { name: "Elena R.", comment: "Fair trade-in pricing and zero hassle financing.", rating: 5 }
-        ],
-        isStreamingNew: true
+    if (!layoutRes.success || !layoutRes.output) {
+      return {
+        success: false,
+        error: layoutRes.error || "AI page generation failed. Check your AI API key in Settings -> AI.",
       }
-    ]
-
-    // Step 2: Generate SEO Metadata
-    await generateForgeTask("seo_metadata", { prompt: userPrompt, pageId: page.id })
-    const seoMeta = {
-      title: `${page.site.name} | Auto Dealership & Financing`,
-      description: `Official site for ${page.site.name}. Browse quality inventory and apply for financing online.`,
-      keywords: ["used cars", "auto financing", "trade-in value"]
     }
 
-    // Save updated component tree and bump version checkpoint
+    const rawSections = Array.isArray(layoutRes.output)
+      ? layoutRes.output
+      : Array.isArray(layoutRes.output?.sections)
+        ? layoutRes.output.sections
+        : null
+
+    if (!rawSections || rawSections.length === 0) {
+      return {
+        success: false,
+        error: "AI model did not return structured page sections. Please refine your prompt and try again.",
+      }
+    }
+
+    const generatedSections = rawSections.map((sec: any, idx: number) => ({
+      ...sec,
+      id: sec.id || `section-${idx + 1}`,
+      isStreamingNew: true,
+    }))
+
+    const seoRes = await generateForgeTask("seo_metadata", {
+      prompt: `Generate JSON { "title": string, "description": string, "keywords": string[] } for "${page.site.name}" regarding: ${userPrompt}. Only return raw JSON.`,
+      pageId: page.id,
+    })
+
+    const seoMeta =
+      seoRes.success && seoRes.output && typeof seoRes.output === "object"
+        ? seoRes.output
+        : {
+            title: page.site.name,
+            description: userPrompt.slice(0, 155),
+            keywords: [],
+          }
+
     const updatedPage = await db.forgePage.update({
       where: { id: page.id },
       data: {
         componentTree: JSON.stringify(generatedSections),
         seoMeta: JSON.stringify(seoMeta),
-        version: (page.version || 1) + 1
+        version: (page.version || 1) + 1,
       },
-      include: { site: true }
+      include: { site: true },
     })
 
     revalidatePath("/forge")
@@ -181,37 +185,59 @@ export async function generateForgePageFromPrompt(pageId?: string, prompt?: stri
   }
 }
 
-export async function updateForgeSectionPrompt(pageId: string, sectionId: string, editPrompt: string) {
+export async function updateForgeSectionPrompt(
+  pageId: string,
+  sectionId: string,
+  editPrompt: string
+) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const agencyId = await getOrCreateAgency()
     const page = await db.forgePage.findUnique({
       where: { id: pageId },
-      include: { site: true }
+      include: { site: true },
     })
 
-    if (!page || page.site.agencyId !== agencyId) {
+    if (!page || page.site.agencyId !== auth.agencyId) {
       return { success: false, error: "Access denied" }
     }
 
     const sections: any[] = JSON.parse(page.componentTree || "[]")
-    const targetIdx = sections.findIndex(s => s.id === sectionId)
+    const targetIdx = sections.findIndex((s) => s.id === sectionId)
+    if (targetIdx === -1) {
+      return { success: false, error: "Section not found" }
+    }
 
-    if (targetIdx !== -1) {
-      if (editPrompt.toLowerCase().includes("dark")) {
-        sections[targetIdx].background = "dark"
+    const currentSection = sections[targetIdx]
+    const editRes = await generateForgeTask("copywriting", {
+      prompt: `Update the following JSON section according to this instruction: "${editPrompt}".\nPreserve the existing "id" and "type".\nCurrent section:\n${JSON.stringify(currentSection)}\nReturn ONLY valid JSON for the updated section object.`,
+      pageId,
+    })
+
+    if (!editRes.success || !editRes.output || typeof editRes.output !== "object") {
+      return {
+        success: false,
+        error: editRes.error || "AI section update failed. Check your AI API key in Settings -> AI.",
       }
-      if (editPrompt.toLowerCase().includes("shorten") || editPrompt.toLowerCase().includes("title")) {
-        sections[targetIdx].title = editPrompt.replace(/make|change|shorten/gi, "").trim()
-      }
-      sections[targetIdx].isStreamingNew = true
+    }
+
+    sections[targetIdx] = {
+      ...currentSection,
+      ...editRes.output,
+      id: currentSection.id,
+      type: currentSection.type,
+      isStreamingNew: true,
     }
 
     const updatedPage = await db.forgePage.update({
       where: { id: pageId },
       data: {
         componentTree: JSON.stringify(sections),
-        version: page.version + 1
-      }
+        version: page.version + 1,
+      },
     })
 
     revalidatePath("/forge")

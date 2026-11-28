@@ -2,26 +2,27 @@
 
 import { db as prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireTenantAuth } from "@/lib/permissions"
 import { generateAiReply } from "./ai"
-import { getOrCreateAgency } from "./agency"
 import { getActiveSubAccountId } from "./subaccounts"
 
-import { getSession } from "@/lib/auth"
+export async function createSnapshot(_agencyId: string, name: string, description?: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-export async function createSnapshot(agencyId: string, name: string, description?: string) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
+    const targetAgencyId = auth.agencyId
 
-    // 1. Fetch all assets for this agency to snapshot
+    // 1. Fetch all active assets for this agency to snapshot
     const funnels = await prisma.funnel.findMany({
       where: { agencyId: targetAgencyId, subAgencyId: null },
       include: { steps: true }
     })
     
     const workflows = await prisma.workflow.findMany({
-      where: { agencyId: targetAgencyId, subAgencyId: null },
+      where: { agencyId: targetAgencyId, subAgencyId: null, deletedAt: null },
       include: { triggers: true, actions: true }
     })
     
@@ -87,11 +88,14 @@ export async function createSnapshot(agencyId: string, name: string, description
   }
 }
 
-export async function getSnapshots(agencyId: string) {
+export async function getSnapshots(_agencyId: string) {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
-    const targetAgencyId = session.user.agencyId || agencyId
+    const targetAgencyId = auth.agencyId
 
     const rawSnapshots = await prisma.snapshot.findMany({
       where: {
@@ -139,12 +143,14 @@ export async function getSnapshots(agencyId: string) {
   }
 }
 
-export async function deploySnapshot(snapshotId: string, targetSubAgencyId: string, targetAgencyId: string) {
-  try {
-    const session = await getSession()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+export async function deploySnapshot(snapshotId: string, targetSubAgencyId: string, _targetAgencyId: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
 
-    const sessionAgencyId = session.user.agencyId || targetAgencyId
+  try {
+    const sessionAgencyId = auth.agencyId
 
     const [snapshot, ownedSubAgency] = await Promise.all([
       prisma.snapshot.findUnique({
@@ -258,8 +264,13 @@ export async function deploySnapshot(snapshotId: string, targetSubAgencyId: stri
 }
 
 export async function generateDynamicSnapshot(prompt: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const agencyId = await getOrCreateAgency()
+    const agencyId = auth.agencyId
     const subAgencyId = await getActiveSubAccountId()
     
     // Call the AI to generate the snapshot architecture

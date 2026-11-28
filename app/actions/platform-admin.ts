@@ -1,5 +1,6 @@
 "use server"
 
+import crypto from "crypto"
 import { db } from "@/lib/db"
 import { requirePlatformAuth, type PlatformRole } from "@/lib/permissions"
 import { revalidatePath } from "next/cache"
@@ -107,36 +108,56 @@ export async function getPlatformAiUsageMetrics() {
     return { success: false, error: auth.error }
   }
 
-  const generations = await db.forgeGeneration.findMany({
-    take: 100,
-    orderBy: { createdAt: "desc" }
-  }).catch(() => [])
+  const [agg, modelGroups, recentGenerations, models] = await Promise.all([
+    db.forgeGeneration.aggregate({
+      _count: true,
+      _sum: { costUsd: true },
+    }),
+    db.forgeGeneration.groupBy({
+      by: ["modelUsed"],
+      _count: { _all: true },
+      _avg: { latencyMs: true },
+    }),
+    db.forgeGeneration.findMany({
+      take: 8,
+      orderBy: { createdAt: "desc" },
+    }),
+    db.forgeModelRegistry.findMany(),
+  ])
 
-  const totalGenerations = await db.forgeGeneration.count().catch(() => 4250)
-  
-  // Model registry breakdown
-  const models = await db.forgeModelRegistry.findMany().catch(() => [])
+  const totalGenerations = agg._count || 0
+  const totalCost = agg._sum.costUsd || 0
+  const estimatedTokens = totalGenerations * 1250
+  const rebilledRevenue = Math.round(totalCost * 3.5 * 100) / 100
+  const totalApiCost = Math.round(totalCost * 100) / 100
+  const grossMargin =
+    rebilledRevenue > 0
+      ? Math.round(((rebilledRevenue - totalApiCost) / rebilledRevenue) * 1000) / 10
+      : 0
 
-  const totalCost = generations.reduce((acc, g) => acc + (g.costUsd || 0.003), 0)
-  const estimatedTokens = Math.max(totalGenerations * 1250, 5312500)
+  const providers = modelGroups.map((g) => {
+    const sharePct =
+      totalGenerations > 0 ? Math.round((g._count._all / totalGenerations) * 100) : 0
+    return {
+      name: g.modelUsed || "Unknown",
+      share: `${sharePct}%`,
+      latency: `${Math.round(g._avg.latencyMs || 0)}ms`,
+      status: "Observed",
+    }
+  })
 
   return {
     success: true,
     data: {
       totalGenerations,
       estimatedTokens,
-      totalApiCost: Math.round(totalCost * 100) / 100,
-      rebilledRevenue: Math.round(totalCost * 3.5 * 100) / 100, // 3.5x platform markup
-      grossMargin: 71.4,
-      providers: [
-        { name: "Google Gemini 2.0 Flash", share: "54%", latency: "240ms", status: "Healthy" },
-        { name: "OpenAI GPT-4o", share: "28%", latency: "480ms", status: "Healthy" },
-        { name: "Anthropic Claude 3.5 Sonnet", share: "12%", latency: "620ms", status: "Healthy" },
-        { name: "ElevenLabs Voice AI", share: "6%", latency: "180ms", status: "Healthy" },
-      ],
-      recentGenerations: generations.slice(0, 8),
-      registeredModels: models
-    }
+      totalApiCost,
+      rebilledRevenue,
+      grossMargin,
+      providers,
+      recentGenerations,
+      registeredModels: models,
+    },
   }
 }
 
@@ -292,12 +313,14 @@ export async function deploySnapshotToAgency(data: {
     }
   })
 
+  const uniqueSuffix = crypto.randomBytes(2).toString("hex")
+
   // Create default funnel for the agency
   const funnel = await db.funnel.create({
     data: {
       agencyId: agency.id,
       name: `${data.blueprintName} Booking Funnel`,
-      subdomain: `${agency.subdomain || 'agency'}-booking`,
+      subdomain: `${agency.subdomain || 'agency'}-booking-${uniqueSuffix}`,
       status: "published",
       steps: {
         create: [

@@ -126,8 +126,17 @@ export const getConversations = withAgency(async ({ db, agencyId }) => {
 })
 
 export const getMessages = withAgency(async ({ db }, conversationId: string) => {
+  const conv = await db.conversation.findFirst({
+    where: { id: conversationId },
+    select: { id: true }
+  })
+
+  if (!conv) {
+    throw new Error("Conversation not found")
+  }
+
   const messages = await db.message.findMany({
-    where: { conversationId },
+    where: { conversationId: conv.id },
     orderBy: { createdAt: 'asc' }
   })
   return messages
@@ -178,7 +187,7 @@ export const sendMessage = withAgency(
       }
     })
 
-    await db.conversation.update({
+    await db.conversation.updateMany({
       where: { id: conversationId },
       data: {
         updatedAt: new Date(),
@@ -200,11 +209,14 @@ export const sendMessage = withAgency(
 
     // --- AI AUTO-RESPONDER LOGIC ---
     if (!isOutbound && conv?.aiAutoReply) {
-      generateAiReply("chat", conversationId).then(async (aiRes) => {
+      try {
+        const aiRes = await generateAiReply("chat", conversationId)
         if (aiRes.success && aiRes.data) {
           await sendMessage(conversationId, aiRes.data, channelTag, true)
         }
-      }).catch(err => console.error("AI AutoReply Error:", err))
+      } catch (err) {
+        console.error("AI AutoReply Error:", err)
+      }
     }
 
     return message
@@ -213,9 +225,18 @@ export const sendMessage = withAgency(
 
 export const createConversation = withAgency(
   async ({ db, agencyId }, contactId: string, channel: string = "sms") => {
+    const ownedContact = await db.contact.findFirst({
+      where: { id: contactId },
+      select: { id: true }
+    })
+
+    if (!ownedContact) {
+      throw new Error("Contact not found")
+    }
+
     const subAgencyId = await getActiveSubAccountId()
 
-    const whereClause: any = { contactId, channel }
+    const whereClause: any = { contactId: ownedContact.id, channel }
     if (subAgencyId) {
       whereClause.subAgencyId = subAgencyId
     }
@@ -230,7 +251,7 @@ export const createConversation = withAgency(
         data: {
           agencyId,
           subAgencyId,
-          contactId,
+          contactId: ownedContact.id,
           channel
         }
       })

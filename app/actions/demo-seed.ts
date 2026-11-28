@@ -1,8 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { getSession } from "@/lib/auth"
-import { getOrCreateAgency } from "./agency"
+import { requireTenantAuth } from "@/lib/permissions"
 import { revalidatePath } from "next/cache"
 
 export type DemoPresetKey = "dental" | "real_estate" | "b2b_saas" | "home_services"
@@ -332,9 +331,13 @@ const DEMO_PRESETS: Record<DemoPresetKey, PresetConfig> = {
 }
 
 export async function seedDemoAgencyData(presetKey: DemoPresetKey) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession().catch(() => null)
-    const agencyId = (session?.user as any)?.agencyId || await getOrCreateAgency()
+    const agencyId = auth.agencyId
     const preset = DEMO_PRESETS[presetKey]
 
     if (!preset) {
@@ -517,9 +520,9 @@ async function resetDemoAgencyDataInternal(agencyId: string) {
       })
     }
 
-    // Delete the contacts
+    // Delete the contacts scoped strictly to this agency
     await db.contact.deleteMany({
-      where: { id: { in: contactIds } }
+      where: { id: { in: contactIds }, agencyId }
     })
   }
 
@@ -541,9 +544,13 @@ async function resetDemoAgencyDataInternal(agencyId: string) {
 }
 
 export async function resetDemoAgencyData() {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession().catch(() => null)
-    const agencyId = (session?.user as any)?.agencyId || await getOrCreateAgency()
+    const agencyId = auth.agencyId
 
     await resetDemoAgencyDataInternal(agencyId)
 
@@ -560,9 +567,13 @@ export async function resetDemoAgencyData() {
 }
 
 export async function getDemoSeedStatus() {
+  const auth = await requireTenantAuth("user")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, hasDemoData: false, demoContactCount: 0, error: auth.error || "Unauthorized" }
+  }
+
   try {
-    const session = await getSession().catch(() => null)
-    const agencyId = (session?.user as any)?.agencyId || await getOrCreateAgency()
+    const agencyId = auth.agencyId
 
     const demoCount = await db.contact.count({
       where: {

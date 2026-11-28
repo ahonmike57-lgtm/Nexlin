@@ -64,10 +64,35 @@ ImageComponent.craft = {
   rules: { canDrag: () => true },
 }
 
+function isCraftJson(raw: string | null | undefined): boolean {
+  if (!raw) return false
+  const trimmed = raw.trim()
+  if (!trimmed || trimmed === "{}" || trimmed.startsWith("<")) return false
+  try {
+    const parsed = JSON.parse(trimmed)
+    return Boolean(parsed && typeof parsed === "object" && "ROOT" in parsed)
+  } catch {
+    return false
+  }
+}
+
 export default function LiveFunnelClient({ funnel, step, subdomain }: { funnel: any; step: any; subdomain: string }) {
-  
-  // If no content was saved yet, render a fallback.
-  const hasContent = step.content && step.content !== "{}"
+  const rawContent = typeof step?.content === "string" ? step.content : ""
+  const craftMode = isCraftJson(rawContent)
+  const htmlMode = !craftMode && rawContent.trim() !== "" && rawContent.trim() !== "{}"
+
+  if (htmlMode) {
+    return (
+      <div className="min-h-screen w-full bg-white">
+        <iframe
+          srcDoc={rawContent}
+          sandbox="allow-scripts allow-forms"
+          className="w-full min-h-screen border-0 block"
+          title={funnel?.name || step?.name || subdomain}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white text-black font-sans">
@@ -75,8 +100,8 @@ export default function LiveFunnelClient({ funnel, step, subdomain }: { funnel: 
         resolver={{ ContainerComponent, TextComponent, ButtonComponent, ImageComponent }}
         enabled={false} // Disable editing on live page
       >
-        {hasContent ? (
-          <Frame data={step.content} />
+        {craftMode ? (
+          <Frame data={rawContent} />
         ) : (
           <div className="flex flex-col items-center justify-center min-h-screen text-center p-8">
             <h1 className="text-4xl font-bold mb-4">{step.name}</h1>

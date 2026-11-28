@@ -1,7 +1,33 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { withAgency } from "@/lib/tenant"
+import { db as rawDb } from "@/lib/db"
+import { withAgency, type TenantContext } from "@/lib/tenant"
+
+async function reassignAndDeleteContact(
+  db: TenantContext["db"],
+  agencyId: string,
+  targetContactId: string,
+  sourceContactId: string
+) {
+  await Promise.all([
+    db.deal.updateMany({ where: { contactId: sourceContactId }, data: { contactId: targetContactId } }),
+    db.appointment.updateMany({ where: { contactId: sourceContactId }, data: { contactId: targetContactId } }),
+    db.conversation.updateMany({ where: { contactId: sourceContactId }, data: { contactId: targetContactId } }),
+    db.ticket.updateMany({ where: { contactId: sourceContactId }, data: { contactId: targetContactId } }),
+    db.review.updateMany({ where: { contactId: sourceContactId }, data: { contactId: targetContactId } }),
+    db.reviewRequest.updateMany({ where: { contactId: sourceContactId }, data: { contactId: targetContactId } }),
+    db.formSubmission.updateMany({ where: { contactId: sourceContactId }, data: { contactId: targetContactId } }),
+    rawDb.forgeLead.updateMany({
+      where: { contactId: sourceContactId, funnel: { site: { agencyId } } },
+      data: { contactId: targetContactId },
+    }),
+  ])
+
+  await db.contact.deleteMany({
+    where: { id: sourceContactId },
+  })
+}
 
 export const findDuplicateContacts = withAgency(async ({ db }) => {
   const contacts = await db.contact.findMany({
@@ -65,25 +91,12 @@ export const mergeContacts = withAgency(
 
     for (const sourceId of sourceContactIds) {
       if (sourceId === targetContactId) continue
-
-      await db.deal.updateMany({
-        where: { contactId: sourceId },
-        data: { contactId: targetContactId }
+      const sourceExists = await db.contact.findFirst({
+        where: { id: sourceId },
+        select: { id: true }
       })
-
-      await db.appointment.updateMany({
-        where: { contactId: sourceId },
-        data: { contactId: targetContactId }
-      })
-
-      await db.conversation.updateMany({
-        where: { contactId: sourceId },
-        data: { contactId: targetContactId }
-      })
-
-      await db.contact.deleteMany({
-        where: { id: sourceId }
-      })
+      if (!sourceExists) continue
+      await reassignAndDeleteContact(db, agencyId, targetContactId, sourceId)
     }
 
     revalidatePath("/crm/contacts")
@@ -131,18 +144,13 @@ export const autoMergeAllDuplicates = withAgency(
         const target = list[0]
         const sources = list.slice(1).map(c => c.id).filter(id => !processedIds.has(id))
 
-        if (sources.length > 0) {
-          for (const srcId of sources) {
-            try {
-              await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-              await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-              await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-              await db.contact.deleteMany({ where: { id: srcId } })
-              processedIds.add(srcId)
-              mergedCount++
-            } catch (e) {
-              console.warn(`autoMerge: skipped source ${srcId} due to error:`, e)
-            }
+        for (const srcId of sources) {
+          try {
+            await reassignAndDeleteContact(db, agencyId, target.id, srcId)
+            processedIds.add(srcId)
+            mergedCount++
+          } catch (e) {
+            console.warn(`autoMerge: skipped source ${srcId} due to error:`, e)
           }
         }
       }
@@ -155,18 +163,13 @@ export const autoMergeAllDuplicates = withAgency(
         const target = validList[0]
         const sources = validList.slice(1).map(c => c.id).filter(id => !processedIds.has(id))
 
-        if (sources.length > 0) {
-          for (const srcId of sources) {
-            try {
-              await db.deal.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-              await db.appointment.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-              await db.conversation.updateMany({ where: { contactId: srcId }, data: { contactId: target.id } })
-              await db.contact.deleteMany({ where: { id: srcId } })
-              processedIds.add(srcId)
-              mergedCount++
-            } catch (e) {
-              console.warn(`autoMerge: skipped source ${srcId} due to error:`, e)
-            }
+        for (const srcId of sources) {
+          try {
+            await reassignAndDeleteContact(db, agencyId, target.id, srcId)
+            processedIds.add(srcId)
+            mergedCount++
+          } catch (e) {
+            console.warn(`autoMerge: skipped source ${srcId} due to error:`, e)
           }
         }
       }
@@ -178,4 +181,3 @@ export const autoMergeAllDuplicates = withAgency(
   },
   { role: "admin" }
 )
-

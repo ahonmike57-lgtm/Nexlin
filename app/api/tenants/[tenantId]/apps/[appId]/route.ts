@@ -1,24 +1,30 @@
-import { getSession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { encryptConfig } from "@/lib/encryption"
+import { requirePlatformAuth, requireTenantAuth } from "@/lib/permissions"
 import { NextResponse } from "next/server"
+
+async function authorizeTenantAppWrite(tenantId: string): Promise<boolean> {
+  const tenantAuth = await requireTenantAuth("admin")
+  if (tenantAuth.authorized && tenantAuth.agencyId === tenantId) {
+    return true
+  }
+  const platformAuth = await requirePlatformAuth(["owner", "developer"])
+  return platformAuth.authorized
+}
 
 // Updates the configuration of an installed app
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ tenantId: string, appId: string }> }
+  { params }: { params: Promise<{ tenantId: string; appId: string }> }
 ) {
   try {
-    const session = await getSession()
-    const isPlatformAdmin = (session?.user as any)?.isPlatformAdmin
-    const userAgencyId = (session?.user as any)?.agencyId
-
-    if (!session || !session.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
     const { tenantId, appId } = await params
-
-    if (!isPlatformAdmin && userAgencyId !== tenantId) {
-       return NextResponse.json({ error: "Forbidden: Cannot update apps for other tenants" }, { status: 403 })
+    const allowed = await authorizeTenantAppWrite(tenantId)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Forbidden: Tenant admin or platform admin privileges required" },
+        { status: 403 }
+      )
     }
 
     const body = await req.json()
@@ -29,13 +35,13 @@ export async function PATCH(
       where: {
         agencyId_appId: {
           agencyId: tenantId,
-          appId: appId
-        }
+          appId: appId,
+        },
       },
       data: {
         config: encryptedConfig,
-        status: "active" // Re-activate if it was disabled
-      }
+        status: "active",
+      },
     })
 
     return NextResponse.json({ success: true, installId: tenantApp.id })
@@ -48,32 +54,28 @@ export async function PATCH(
 // Uninstalls (disables) an app
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ tenantId: string, appId: string }> }
+  { params }: { params: Promise<{ tenantId: string; appId: string }> }
 ) {
   try {
-    const session = await getSession()
-    const isPlatformAdmin = (session?.user as any)?.isPlatformAdmin
-    const userAgencyId = (session?.user as any)?.agencyId
-
-    if (!session || !session.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
     const { tenantId, appId } = await params
-
-    if (!isPlatformAdmin && userAgencyId !== tenantId) {
-       return NextResponse.json({ error: "Forbidden: Cannot uninstall apps for other tenants" }, { status: 403 })
+    const allowed = await authorizeTenantAppWrite(tenantId)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Forbidden: Tenant admin or platform admin privileges required" },
+        { status: 403 }
+      )
     }
 
-    // Rather than hard delete, we set status to disabled to preserve history
     await db.tenantApp.update({
       where: {
         agencyId_appId: {
           agencyId: tenantId,
-          appId: appId
-        }
+          appId: appId,
+        },
       },
       data: {
-        status: "disabled"
-      }
+        status: "disabled",
+      },
     })
 
     return NextResponse.json({ success: true, message: "App uninstalled successfully" })

@@ -1,11 +1,11 @@
 import { db } from "@/lib/db"
 import { generateAiReply } from "@/app/actions/ai"
 
-export type ForgeTaskType = 
-  | "layout_generation" 
-  | "copywriting" 
-  | "image_generation" 
-  | "design_critique" 
+export type ForgeTaskType =
+  | "layout_generation"
+  | "copywriting"
+  | "image_generation"
+  | "design_critique"
   | "seo_metadata"
 
 export interface ForgeTaskContext {
@@ -25,80 +25,68 @@ export interface ForgeTaskResult {
   error?: string
 }
 
-// Default Task Routing Table Configuration
 const DEFAULT_MODEL_REGISTRY: Record<ForgeTaskType, { primary: string; fallback: string }> = {
   layout_generation: { primary: "claude-3-5-sonnet-20241022", fallback: "gpt-4o" },
   copywriting: { primary: "claude-3-5-sonnet-20241022", fallback: "gpt-4o-mini" },
   image_generation: { primary: "flux-1-dev", fallback: "dall-e-3" },
   design_critique: { primary: "gpt-4o", fallback: "claude-3-5-sonnet-20241022" },
-  seo_metadata: { primary: "gpt-4o-mini", fallback: "claude-3-5-haiku-20241022" }
+  seo_metadata: { primary: "gpt-4o-mini", fallback: "claude-3-5-haiku-20241022" },
 }
 
 export async function generateForgeTask(
-  taskType: ForgeTaskType, 
+  taskType: ForgeTaskType,
   context: ForgeTaskContext
 ): Promise<ForgeTaskResult> {
   const startTime = Date.now()
-  const routing = DEFAULT_MODEL_REGISTRY[taskType] || { primary: "claude-3-5-sonnet", fallback: "gpt-4o" }
+  const routing = DEFAULT_MODEL_REGISTRY[taskType] || {
+    primary: "claude-3-5-sonnet-20241022",
+    fallback: "gpt-4o",
+  }
 
-  let modelUsed = routing.primary
-  let outputRaw: string | null = null
+  const modelUsed = routing.primary
   const costEstimate = 0.004
 
   try {
-    const promptPayload = `Task: ${taskType}\nContext: ${context.prompt}\nVertical: ${context.vertical || 'general'}`
-    
-    try {
-      const res = await generateAiReply("forge", promptPayload)
-      if (res.success && res.data) {
-        outputRaw = res.data
-      }
-    } catch {
-      // If live API key is missing or errored, fallback to Forge AI Engine default
-      modelUsed = `${routing.primary}-engine`
-    }
-
-    // Default Forge Task Fallback Generator if live API key is not configured
-    if (!outputRaw) {
-      if (taskType === "layout_generation") {
-        outputRaw = JSON.stringify({
-          status: "success",
-          layout: "dealership_showcase",
-          promptProcessed: context.prompt
-        })
-      } else if (taskType === "seo_metadata") {
-        outputRaw = JSON.stringify({
-          title: "Rodriguez Auto Sales | Premium Used Cars & Fast Credit Approval",
-          description: "Find your dream vehicle with $0 down instant credit pre-qualification at Rodriguez Auto Sales.",
-          keywords: ["used cars", "auto financing", "trade-in value"]
-        })
-      } else {
-        outputRaw = "Forge AI task execution completed successfully."
-      }
-    }
+    const promptPayload = `Task: ${taskType}\nVertical: ${context.vertical || "general"}\n${context.prompt}`
+    const res = await generateAiReply("forge", promptPayload)
 
     const latencyMs = Date.now() - startTime
 
-    let parsedOutput: any = outputRaw
-    try {
-      parsedOutput = JSON.parse(outputRaw.replace(/```json|```/g, "").trim())
-    } catch {
-      parsedOutput = outputRaw
+    if (!res.success || !res.data) {
+      return {
+        success: false,
+        taskType,
+        modelUsed,
+        output: null,
+        latencyMs,
+        costUsd: 0,
+        error: res.error || "AI generation unavailable. Configure an AI key in Settings -> AI.",
+      }
     }
 
-    // Telemetry Logging in ForgeGeneration
+    let parsedOutput: any = res.data
+    try {
+      const cleaned = res.data.replace(/```json/gi, "").replace(/```/g, "").trim()
+      parsedOutput = JSON.parse(cleaned)
+    } catch {
+      parsedOutput = res.data
+    }
+
     try {
       await db.forgeGeneration.create({
         data: {
           pageId: context.pageId || undefined,
-          prompt: context.prompt,
+          prompt: context.prompt.slice(0, 1000),
           taskType,
           modelUsed,
-          outputRef: typeof parsedOutput === "string" ? parsedOutput.slice(0, 500) : JSON.stringify(parsedOutput).slice(0, 500),
+          outputRef:
+            typeof parsedOutput === "string"
+              ? parsedOutput.slice(0, 500)
+              : JSON.stringify(parsedOutput).slice(0, 500),
           latencyMs,
           costUsd: costEstimate,
-          qualityScore: 1.0
-        }
+          qualityScore: 1.0,
+        },
       })
     } catch (e) {
       console.warn("Forge generation telemetry logging skipped:", e)
@@ -110,17 +98,18 @@ export async function generateForgeTask(
       modelUsed,
       output: parsedOutput,
       latencyMs,
-      costUsd: costEstimate
+      costUsd: costEstimate,
     }
   } catch (error: any) {
     const latencyMs = Date.now() - startTime
     return {
-      success: true,
+      success: false,
       taskType,
-      modelUsed: `${routing.primary}-engine`,
-      output: { status: "success", prompt: context.prompt },
+      modelUsed,
+      output: null,
       latencyMs,
-      costUsd: costEstimate
+      costUsd: 0,
+      error: error?.message || "Forge AI task failed",
     }
   }
 }

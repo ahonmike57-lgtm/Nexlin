@@ -1,9 +1,18 @@
 "use server"
 
+import crypto from "crypto"
 import { db } from "@/lib/db"
 import { requirePlatformAuth } from "@/lib/permissions"
+import { checkRateLimit } from "@/lib/rate-limit"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
+
+function timingSafeCodeMatch(provided: string, expected: string | null | undefined): boolean {
+  if (!provided || !expected) return false
+  const a = crypto.createHash("sha256").update(provided).digest()
+  const b = crypto.createHash("sha256").update(expected).digest()
+  return crypto.timingSafeEqual(a, b)
+}
 
 export async function invitePlatformAdmin(data: {
   name: string
@@ -30,8 +39,8 @@ export async function invitePlatformAdmin(data: {
       return { success: false, error: "An active platform administrator with this email already exists." }
     }
 
-    // Generate 6-digit verification code OTP
-    const inviteCode = Math.floor(100000 + Math.random() * 900000).toString()
+    // Generate cryptographically random 6-digit verification code OTP
+    const inviteCode = crypto.randomInt(100000, 1000000).toString()
     const codeExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
 
     let admin
@@ -80,49 +89,70 @@ export async function invitePlatformAdmin(data: {
   }
 }
 
+async function verifyAdminInviteInternal(emailInput: string, codeInput: string) {
+  const email = emailInput.trim().toLowerCase()
+  const code = codeInput.trim()
+
+  if (!email || !code) {
+    return { success: false as const, error: "Email and verification code are required." }
+  }
+
+  const rateLimit = checkRateLimit(`admin-invite-verify:${email}`, {
+    maxRequests: 5,
+    windowSeconds: 900,
+  })
+  if (!rateLimit.allowed) {
+    return {
+      success: false as const,
+      error: "Too many verification attempts. Please wait 15 minutes and try again.",
+    }
+  }
+
+  const admin = await db.platformAdmin.findUnique({
+    where: { email },
+  })
+
+  if (!admin) {
+    return { success: false as const, error: "Invalid email or verification code." }
+  }
+
+  if (admin.status === "active") {
+    return {
+      success: false as const,
+      error: "This admin account is already active. Please log in directly.",
+    }
+  }
+
+  if (!timingSafeCodeMatch(code, admin.inviteCode)) {
+    return { success: false as const, error: "Invalid 6-digit verification code." }
+  }
+
+  if (admin.codeExpiresAt && new Date() > admin.codeExpiresAt) {
+    return {
+      success: false as const,
+      error: "Verification code has expired. Please request a new invitation.",
+    }
+  }
+
+  return {
+    success: true as const,
+    data: {
+      email: admin.email,
+      name: admin.name || "",
+      role: admin.role,
+    },
+  }
+}
+
 export async function verifyAdminInviteCode(data: {
   email: string
   code: string
 }) {
   try {
-    const email = data.email.trim().toLowerCase()
-    const code = data.code.trim()
-
-    if (!email || !code) {
-      return { success: false, error: "Email and verification code are required." }
-    }
-
-    const admin = await db.platformAdmin.findUnique({
-      where: { email }
-    })
-
-    if (!admin) {
-      return { success: false, error: "No admin invitation found for this email address." }
-    }
-
-    if (admin.status === "active") {
-      return { success: false, error: "This admin account is already active. Please log in directly." }
-    }
-
-    if (admin.inviteCode !== code) {
-      return { success: false, error: "Invalid 6-digit verification code." }
-    }
-
-    if (admin.codeExpiresAt && new Date() > admin.codeExpiresAt) {
-      return { success: false, error: "Verification code has expired. Please request a new invitation." }
-    }
-
-    return { 
-      success: true, 
-      data: {
-        email: admin.email,
-        name: admin.name || "",
-        role: admin.role
-      } 
-    }
+    return await verifyAdminInviteInternal(data.email, data.code)
   } catch (error: any) {
     console.error("Verify admin invite code error:", error)
-    return { success: false, error: error.message || "Failed to verify invitation code." }
+    return { success: false as const, error: error.message || "Failed to verify invitation code." }
   }
 }
 
@@ -146,8 +176,8 @@ export async function completeAdminSignup(data: {
       return { success: false, error: "Password must be at least 8 characters long." }
     }
 
-    // Verify OTP code
-    const verification = await verifyAdminInviteCode({ email, code })
+    // Verify OTP code (rate limited once per call)
+    const verification = await verifyAdminInviteInternal(email, code)
     if (!verification.success) {
       return { success: false, error: verification.error }
     }

@@ -1,27 +1,61 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSession } from "@/lib/auth"
+import { requireTenantAuth } from "@/lib/permissions"
 import { db } from "@/lib/db"
 import { writeFile, mkdir } from "fs/promises"
 import path from "path"
+import crypto from "crypto"
+
+const ALLOWED_MEDIA_TYPES: Record<string, { ext: string; allowedInputExts: string[] }> = {
+  "image/png": { ext: ".png", allowedInputExts: [".png"] },
+  "image/jpeg": { ext: ".jpg", allowedInputExts: [".jpg", ".jpeg"] },
+  "image/webp": { ext: ".webp", allowedInputExts: [".webp"] },
+  "image/gif": { ext: ".gif", allowedInputExts: [".gif"] },
+  "application/pdf": { ext: ".pdf", allowedInputExts: [".pdf"] },
+  "text/plain": { ext: ".txt", allowedInputExts: [".txt"] },
+  "text/csv": { ext: ".csv", allowedInputExts: [".csv"] },
+  "audio/mpeg": { ext: ".mp3", allowedInputExts: [".mp3"] },
+  "audio/mp3": { ext: ".mp3", allowedInputExts: [".mp3"] },
+  "audio/wav": { ext: ".wav", allowedInputExts: [".wav"] },
+  "audio/x-wav": { ext: ".wav", allowedInputExts: [".wav"] },
+  "video/mp4": { ext: ".mp4", allowedInputExts: [".mp4"] },
+  "video/webm": { ext: ".webm", allowedInputExts: [".webm"] },
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
+    const auth = await requireTenantAuth("user")
+    if (!auth.authorized || !auth.agencyId) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    const agencyId = (session.user as any).agencyId
-    if (!agencyId) {
-      return NextResponse.json({ success: false, error: "Agency ID required" }, { status: 400 })
-    }
-
+    const agencyId = auth.agencyId
     const formData = await req.formData()
     const file = formData.get("file") as File | null
-    const folder = (formData.get("folder") as string) || "general"
+    const rawFolder = ((formData.get("folder") as string) || "general").trim()
+    const folder = /^[a-zA-Z0-9_-]{1,40}$/.test(rawFolder) ? rawFolder : "general"
 
     if (!file) {
       return NextResponse.json({ success: false, error: "No file provided" }, { status: 400 })
+    }
+
+    const mimeType = (file.type || "").toLowerCase().trim()
+    const allowedSpec = ALLOWED_MEDIA_TYPES[mimeType]
+    if (!allowedSpec) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unsupported file type. Allowed types: PNG, JPEG, WebP, GIF, PDF, TXT, CSV, MP3, WAV, MP4, WebM.",
+        },
+        { status: 400 }
+      )
+    }
+
+    const inputExt = path.extname(file.name).toLowerCase()
+    if (inputExt && !allowedSpec.allowedInputExts.includes(inputExt)) {
+      return NextResponse.json(
+        { success: false, error: "File extension does not match declared MIME type." },
+        { status: 400 }
+      )
     }
 
     // Max 25MB
@@ -35,18 +69,18 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    // Generate safe unique filename
-    const ext = path.extname(file.name) || ".bin"
-    const baseName = path
-      .basename(file.name, ext)
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, "-")
-      .slice(0, 40)
-    const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
-    const safeFileName = `${baseName}-${uniqueSuffix}${ext}`
+    // Always write using the canonical allowlisted extension, never raw user extension
+    const canonicalExt = allowedSpec.ext
+    const baseName =
+      path
+        .basename(file.name, path.extname(file.name))
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "-")
+        .slice(0, 40) || "asset"
+    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}`
+    const safeFileName = `${baseName}-${uniqueSuffix}${canonicalExt}`
 
     let publicUrl = ""
-    const mimeType = file.type || "application/octet-stream"
     const uploadsDir = path.join(process.cwd(), "public", "uploads", agencyId)
     const filePath = path.join(uploadsDir, safeFileName)
 
@@ -78,18 +112,18 @@ export async function POST(req: NextRequest) {
     const mediaFile = await db.mediaFile.create({
       data: {
         agencyId,
-        name: file.name,
+        name: path.basename(file.name).slice(0, 200),
         size: file.size,
         type: mimeType,
         url: publicUrl,
-        folder
-      }
+        folder,
+      },
     })
 
     return NextResponse.json({
       success: true,
       file: mediaFile,
-      url: publicUrl
+      url: publicUrl,
     })
   } catch (error: any) {
     console.error("Media Upload API Error:", error)

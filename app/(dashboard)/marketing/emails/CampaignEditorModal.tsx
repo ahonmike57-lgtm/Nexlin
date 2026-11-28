@@ -220,7 +220,18 @@ export default function CampaignEditorModal({ campaign, onClose, onSaved }: Camp
                   </div>
                   <div
                     className="p-6 text-sm leading-relaxed whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: body.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\*(.*?)\*/g, "<em>$1</em>") || "<p class='text-gray-400'>Your email body will appear here...</p>" }}
+                    dangerouslySetInnerHTML={{
+                      __html: body
+                        ? body
+                            .replace(/&/g, "&amp;")
+                            .replace(/</g, "&lt;")
+                            .replace(/>/g, "&gt;")
+                            .replace(/"/g, "&quot;")
+                            .replace(/'/g, "&#39;")
+                            .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                            .replace(/\*(.*?)\*/g, "<em>$1</em>")
+                        : "<p class='text-gray-400'>Your email body will appear here...</p>",
+                    }}
                   />
                   <div className="px-6 pb-6">
                     <a href="#" className="inline-block bg-primary text-white text-sm font-semibold px-6 py-2.5 rounded-lg">

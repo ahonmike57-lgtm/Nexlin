@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google"
 import GithubProvider from "next-auth/providers/github"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
+import { decryptConfig } from "@/lib/encryption"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { verifyTotpCode } from "@/lib/totp"
 import bcrypt from "bcryptjs"
@@ -95,7 +96,15 @@ export const authOptions: NextAuthOptions = {
                 throw new Error("2FA_REQUIRED")
               }
 
-              let verified = verifyTotpCode(user.twoFactorSecret, rawCode)
+              let plainSecret = user.twoFactorSecret
+              try {
+                const decrypted = decryptConfig(user.twoFactorSecret)
+                if (decrypted) plainSecret = decrypted
+              } catch {
+                // Legacy plaintext Base32 secret fallback
+              }
+
+              let verified = verifyTotpCode(plainSecret, rawCode)
 
               if (!verified && user.backupCodes) {
                 let storedHashes: string[] = []
@@ -143,12 +152,44 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      if (user) {
+    async jwt({ token, user, account, trigger, session }) {
+      if (account && (account.provider === "google" || account.provider === "github") && user?.email) {
+        const cleanEmail = user.email.trim().toLowerCase()
+        let dbUser = await db.user.findUnique({ where: { email: cleanEmail } })
+        if (!dbUser) {
+          dbUser = await db.user.create({
+            data: {
+              email: cleanEmail,
+              name: user.name?.trim() || cleanEmail.split("@")[0],
+              role: "Agency Owner",
+              agencyId: null,
+            },
+          })
+        }
+        token.sub = dbUser.id
+        token.role = dbUser.role
+        token.isAfricaUser = dbUser.isAfricaUser
+        token.isPlatformAdmin = false
+        token.agencyId = dbUser.agencyId
+      } else if (user) {
         token.role = (user as any).role
         token.isAfricaUser = (user as any).isAfricaUser
         token.isPlatformAdmin = (user as any).isPlatformAdmin
         token.agencyId = (user as any).agencyId
+      }
+
+      if (
+        (trigger === "update" && session?.refreshTenant && token.sub && !token.isPlatformAdmin) ||
+        (!token.isPlatformAdmin && !token.agencyId && token.sub)
+      ) {
+        const freshUser = await db.user.findUnique({
+          where: { id: token.sub },
+          select: { agencyId: true, role: true },
+        })
+        if (freshUser) {
+          token.agencyId = freshUser.agencyId
+          token.role = freshUser.role
+        }
       }
       
       // Impersonation Support (start & stop)

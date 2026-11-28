@@ -12,28 +12,38 @@ export async function interruptAiChatAndTakeover(conversationId: string, supervi
   }
 
   try {
-    // 1. Tag conversation to silence AI bot
+    const existing = await db.conversation.findFirst({
+      where: { id: conversationId, agencyId: auth.agencyId },
+      select: { id: true },
+    })
+
+    if (!existing) {
+      return { success: false, error: "Conversation not found" }
+    }
+
+    // 1. Disable AI auto-reply on the verified agency conversation
     const conversation = await db.conversation.update({
-      where: { id: conversationId },
+      where: { id: existing.id },
       data: {
-        updatedAt: new Date()
-      }
+        aiAutoReply: false,
+        updatedAt: new Date(),
+      },
     })
 
     // 2. Post system message indicating human takeover
     const systemMsg = await db.message.create({
       data: {
-        conversationId,
-        content: `[Supervisor Takeover] Human agent ${auth.userId} took over control from AI. ${supervisorNote || ''}`,
+        conversationId: existing.id,
+        content: `[Supervisor Takeover] Human agent ${auth.userId} took over control from AI. ${supervisorNote || ""}`,
         isOutbound: true,
-        status: "delivered"
-      }
+        status: "delivered",
+      },
     })
 
     try {
-      await pusherServer.trigger(`conversation-${conversationId}`, "ai-takeover", {
+      await pusherServer.trigger(`conversation-${existing.id}`, "ai-takeover", {
         takenOverBy: auth.userId,
-        message: systemMsg
+        message: systemMsg,
       })
     } catch (e) {
       console.error(e)

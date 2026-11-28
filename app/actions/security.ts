@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { getSession } from "@/lib/auth"
+import { encryptConfig } from "@/lib/encryption"
 import { verifyTotpCode } from "@/lib/totp"
 import crypto from "crypto"
 import bcrypt from "bcryptjs"
@@ -43,7 +44,7 @@ export async function generateTwoFactorSetup() {
 /**
  * Verify 6-digit TOTP Token with ±1 step time drift tolerance
  */
-export async function verifyTotpToken(secret: string, token: string): Promise<boolean> {
+async function verifyTotpToken(secret: string, token: string): Promise<boolean> {
   return verifyTotpCode(secret, token)
 }
 
@@ -83,7 +84,7 @@ export async function enableTwoFactor(token: string, secret: string, backupCodes
     where: { id: session.user.id },
     data: {
       twoFactorEnabled: true,
-      twoFactorSecret: secret,
+      twoFactorSecret: encryptConfig(secret),
       backupCodes: JSON.stringify(hashedBackupCodes),
     },
   })

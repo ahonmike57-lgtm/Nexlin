@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { encryptConfig } from '@/lib/encryption'
 import { requireTenantAuth } from '@/lib/permissions'
+import { assertSafeOutboundUrl } from '@/lib/ssrf'
 import { revalidatePath } from 'next/cache'
 import { listMcpTools } from '@/lib/mcp'
 
@@ -33,12 +34,13 @@ export async function addMcpConnection(data: { name: string, serverUrl: string, 
   }
 
   try {
+    const safeUrl = assertSafeOutboundUrl(data.serverUrl.trim()).toString().replace(/\/+$/, '');
     const encryptedCredentials = data.apiKey ? encryptConfig(data.apiKey) : null;
     const connection = await db.mcpConnection.create({
       data: {
         agencyId: auth.agencyId,
         name: data.name.trim(),
-        serverUrl: data.serverUrl.trim(),
+        serverUrl: safeUrl,
         encryptedCredentials,
       }
     });
@@ -82,7 +84,7 @@ export async function testMcpConnection(connectionId: string) {
 
     if (!connection) throw new Error("MCP Connection not found");
 
-    const tools = await listMcpTools(connectionId);
+    const tools = await listMcpTools(connection.id, auth.agencyId);
     return { success: true, tools };
   } catch (error: any) {
     return { success: false, error: error.message };

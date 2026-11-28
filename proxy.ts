@@ -82,6 +82,7 @@ export default withAuth(
           "/api/og",
           "/api/t/",
           "/blog",
+          "/review/",
           "/forms",
           "/f/",
           "/_next",

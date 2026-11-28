@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
+import { assertSafeOutboundUrl } from "@/lib/ssrf"
 
 function sanitizePayload(raw: string): string {
   try {
@@ -67,19 +68,27 @@ export async function retryWebhookDelivery(deliveryId: string) {
       return { success: false, error: "Webhook delivery log not found" }
     }
 
+    let safeUrl: URL
+    try {
+      safeUrl = assertSafeOutboundUrl(delivery.url)
+    } catch (err: any) {
+      return { success: false, error: err?.message || "Blocked unsafe webhook URL" }
+    }
+
     // Trigger Outbound Retry
     let responseStatus = 200
     let responseBody = '{"status":"success","retried":true}'
     let success = true
 
     try {
-      const res = await fetch(delivery.url, {
+      const res = await fetch(safeUrl.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: delivery.payload,
+        signal: AbortSignal.timeout(10000),
       })
       responseStatus = res.status
-      responseBody = await res.text()
+      responseBody = (await res.text()).slice(0, 4000)
       success = res.ok
     } catch (e: any) {
       responseStatus = 500
@@ -91,7 +100,7 @@ export async function retryWebhookDelivery(deliveryId: string) {
       data: {
         webhookId: delivery.webhookId,
         agencyId: auth.agencyId,
-        url: delivery.url,
+        url: safeUrl.toString(),
         event: delivery.event,
         payload: delivery.payload,
         responseStatus,
@@ -101,7 +110,14 @@ export async function retryWebhookDelivery(deliveryId: string) {
       }
     })
 
-    return { success: true, delivery: newDelivery }
+    return {
+      success: true,
+      delivery: {
+        ...newDelivery,
+        payload: sanitizePayload(newDelivery.payload),
+        responseBody: sanitizePayload(newDelivery.responseBody || ""),
+      }
+    }
   } catch (error: any) {
     console.error("Retry Webhook error:", error)
     return { success: false, error: "Failed to retry webhook delivery" }

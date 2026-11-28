@@ -193,7 +193,7 @@ export default function EmailBuilderPage() {
             className="w-full rounded-lg border border-border bg-white"
             style={{ minHeight: "600px" }}
             title="email-preview"
-            sandbox="allow-same-origin"
+            sandbox=""
           />
         </div>
       ) : (

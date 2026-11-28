@@ -2,33 +2,46 @@
 
 import { db } from "@/lib/db"
 import { requireTenantAuth } from "@/lib/permissions"
-import { revalidatePath } from "next/cache"
 
-export async function syncXeroInvoice(invoiceNumber: string, amount: number, customerEmail: string) {
-  const auth = await requireTenantAuth("user")
+export async function syncXeroInvoice(
+  _invoiceNumber: string,
+  _amount: number,
+  _customerEmail: string
+) {
+  const auth = await requireTenantAuth("admin")
   if (!auth.authorized || !auth.agencyId) {
     return { success: false, error: auth.error || "Unauthorized" }
   }
 
   try {
-    const syncLog = await db.snapshot.create({
-      data: {
+    const xeroInstall = await db.tenantApp.findFirst({
+      where: {
         agencyId: auth.agencyId,
-        name: `Xero Sync - #${invoiceNumber}`,
-        version: "xero_ledger",
-        description: JSON.stringify({
-          invoiceNumber,
-          amount,
-          customerEmail,
-          status: "synced",
-          syncedAt: new Date().toISOString()
-        })
-      }
+        status: "active",
+        app: {
+          OR: [
+            { id: "xero" },
+            { name: { contains: "Xero", mode: "insensitive" } },
+          ],
+        },
+      },
+      include: { app: true },
     })
 
-    revalidatePath("/settings/billing")
-    return { success: true, syncLog }
+    if (!xeroInstall) {
+      return {
+        success: false,
+        error:
+          "Xero is not connected for this agency. Install and authorize Xero in Marketplace -> Apps first.",
+      }
+    }
+
+    return {
+      success: false,
+      error:
+        "Xero invoice sync requires completing Xero OAuth2 tenant authorization in Integrations.",
+    }
   } catch (error: any) {
-    return { success: false, error: error.message }
+    return { success: false, error: error?.message || "Xero sync failed" }
   }
 }

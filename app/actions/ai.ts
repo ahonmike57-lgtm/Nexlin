@@ -32,12 +32,22 @@ function normalizeModelName(rawModel: string): string {
 export async function generateAiReply(context: string, prompt: string, requestedProviderAndModel?: string) {
   try {
     const session = await getSession().catch(() => null)
-    const agencyId = (session?.user as any)?.agencyId || await getOrCreateAgency()
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    const sessionUser = session.user as any
+    let agencyId: string | null = sessionUser.agencyId || null
+    if (!agencyId && !sessionUser.isPlatformAdmin) {
+      agencyId = await getOrCreateAgency()
+    }
 
     // Check if the agency has custom AI Settings
-    const aiSettings = await db.aiSettings.findMany({
-      where: { agencyId, isActive: true }
-    })
+    const aiSettings = agencyId
+      ? await db.aiSettings.findMany({
+          where: { agencyId, isActive: true }
+        })
+      : []
 
     // Map agency configurations
     const agencyKeys = {
@@ -149,40 +159,10 @@ export async function generateAiReply(context: string, prompt: string, requested
     }
 
     if (!apiKey) {
-      console.warn(`No API key found for ${provider}, falling back to mock response.`)
-      await new Promise(resolve => setTimeout(resolve, 800))
-      let response = "Here is some AI generated text based on your prompt."
-      if (context === "chat") {
-        response = "Thank you for reaching out! We've received your message and our team will get back to you shortly."
-      } else if (context === "marketing") {
-        response = "Unlock Your Business Potential! \n\nHey there, \n\nAre you looking to scale your business? We just launched our newest feature designed to double your conversions..."
-      } else if (context === "landing_page") {
-        response = `Here is some high-converting copy based on your prompt:\n\n**Headline:** Transform Your Workflow Today\n**Subheadline:** Discover the tools that top teams use to save hours every week.\n**Call to Action:** Get Started for Free`
-      } else if (context === "sales_coach") {
-        response = JSON.stringify({
-          objectionScore: 88,
-          valuePropScore: 85,
-          closingScore: 82,
-          overallScore: 85,
-          grade: "A-",
-          executiveSummary: "Strong presentation of ROI and platform capabilities. Rep maintained consultative tone throughout.",
-          keyStrengths: ["Clear differentiation against legacy tools", "Active listening on integration bottlenecks"],
-          actionableTips: ["Tighten closing call-to-action", "Anchor pricing earlier in the qualification stage"]
-        })
-      } else if (context === "lead_enrichment") {
-        response = JSON.stringify({
-          companyName: "Acme Corp",
-          domain: "acme.com",
-          industry: "B2B SaaS / Growth Tech",
-          employeeRange: "50 - 200 Employees",
-          estimatedRevenue: "$5M - $20M ARR",
-          techStack: ["Next.js", "Stripe", "PostgreSQL", "Twilio", "AWS"],
-          buyerPersona: "VP of Revenue Operations",
-          keyPainPoints: ["High churn during manual onboarding", "Disconnected CRM and voice tools"],
-          suggestedPitch: "Consolidate omnichannel CRM, voice automation, and automated funnel tracking into a unified pipeline."
-        })
+      return {
+        success: false,
+        error: "No AI API key configured. Please add an OpenAI, Anthropic, or Google Gemini key in Settings -> AI."
       }
-      return { success: true, data: response }
     }
 
     let systemPrompt = "You are a helpful business assistant."
@@ -238,20 +218,29 @@ RULES:
 
     let finalPrompt = prompt
     if (context === "chat") {
-      const messages = await db.message.findMany({
-        where: { conversationId: prompt },
-        orderBy: { createdAt: 'desc' },
-        take: 10
-      })
-      
-      const conv = await db.conversation.findUnique({
-        where: { id: prompt },
+      if (!agencyId) {
+        return { success: false, error: "Agency context required for chat AI replies" }
+      }
+
+      const conv = await db.conversation.findFirst({
+        where: { id: prompt, agencyId },
         include: { contact: true, agency: true }
       })
 
-      const knowledgeArticles = conv ? await db.knowledgeArticle.findMany({
-        where: { agencyId: conv.agencyId }
-      }) : []
+      if (!conv) {
+        return { success: false, error: "Conversation not found" }
+      }
+
+      const [messages, knowledgeArticles] = await Promise.all([
+        db.message.findMany({
+          where: { conversationId: conv.id },
+          orderBy: { createdAt: 'desc' },
+          take: 10
+        }),
+        db.knowledgeArticle.findMany({
+          where: { agencyId: conv.agencyId }
+        })
+      ])
 
       let kbContext = ""
       if (knowledgeArticles.length > 0) {
@@ -294,9 +283,9 @@ RULES:
     })
 
     // Deduct AI Token Usage
-    if (usage && usage.totalTokens) {
-      const { deductUsage } = await import("./saas")
-      await deductUsage(agencyId, (session?.user as any)?.subAgencyId || null, "ai_tokens", usage.totalTokens).catch(() => {})
+    if (agencyId && usage && usage.totalTokens && usage.totalTokens > 0) {
+      const { deductUsage } = await import("@/lib/usage")
+      await deductUsage(agencyId, sessionUser.subAgencyId || null, "ai_tokens", usage.totalTokens).catch(() => {})
     }
 
     return { success: true, data: text }

@@ -107,19 +107,3 @@ export async function saveAiSetting(
     return { success: false, error: error.message }
   }
 }
-
-/**
- * Internal-only: decrypt and return a live API key for server-side AI calls.
- * NEVER returns this to the client.
- */
-export async function getDecryptedAiKey(agencyId: string): Promise<string | null> {
-  try {
-    const setting = await db.aiSettings.findFirst({
-      where: { agencyId, isActive: true }
-    })
-    if (!setting?.apiKey) return null
-    return decryptConfig(setting.apiKey)
-  } catch {
-    return null
-  }
-}

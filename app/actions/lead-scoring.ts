@@ -17,22 +17,35 @@ export const calculateContactScore = withAgency(
   async ({ db }, contactId: string, rules: LeadScoringRules = {}) => {
     const contact = await db.contact.findFirst({
       where: { id: contactId },
-      include: { conversations: { include: { messages: true } }, deals: true }
+      include: {
+        conversations: { include: { messages: { select: { id: true } } } },
+        deals: { where: { deletedAt: null }, select: { id: true, stage: true } },
+      },
     })
 
     if (!contact) throw new Error("Contact not found")
 
-    let score = 0
-    const linkClicks = rules.linkClickPoints || 10
-    const inactivityPenalty = rules.inactivityPenaltyPoints || 20
+    const linkClicks = rules.linkClickPoints ?? 10
+    const inactivityPenalty = rules.inactivityPenaltyPoints ?? 20
 
     let totalMessages = 0
     for (const conv of contact.conversations) {
       totalMessages += conv.messages.length
     }
 
-    score += totalMessages * linkClicks
-    if (contact.leadScore) score += contact.leadScore
+    let wonDeals = 0
+    let openDeals = 0
+    for (const deal of contact.deals) {
+      const st = (deal.stage || "").toLowerCase()
+      if (st.includes("won") || st.includes("closed")) {
+        wonDeals++
+      } else {
+        openDeals++
+      }
+    }
+
+    const dealBonus = wonDeals * 25 + openDeals * 10
+    let score = totalMessages * linkClicks + dealBonus
 
     const lastInteraction = contact.updatedAt
     const daysInactive = (Date.now() - new Date(lastInteraction).getTime()) / (1000 * 60 * 60 * 24)
@@ -40,22 +53,20 @@ export const calculateContactScore = withAgency(
       score -= inactivityPenalty
     }
 
-    const finalScore = Math.max(0, score)
+    const finalScore = Math.max(0, Math.round(score))
 
     await db.contact.updateMany({
       where: { id: contact.id },
-      data: { leadScore: finalScore }
+      data: { leadScore: finalScore },
     })
 
     const threshold = rules.autoStageThreshold || 100
-    if (finalScore >= threshold && contact.deals.length > 0) {
+    if (finalScore >= threshold && contact.deals.length > 0 && rules.autoStageId) {
       const targetDeal = contact.deals[0]
-      if (rules.autoStageId) {
-        await db.deal.updateMany({
-          where: { id: targetDeal.id },
-          data: { stage: rules.autoStageId }
-        })
-      }
+      await db.deal.updateMany({
+        where: { id: targetDeal.id },
+        data: { stage: rules.autoStageId },
+      })
     }
 
     revalidatePath("/crm/contacts")

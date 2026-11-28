@@ -1,5 +1,6 @@
 "use server"
 
+import crypto from "crypto"
 import { revalidatePath } from "next/cache"
 import { withAgency } from "@/lib/tenant"
 import { triggerDealStageChangedWorkflowInternal, triggerWorkflowsInternal } from "@/lib/workflow-engine"
@@ -13,11 +14,29 @@ export const createCPQQuote = withAgency(
     discountPercentage?: number
     items: Array<{ name: string; quantity: number; unitPrice: number }>
   }) => {
-    const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-    const discount = data.discountPercentage ? (subtotal * data.discountPercentage) / 100 : 0
-    const total = subtotal - discount
+    if (!Array.isArray(data.items) || data.items.length === 0) {
+      throw new Error("At least one line item is required")
+    }
 
-    const requiresApproval = (data.discountPercentage || 0) > 20
+    for (const item of data.items) {
+      if (typeof item.quantity !== "number" || !Number.isFinite(item.quantity) || item.quantity <= 0) {
+        throw new Error("Line item quantity must be greater than 0")
+      }
+      if (typeof item.unitPrice !== "number" || !Number.isFinite(item.unitPrice) || item.unitPrice < 0) {
+        throw new Error("Line item unit price must be zero or greater")
+      }
+    }
+
+    const discountPct = data.discountPercentage ?? 0
+    if (typeof discountPct !== "number" || !Number.isFinite(discountPct) || discountPct < 0 || discountPct > 100) {
+      throw new Error("Discount percentage must be between 0 and 100")
+    }
+
+    const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
+    const discount = discountPct ? (subtotal * discountPct) / 100 : 0
+    const total = Math.max(0, subtotal - discount)
+
+    const requiresApproval = discountPct > 20
     const status = requiresApproval ? "pending_approval" : "approved"
 
     const quote = await db.snapshot.create({
@@ -30,7 +49,7 @@ export const createCPQQuote = withAgency(
           dealId: data.dealId,
           currency: data.currency || "USD",
           subtotal,
-          discountPercentage: data.discountPercentage || 0,
+          discountPercentage: discountPct,
           total,
           status,
           requiresApproval,
@@ -98,7 +117,7 @@ export const getCPQQuotes = withAgency(
 )
 
 export const signCPQQuote = withAgency(
-  async ({ db, userId, agencyId }, data: {
+  async ({ db, agencyId }, data: {
     quoteId: string
     signatureDataUrl: string
     signerName: string
@@ -116,8 +135,17 @@ export const signCPQQuote = withAgency(
     } catch {
       quoteData = {}
     }
+
+    if (quoteData.status === "pending_approval") {
+      throw new Error("Quote requires admin approval before signing")
+    }
+    if (quoteData.status === "signed") {
+      throw new Error("Quote has already been signed")
+    }
+
     const signedAt = new Date().toISOString()
-    const certificateId = `CERT-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
+    const certHex = crypto.randomBytes(4).toString("hex").toUpperCase()
+    const certificateId = `CERT-${certHex.slice(0, 4)}-${certHex.slice(4)}`
 
     quoteData.status = "signed"
     quoteData.signedAt = signedAt
@@ -139,15 +167,20 @@ export const signCPQQuote = withAgency(
     })
 
     let dealUpdated = false
-    // Quote-to-Cash Automation: Auto-advance linked deal to "won"
     if (quoteData.dealId) {
-      await db.deal.updateMany({
+      const dealUpdate = await db.deal.updateMany({
         where: { id: quoteData.dealId },
         data: { stage: "won", updatedAt: new Date() }
       })
-      await triggerDealStageChangedWorkflowInternal(agencyId, quoteData.dealId, "won", quoteData.contactId).catch(() => {})
-      await triggerWorkflowsInternal(agencyId, "quote_signed", { quoteId: data.quoteId, dealId: quoteData.dealId, contactId: quoteData.contactId }).catch(() => {})
-      dealUpdated = true
+      if (dealUpdate.count > 0) {
+        dealUpdated = true
+        await triggerDealStageChangedWorkflowInternal(agencyId, quoteData.dealId, "won", quoteData.contactId).catch(() => {})
+        await triggerWorkflowsInternal(agencyId, "quote_signed", {
+          quoteId: data.quoteId,
+          dealId: quoteData.dealId,
+          contactId: quoteData.contactId,
+        }).catch(() => {})
+      }
     }
 
     revalidatePath("/crm/invoices")
@@ -163,5 +196,3 @@ export const signCPQQuote = withAgency(
     }
   }
 )
-
-

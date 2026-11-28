@@ -3,6 +3,12 @@
 import { db } from "@/lib/db"
 import { requirePlatformAuth } from "@/lib/permissions"
 
+function csvCell(val: unknown): string {
+  const str = String(val ?? "")
+  const neutralized = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str
+  return `"${neutralized.replace(/"/g, '""')}"`
+}
+
 export async function getSystemDebugLogs() {
   try {
     const auth = await requirePlatformAuth(["owner", "developer"])
@@ -10,7 +16,7 @@ export async function getSystemDebugLogs() {
       return { success: false, error: auth.error }
     }
 
-    const [impersonationLogs, usageLogs, webhooks, tenantApps] = await Promise.all([
+    const [impersonationLogs, usageLogs, webhooks, rawTenantApps] = await Promise.all([
       db.impersonationLog.findMany({
         take: 50,
         orderBy: { startedAt: "desc" },
@@ -32,6 +38,11 @@ export async function getSystemDebugLogs() {
         include: { agency: { select: { name: true } }, app: true }
       })
     ])
+
+    const tenantApps = rawTenantApps.map((ta) => ({
+      ...ta,
+      config: ta.config ? "***ENCRYPTED***" : null,
+    }))
 
     return {
       success: true,
@@ -72,15 +83,19 @@ export async function getTenantInspectionDetails(agencyId: string) {
       return { success: false, error: "Tenant not found" }
     }
 
-    // Mask AI API keys and sensitive tokens before returning to client
-    if (agency.aiSettings) {
-      agency.aiSettings = agency.aiSettings.map(s => ({
+    const sanitizedAgency = {
+      ...agency,
+      aiSettings: agency.aiSettings.map((s) => ({
         ...s,
-        apiKey: s.apiKey ? "••••••••" + s.apiKey.slice(-4) : "••••••••"
-      }))
+        apiKey: s.apiKey ? "••••••••" : "••••••••",
+      })),
+      tenantApps: agency.tenantApps.map((ta) => ({
+        ...ta,
+        config: ta.config ? "***ENCRYPTED***" : null,
+      })),
     }
 
-    return { success: true, agency }
+    return { success: true, agency: sanitizedAgency }
   } catch (error: any) {
     console.error("Get tenant inspection error:", error)
     return { success: false, error: "Forbidden" }
@@ -102,8 +117,16 @@ export async function exportAuditLogs(logType: "impersonation" | "usage") {
       })
 
       const csvHeader = "ID,Admin Email,Admin Role,Target Tenant,Started At,Ended At,Reason\n"
-      const csvRows = logs.map(l => 
-        `"${l.id}","${l.adminEmail}","${l.adminRole}","${l.agency?.name || l.agencyId}","${l.startedAt.toISOString()}","${l.endedAt ? l.endedAt.toISOString() : 'Active'}","${l.reason || ''}"`
+      const csvRows = logs.map(l =>
+        [
+          csvCell(l.id),
+          csvCell(l.adminEmail),
+          csvCell(l.adminRole),
+          csvCell(l.agency?.name || l.agencyId),
+          csvCell(l.startedAt.toISOString()),
+          csvCell(l.endedAt ? l.endedAt.toISOString() : "Active"),
+          csvCell(l.reason || ""),
+        ].join(",")
       ).join("\n")
 
       return { success: true, csvContent: csvHeader + csvRows, filename: `impersonation_audit_${Date.now()}.csv` }
@@ -114,8 +137,16 @@ export async function exportAuditLogs(logType: "impersonation" | "usage") {
       })
 
       const csvHeader = "ID,Type,Amount,Base Cost,Markup,Description,Timestamp\n"
-      const csvRows = logs.map(l => 
-        `"${l.id}","${l.type}","${l.amount}","${l.cost}","${l.markup}","${l.description || ''}","${l.createdAt.toISOString()}"`
+      const csvRows = logs.map(l =>
+        [
+          csvCell(l.id),
+          csvCell(l.type),
+          csvCell(l.amount),
+          csvCell(l.cost),
+          csvCell(l.markup),
+          csvCell(l.description || ""),
+          csvCell(l.createdAt.toISOString()),
+        ].join(",")
       ).join("\n")
 
       return { success: true, csvContent: csvHeader + csvRows, filename: `usage_audit_${Date.now()}.csv` }

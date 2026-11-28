@@ -1,12 +1,14 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { motion, AnimatePresence } from "framer-motion"
-import { Building2, Users, Link as LinkIcon, Palette, CheckCircle2 } from "lucide-react"
+import { Building2, Users, Link as LinkIcon, Palette, CheckCircle2, ExternalLink, Check } from "lucide-react"
 
 import { completeOnboarding } from "@/app/actions/onboarding"
+import { inviteTeamMember } from "@/app/actions/settings"
 import { toast } from "sonner"
 
 const steps = [
@@ -17,46 +19,86 @@ const steps = [
 ]
 
 export default function OnboardingWizard() {
+  const { update } = useSession()
   const [currentStep, setCurrentStep] = useState(0)
   const [isCompleted, setIsCompleted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  
-  // Form State
+
+  // Step 1: Business Info
   const [businessName, setBusinessName] = useState("")
   const [industry, setIndustry] = useState("Digital Agency")
   const [timezone, setTimezone] = useState("UTC")
 
+  // Step 2: Team Setup (queued and dispatched once workspace is created)
+  const [inviteEmail1, setInviteEmail1] = useState("")
+  const [inviteEmail2, setInviteEmail2] = useState("")
+  const [queuedInvites, setQueuedInvites] = useState<string[]>([])
+
+  // Step 4: Branding
+  const [primaryColor, setPrimaryColor] = useState("#1A3CFF")
+
+  const queueInvite = (rawEmail: string, clearFn: (v: string) => void) => {
+    const clean = rawEmail.trim().toLowerCase()
+    if (!clean || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      toast.error("Please enter a valid colleague email address")
+      return
+    }
+    if (queuedInvites.includes(clean)) {
+      toast.info(`${clean} is already queued`)
+      return
+    }
+    setQueuedInvites((prev) => [...prev, clean])
+    clearFn("")
+    toast.success(`Queued invite for ${clean}`)
+  }
+
   const handleNext = async () => {
-    // Validate Step 1
-    if (currentStep === 0 && !businessName) {
+    if (currentStep === 0 && !businessName.trim()) {
       toast.error("Please enter a business name")
       return
     }
 
     if (currentStep < steps.length - 1) {
-      setCurrentStep(curr => curr + 1)
-    } else {
-      setIsSubmitting(true)
-      const res = await completeOnboarding({ businessName, industry, timezone })
-      
-      if (res.success) {
-        setIsCompleted(true)
-        setTimeout(() => window.location.href = "/dashboard", 2000)
-      } else {
-        toast.error(res.error || "Failed to complete onboarding")
-        setIsSubmitting(false)
-      }
+      setCurrentStep((curr) => curr + 1)
+      return
     }
+
+    setIsSubmitting(true)
+    const res = await completeOnboarding({
+      businessName,
+      industry,
+      timezone,
+      primaryColor,
+    })
+
+    if (!res.success) {
+      toast.error(res.error || "Failed to complete onboarding")
+      setIsSubmitting(false)
+      return
+    }
+
+    // Refresh the JWT session so agencyId/role take effect immediately without re-login
+    await update({ refreshTenant: true }).catch(() => {})
+
+    // Send any queued team invites now that the workspace and session agencyId exist
+    for (const email of queuedInvites) {
+      await inviteTeamMember(email, "Team Member").catch(() => {})
+    }
+
+    setIsCompleted(true)
+    setTimeout(() => {
+      window.location.href = "/dashboard"
+    }, 1200)
   }
 
   const handleBack = () => {
-    if (currentStep > 0) setCurrentStep(curr => curr - 1)
+    if (currentStep > 0) setCurrentStep((curr) => curr - 1)
   }
 
   if (isCompleted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg-secondary p-4">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="bg-bg-primary p-12 rounded-2xl shadow-soft text-center max-w-md w-full"
@@ -86,22 +128,30 @@ export default function OnboardingWizard() {
         {/* Progress Bar */}
         <div className="mb-12 flex justify-between relative">
           <div className="absolute top-1/2 left-0 w-full h-1 bg-border -z-10 -translate-y-1/2"></div>
-          <div 
+          <div
             className="absolute top-1/2 left-0 h-1 bg-primary -z-10 -translate-y-1/2 transition-all duration-500 ease-in-out"
             style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
           ></div>
-          
+
           {steps.map((step, idx) => {
             const StepIcon = step.icon
             const isActive = idx === currentStep
             const isPast = idx < currentStep
-            
+
             return (
               <div key={step.id} className="flex flex-col items-center gap-2">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-300 ${isActive || isPast ? 'bg-primary text-white' : 'bg-bg-primary border border-border text-text-secondary'}`}>
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                    isActive || isPast
+                      ? "bg-primary text-white"
+                      : "bg-bg-primary border border-border text-text-secondary"
+                  }`}
+                >
                   <StepIcon className="w-5 h-5" />
                 </div>
-                <span className={`text-xs font-medium ${isActive ? 'text-primary' : 'text-text-secondary'}`}>{step.title}</span>
+                <span className={`text-xs font-medium ${isActive ? "text-primary" : "text-text-secondary"}`}>
+                  {step.title}
+                </span>
               </div>
             )
           })}
@@ -126,9 +176,11 @@ export default function OnboardingWizard() {
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Business Name <span className="text-destructive">*</span></label>
-                      <Input 
-                        placeholder="Acme Corp" 
+                      <label className="text-sm font-medium">
+                        Business Name <span className="text-destructive">*</span>
+                      </label>
+                      <Input
+                        placeholder="Acme Agency"
                         value={businessName}
                         onChange={(e) => setBusinessName(e.target.value)}
                         autoFocus
@@ -136,7 +188,7 @@ export default function OnboardingWizard() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Industry</label>
-                      <select 
+                      <select
                         className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         value={industry}
                         onChange={(e) => setIndustry(e.target.value)}
@@ -150,7 +202,7 @@ export default function OnboardingWizard() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Timezone</label>
-                      <select 
+                      <select
                         className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         value={timezone}
                         onChange={(e) => setTimezone(e.target.value)}
@@ -174,17 +226,58 @@ export default function OnboardingWizard() {
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-2xl font-bold mb-2">Invite your team</h2>
-                    <p className="text-text-secondary">Collaboration makes everything better.</p>
+                    <p className="text-text-secondary">
+                      Queue teammates to join your workspace as soon as setup completes.
+                    </p>
                   </div>
                   <div className="space-y-4">
                     <div className="flex gap-2">
-                      <Input placeholder="colleague@company.com" className="flex-1" />
-                      <Button variant="secondary">Send Invite</Button>
+                      <Input
+                        type="email"
+                        placeholder="colleague@company.com"
+                        className="flex-1"
+                        value={inviteEmail1}
+                        onChange={(e) => setInviteEmail1(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => queueInvite(inviteEmail1, setInviteEmail1)}
+                      >
+                        Send Invite
+                      </Button>
                     </div>
                     <div className="flex gap-2">
-                      <Input placeholder="another@company.com" className="flex-1" />
-                      <Button variant="secondary">Send Invite</Button>
+                      <Input
+                        type="email"
+                        placeholder="another@company.com"
+                        className="flex-1"
+                        value={inviteEmail2}
+                        onChange={(e) => setInviteEmail2(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => queueInvite(inviteEmail2, setInviteEmail2)}
+                      >
+                        Send Invite
+                      </Button>
                     </div>
+                    {queuedInvites.length > 0 && (
+                      <div className="pt-2 space-y-1.5">
+                        <p className="text-xs font-medium text-text-secondary uppercase">Queued Team Invites</p>
+                        <div className="flex flex-wrap gap-2">
+                          {queuedInvites.map((email) => (
+                            <span
+                              key={email}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium"
+                            >
+                              <Check className="w-3 h-3" /> {email}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -193,28 +286,50 @@ export default function OnboardingWizard() {
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-2xl font-bold mb-2">Connect your tools</h2>
-                    <p className="text-text-secondary">Sync your data automatically.</p>
+                    <p className="text-text-secondary">
+                      Open payment or integration settings after finishing setup, or configure them right now in a new tab.
+                    </p>
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 border border-border rounded-xl">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-[#635BFF] text-white rounded-lg flex items-center justify-center font-bold">S</div>
+                        <div className="w-10 h-10 bg-[#635BFF] text-white rounded-lg flex items-center justify-center font-bold">
+                          S
+                        </div>
                         <div>
                           <h4 className="font-semibold">Stripe</h4>
                           <p className="text-xs text-text-secondary">Global Payments</p>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm">Connect</Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open("/settings/billing", "_blank")}
+                        className="gap-1.5"
+                      >
+                        Connect <ExternalLink className="w-3 h-3" />
+                      </Button>
                     </div>
                     <div className="flex items-center justify-between p-4 border border-border rounded-xl">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-[#0BA4DB] text-white rounded-lg flex items-center justify-center font-bold">P</div>
+                        <div className="w-10 h-10 bg-[#0BA4DB] text-white rounded-lg flex items-center justify-center font-bold">
+                          P
+                        </div>
                         <div>
-                          <h4 className="font-semibold">Paystack</h4>
-                          <p className="text-xs text-text-secondary">African Payments</p>
+                          <h4 className="font-semibold">Paystack & Channels</h4>
+                          <p className="text-xs text-text-secondary">African Payments & Messaging</p>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm">Connect</Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open("/settings/integrations", "_blank")}
+                        className="gap-1.5"
+                      >
+                        Connect <ExternalLink className="w-3 h-3" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -224,22 +339,29 @@ export default function OnboardingWizard() {
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-2xl font-bold mb-2">Make it yours</h2>
-                    <p className="text-text-secondary">Set up your brand colors and logo.</p>
+                    <p className="text-text-secondary">Set up your primary brand color now; full branding tools await in Settings.</p>
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label className="text-sm font-medium">Primary Brand Color</label>
                       <div className="flex gap-4">
-                        <Input type="color" defaultValue="#1A3CFF" className="w-16 h-10 p-1" />
-                        <Input defaultValue="#1A3CFF" className="flex-1" />
+                        <Input
+                          type="color"
+                          value={/^#[0-9a-fA-F]{6}$/.test(primaryColor) ? primaryColor : "#1A3CFF"}
+                          onChange={(e) => setPrimaryColor(e.target.value)}
+                          className="w-16 h-10 p-1"
+                        />
+                        <Input
+                          value={primaryColor}
+                          onChange={(e) => setPrimaryColor(e.target.value)}
+                          placeholder="#1A3CFF"
+                          className="flex-1"
+                        />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Upload Logo</label>
-                      <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-bg-secondary transition-colors cursor-pointer">
-                        <Palette className="w-8 h-8 mx-auto text-text-secondary mb-2" />
-                        <p className="text-sm text-text-secondary">Click to upload or drag and drop</p>
-                      </div>
+                    <div className="p-4 border border-border rounded-xl bg-bg-secondary/40 text-xs text-text-secondary">
+                      Custom logos, white-label domains, and email headers can be uploaded anytime in{" "}
+                      <span className="font-medium text-text-primary">Settings → Branding</span> once your workspace is ready.
                     </div>
                   </div>
                 </div>
@@ -248,8 +370,8 @@ export default function OnboardingWizard() {
           </AnimatePresence>
 
           <div className="pt-8 mt-auto flex justify-between border-t border-border">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={handleBack}
               disabled={currentStep === 0}
               className={currentStep ? "" : "opacity-0 pointer-events-none"}
@@ -257,7 +379,11 @@ export default function OnboardingWizard() {
               Back
             </Button>
             <Button onClick={handleNext} disabled={isSubmitting}>
-              {currentStep === steps.length - 1 ? (isSubmitting ? "Setting up..." : "Complete Setup") : "Continue"}
+              {currentStep === steps.length - 1
+                ? isSubmitting
+                  ? "Setting up..."
+                  : "Complete Setup"
+                : "Continue"}
             </Button>
           </div>
         </div>

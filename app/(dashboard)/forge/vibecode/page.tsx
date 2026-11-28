@@ -310,7 +310,7 @@ ${code}
                 srcDoc={generatedCode}
                 className="w-full h-full"
                 title="vibecode-preview"
-                sandbox="allow-scripts allow-same-origin"
+                sandbox="allow-scripts"
               />
             )}
           </div>
