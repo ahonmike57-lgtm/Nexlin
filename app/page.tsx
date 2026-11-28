@@ -95,7 +95,7 @@ export default function Home() {
         <section className="relative pt-24 pb-20 px-4 sm:px-8 max-w-7xl mx-auto flex flex-col items-center text-center">
           {/* Animated Announcement Pill */}
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold text-primary mb-8 shadow-sm backdrop-blur-md"
@@ -107,7 +107,7 @@ export default function Home() {
 
           {/* Hero Heading with Gradient Stagger */}
           <motion.h1
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight max-w-5xl leading-[1.08] mb-6"
@@ -120,7 +120,7 @@ export default function Home() {
 
           {/* Subtitle */}
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
             className="max-w-2xl text-base sm:text-xl text-text-secondary mb-10 leading-relaxed"
@@ -130,7 +130,7 @@ export default function Home() {
 
           {/* Call to Actions */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto"
@@ -150,7 +150,7 @@ export default function Home() {
           {/* Interactive Hero App Interface Preview */}
           {/* Interactive Laptop Hero Display */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 40 }}
+            initial={false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
             className="mt-16 w-full max-w-5xl rounded-3xl p-3 sm:p-4 bg-slate-950/90 dark:bg-neutral-950 border border-slate-800 shadow-2xl relative"

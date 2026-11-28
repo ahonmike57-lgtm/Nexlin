@@ -189,6 +189,7 @@ export default withAuth(
           "/api/twilio/incoming-call",
           "/api/v1/webhooks/inbound/",
           "/api/forge/submit",
+          "/api/monitoring/client-error",
           "/api/geo",
           "/api/og",
           "/api/t/",

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { withAgency } from "@/lib/tenant"
 import { db } from "@/lib/db"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimitAsync } from "@/lib/rate-limit"
 import { requireTenantAuth } from "@/lib/permissions"
 import { triggerFormSubmissionWorkflowInternal } from "@/lib/workflow-engine"
 import { generateAiReply } from "./ai"
@@ -11,22 +11,103 @@ import { generateAiReply } from "./ai"
 export const getForms = withAgency(async ({ db }) => {
   return db.form.findMany({
     where: {},
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: {
+        select: { submissions: true },
+      },
+    },
   })
 })
 
 export const createForm = withAgency(
   async ({ db, agencyId }, name: string) => {
+    const cleanName = name.trim()
+    if (!cleanName) throw new Error("Form name is required")
+
     const form = await db.form.create({
       data: {
         agencyId,
-        name,
-        fields: "[]"
-      }
+        name: cleanName,
+        fields: "[]",
+      },
+      include: {
+        _count: {
+          select: { submissions: true },
+        },
+      },
     })
 
     revalidatePath("/forms")
     return form
+  }
+)
+
+export const duplicateForm = withAgency(
+  async ({ db, agencyId }, id: string) => {
+    const source = await db.form.findFirst({ where: { id } })
+    if (!source) throw new Error("Form not found or access denied")
+
+    const copy = await db.form.create({
+      data: {
+        agencyId,
+        name: `${source.name} (Copy)`,
+        fields: source.fields,
+        isActive: source.isActive,
+      },
+      include: {
+        _count: {
+          select: { submissions: true },
+        },
+      },
+    })
+
+    revalidatePath("/forms")
+    return copy
+  }
+)
+
+export const getFormSubmissions = withAgency(
+  async ({ db }, formId: string) => {
+    const form = await db.form.findFirst({
+      where: { id: formId },
+      select: { id: true, name: true },
+    })
+    if (!form) throw new Error("Form not found or access denied")
+
+    const rows = await db.formSubmission.findMany({
+      where: { formId: form.id },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    })
+
+    const submissions = rows.map((row: { id: string; contactId: string | null; data: string; createdAt: Date }) => {
+      let parsed: Record<string, unknown> = {}
+      if (row.data) {
+        try {
+          const val = JSON.parse(row.data)
+          if (val && typeof val === "object" && !Array.isArray(val)) {
+            parsed = val as Record<string, unknown>
+          } else {
+            parsed = { value: String(val) }
+          }
+        } catch {
+          parsed = { raw: row.data }
+        }
+      }
+      return {
+        id: row.id,
+        contactId: row.contactId,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+        data: parsed,
+      }
+    })
+
+    return {
+      formId: form.id,
+      formName: form.name,
+      submissions,
+    }
   }
 )
 
@@ -119,7 +200,7 @@ export async function getPublicForm(id: string) {
 
 export async function submitPublicForm(formId: string, values: Record<string, any>) {
   try {
-    const rl = checkRateLimit(`form:${formId}`, {
+    const rl = await checkRateLimitAsync(`form:${formId}`, {
       maxRequests: 30,
       windowSeconds: 60,
     })

@@ -3,6 +3,11 @@
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, RefreshCw, LayoutDashboard } from "lucide-react"
+import {
+  attemptOneShotReload,
+  isDeploymentSkewError,
+  reportClientError,
+} from "@/lib/chunk-recovery"
 
 export default function DashboardError({
   error,
@@ -11,8 +16,14 @@ export default function DashboardError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const skew = isDeploymentSkewError(error)
+
   useEffect(() => {
     console.error("Dashboard route error boundary:", error)
+    reportClientError(error, "dashboard")
+    if (isDeploymentSkewError(error)) {
+      attemptOneShotReload()
+    }
   }, [error])
 
   return (
@@ -27,20 +38,22 @@ export default function DashboardError({
             NEXLIN Dashboard Notice
           </h2>
           <p className="text-xs text-text-secondary">
-            Your session updated smoothly. Click reload to refresh this workspace module.
+            {skew
+              ? "A new workspace release just went live. Reload to refresh the latest modules."
+              : "Your session updated smoothly. Click reload to refresh this workspace module."}
           </p>
         </div>
 
         <div className="flex justify-center gap-3 pt-2">
-          <Button 
-            onClick={() => reset()} 
+          <Button
+            onClick={() => (skew ? window.location.reload() : reset())}
             className="bg-primary hover:bg-primary/90 text-white font-semibold gap-2 text-xs"
           >
             <RefreshCw className="w-4 h-4" /> Reload Page
           </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => window.location.href = "/dashboard"} 
+          <Button
+            variant="outline"
+            onClick={() => (window.location.href = "/dashboard")}
             className="text-xs gap-2"
           >
             <LayoutDashboard className="w-4 h-4" /> Return to Dashboard

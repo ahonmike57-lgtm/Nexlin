@@ -19,6 +19,13 @@ export async function GET() {
       )?.trim()
     )
 
+    const hasMonitoring = Boolean(
+      (
+        process.env.SENTRY_DSN ||
+        process.env.ERROR_REPORTING_WEBHOOK_URL
+      )?.trim()
+    )
+
     return NextResponse.json(
       {
         status: "healthy",
@@ -36,6 +43,7 @@ export async function GET() {
               : "unconfigured",
           email: process.env.RESEND_API_KEY?.trim() ? "configured" : "unconfigured",
           aiEngine: hasAiKey ? "configured" : "unconfigured",
+          monitoring: hasMonitoring ? "configured" : "structured-logs",
         },
       },
       { status: 200 }
