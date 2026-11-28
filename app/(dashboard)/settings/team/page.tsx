@@ -14,5 +14,5 @@ export default async function TeamPage() {
   const response = await getTeamMembers()
   const team = response.data || []
 
-  return <TeamClient initialTeam={team} />
+  return <TeamClient initialTeam={team} currentUserId={session.user.id} />
 }

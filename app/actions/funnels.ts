@@ -3,7 +3,7 @@
 import crypto from "crypto"
 import { revalidatePath } from "next/cache"
 import { db as rawDb } from "@/lib/db"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimitAsync } from "@/lib/rate-limit"
 import { withAgency } from "@/lib/tenant"
 import { triggerFormSubmissionWorkflowInternal } from "@/lib/workflow-engine"
 import { generateAiReply } from "./ai"
@@ -577,7 +577,7 @@ export async function getLiveFunnelStep(subdomain: string, slug: string) {
 
 export async function submitLiveFunnelForm(subdomain: string, formData: any) {
   try {
-    const rl = checkRateLimit(`funnel-submit:${subdomain}`, {
+    const rl = await checkRateLimitAsync(`funnel-submit:${subdomain}`, {
       maxRequests: 20,
       windowSeconds: 60,
     })

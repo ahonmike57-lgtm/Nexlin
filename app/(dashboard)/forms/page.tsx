@@ -11,33 +11,7 @@ export default async function FormsPage() {
 
   const agencyId = await getOrCreateAgency()
   const res = await getForms()
-  let initialForms = 'data' in res && res.data ? res.data : []
-
-  // Mock some data if empty
-  if (initialForms.length === 0) {
-    initialForms = [
-      {
-        id: "mock-1",
-        agencyId: agencyId,
-        name: "Lead Capture Form",
-        fields: "[]",
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        _count: { submissions: 14 }
-      },
-      {
-        id: "mock-2",
-        agencyId: agencyId,
-        name: "Customer Survey",
-        fields: "[]",
-        isActive: true,
-        createdAt: new Date(Date.now() - 86400000 * 5),
-        updatedAt: new Date(Date.now() - 86400000 * 5),
-        _count: { submissions: 42 }
-      }
-    ] as any
-  }
+  const initialForms = "data" in res && res.data ? res.data : []
 
   return <FormsClient initialForms={initialForms} agencyId={agencyId} />
 }

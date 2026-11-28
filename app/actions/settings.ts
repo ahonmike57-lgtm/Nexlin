@@ -1,5 +1,7 @@
 "use server"
 
+import crypto from "crypto"
+import { Resend } from "resend"
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireTenantAuth } from "@/lib/permissions"
@@ -98,15 +100,23 @@ export async function getTeamMembers() {
 
     const members = await db.user.findMany({
       where: whereClause,
+      orderBy: { createdAt: "asc" },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
-        createdAt: true
+        createdAt: true,
+        passwordHash: true,
       }
     })
-    return { success: true, data: members }
+    return {
+      success: true,
+      data: members.map(({ passwordHash, ...member }) => ({
+        ...member,
+        status: passwordHash ? ("active" as const) : ("pending" as const),
+      }))
+    }
   } catch (error) {
     console.error("Failed to fetch team:", error)
     return { success: false, error: "Failed to fetch team members" }
@@ -120,6 +130,78 @@ const ALLOWED_TEAM_ROLES = new Set([
   "Support Agent",
   "Read Only",
 ])
+
+async function issueTeamInviteTokenAndEmail(params: {
+  email: string
+  agencyId: string
+  role: string
+}): Promise<{ emailSent: boolean; inviteUrl: string }> {
+  const cleanEmail = params.email.trim().toLowerCase()
+  const rawToken = crypto.randomBytes(24).toString("hex")
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex")
+  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+  await db.verificationToken.deleteMany({
+    where: { identifier: cleanEmail },
+  })
+
+  await db.verificationToken.create({
+    data: {
+      identifier: cleanEmail,
+      token: tokenHash,
+      expires,
+    },
+  })
+
+  const appUrl = (
+    process.env.NEXTAUTH_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://nexlin-virid.vercel.app"
+  ).replace(/\/$/, "")
+
+  const inviteUrl = `${appUrl}/reset-password?token=${encodeURIComponent(rawToken)}`
+
+  const resendKey = process.env.RESEND_API_KEY?.trim()
+  if (!resendKey) {
+    return { emailSent: false, inviteUrl }
+  }
+
+  try {
+    const agency = await db.agency.findUnique({
+      where: { id: params.agencyId },
+      select: { name: true, whiteLabelName: true },
+    })
+    const workspaceName = (agency?.whiteLabelName || agency?.name || "Nexlin").replace(/[<>]/g, "")
+    const safeRole = params.role.replace(/[<>]/g, "")
+
+    const resend = new Resend(resendKey)
+    const result = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "Nexlin <onboarding@resend.dev>",
+      to: cleanEmail,
+      subject: `You've been invited to join ${workspaceName} on Nexlin`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
+          <h2 style="margin-bottom: 12px;">You're invited to ${workspaceName}</h2>
+          <p>You have been added as <strong>${safeRole}</strong>. Set your password to activate your account and sign in:</p>
+          <div style="margin: 28px 0;">
+            <a href="${inviteUrl}" style="background-color: #111827; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Set Your Password</a>
+          </div>
+          <p style="font-size: 13px; color: #6b7280;">This invite link expires in 7 days. If you did not expect this invitation, you can ignore this email.</p>
+        </div>
+      `,
+    })
+
+    if (result && typeof result === "object" && "error" in result && result.error) {
+      console.error("Resend team invite error:", result.error)
+      return { emailSent: false, inviteUrl }
+    }
+
+    return { emailSent: true, inviteUrl }
+  } catch (error) {
+    console.error("Failed to send team invite email:", error)
+    return { emailSent: false, inviteUrl }
+  }
+}
 
 export async function inviteTeamMember(email: string, role: string) {
   const auth = await requireTenantAuth("admin")
@@ -164,14 +246,146 @@ export async function inviteTeamMember(email: string, role: string) {
         email: cleanEmail,
         role: normalizedRole,
         name: cleanEmail.split("@")[0]
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
       }
     })
 
+    const { emailSent, inviteUrl } = await issueTeamInviteTokenAndEmail({
+      email: cleanEmail,
+      agencyId: auth.agencyId,
+      role: normalizedRole,
+    })
+
     revalidatePath("/settings/team")
-    return { success: true, data: user }
+    return {
+      success: true,
+      data: { ...user, status: "pending" as const },
+      emailSent,
+      inviteUrl,
+    }
   } catch (error: any) {
     console.error("Failed to invite member:", error)
     return { success: false, error: error.message || "Failed to invite member" }
+  }
+}
+
+export async function resendTeamInvite(memberId: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    const member = await db.user.findFirst({
+      where: { id: memberId, agencyId: auth.agencyId },
+      select: { id: true, email: true, role: true },
+    })
+
+    if (!member || !member.email) {
+      return { success: false, error: "Team member or email address not found." }
+    }
+
+    const { emailSent, inviteUrl } = await issueTeamInviteTokenAndEmail({
+      email: member.email,
+      agencyId: auth.agencyId,
+      role: member.role,
+    })
+
+    return { success: true, emailSent, inviteUrl }
+  } catch (error: any) {
+    console.error("Failed to resend invite:", error)
+    return { success: false, error: error.message || "Failed to resend invite" }
+  }
+}
+
+export async function updateTeamMemberRole(memberId: string, role: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    const normalizedRole = ALLOWED_TEAM_ROLES.has(role) ? role : null
+    if (!normalizedRole) {
+      return {
+        success: false,
+        error: "Invalid role. Allowed roles: Team Member, Agency Admin, Sales Rep, Support Agent, Read Only.",
+      }
+    }
+
+    if (memberId === auth.userId) {
+      return { success: false, error: "You cannot change your own role." }
+    }
+
+    const target = await db.user.findFirst({
+      where: { id: memberId, agencyId: auth.agencyId },
+      select: { id: true, role: true },
+    })
+    if (!target) {
+      return { success: false, error: "Team member not found." }
+    }
+
+    if (target.role === "Agency Owner") {
+      return { success: false, error: "Cannot modify the Agency Owner role." }
+    }
+
+    await db.user.updateMany({
+      where: { id: memberId, agencyId: auth.agencyId },
+      data: { role: normalizedRole },
+    })
+
+    revalidatePath("/settings/team")
+    return { success: true, data: { id: memberId, role: normalizedRole } }
+  } catch (error: any) {
+    console.error("Failed to update team member role:", error)
+    return { success: false, error: error.message || "Failed to update role" }
+  }
+}
+
+export async function removeTeamMember(memberId: string) {
+  const auth = await requireTenantAuth("admin")
+  if (!auth.authorized || !auth.agencyId) {
+    return { success: false, error: auth.error || "Unauthorized" }
+  }
+
+  try {
+    if (memberId === auth.userId) {
+      return { success: false, error: "You cannot remove yourself from the workspace." }
+    }
+
+    const target = await db.user.findFirst({
+      where: { id: memberId, agencyId: auth.agencyId },
+      select: { id: true, email: true, role: true },
+    })
+    if (!target) {
+      return { success: false, error: "Team member not found." }
+    }
+
+    if (target.role === "Agency Owner") {
+      return { success: false, error: "Cannot remove the Agency Owner." }
+    }
+
+    if (target.email) {
+      await db.verificationToken.deleteMany({
+        where: { identifier: target.email.toLowerCase() },
+      })
+    }
+
+    await db.user.deleteMany({
+      where: { id: memberId, agencyId: auth.agencyId },
+    })
+
+    revalidatePath("/settings/team")
+    return { success: true }
+  } catch (error: any) {
+    console.error("Failed to remove team member:", error)
+    return { success: false, error: error.message || "Failed to remove team member" }
   }
 }
 

@@ -13,7 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "scripts/**",
-    "voice-server.js",
+    "playwright-report/**",
+    "test-results/**",
   ]),
   {
     rules: {

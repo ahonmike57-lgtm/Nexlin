@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { pusherServer } from "@/lib/pusher"
 import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimitAsync } from "@/lib/rate-limit"
 import { logWebhookDelivery, verifyApiKeyForAgency, verifySharedSecret } from "@/lib/webhooks"
 
 /**
@@ -12,7 +12,7 @@ import { logWebhookDelivery, verifyApiKeyForAgency, verifySharedSecret } from "@
  */
 export async function POST(req: NextRequest) {
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
-  const rateLimit = checkRateLimit(`omnichannel-inbound:${clientIp}`, { maxRequests: 120, windowSeconds: 60 })
+  const rateLimit = await checkRateLimitAsync(`omnichannel-inbound:${clientIp}`, { maxRequests: 120, windowSeconds: 60 })
 
   if (!rateLimit.allowed) {
     return NextResponse.json(

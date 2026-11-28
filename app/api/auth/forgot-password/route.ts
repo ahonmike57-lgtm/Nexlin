@@ -2,14 +2,14 @@ import crypto from "crypto"
 import { NextResponse } from "next/server"
 import { Resend } from "resend"
 import { db } from "@/lib/db"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimitAsync } from "@/lib/rate-limit"
 
 export async function POST(req: Request) {
   try {
     const forwarded = req.headers.get("x-forwarded-for")
     const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown"
 
-    const ipLimit = checkRateLimit(`forgot-pw-ip:${ip}`, {
+    const ipLimit = await checkRateLimitAsync(`forgot-pw-ip:${ip}`, {
       maxRequests: 5,
       windowSeconds: 900,
     })
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
     const cleanEmail = email.trim().toLowerCase()
 
-    const emailLimit = checkRateLimit(`forgot-pw-email:${cleanEmail}`, {
+    const emailLimit = await checkRateLimitAsync(`forgot-pw-email:${cleanEmail}`, {
       maxRequests: 3,
       windowSeconds: 900,
     })

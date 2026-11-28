@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { inngest } from "@/lib/inngest/client"
 import { logWebhookDelivery, verifyApiKeyForAgency, verifySharedSecret } from "@/lib/webhooks"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimitAsync } from "@/lib/rate-limit"
 
 /**
  * Universal Inbound Webhook Trigger Gateway
@@ -17,7 +17,7 @@ export async function POST(
 
   // Rate Limiting (120 requests/minute per IP)
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown-ip"
-  const rateLimit = checkRateLimit(`inbound-wh:${workflowId}:${clientIp}`, { maxRequests: 120, windowSeconds: 60 })
+  const rateLimit = await checkRateLimitAsync(`inbound-wh:${workflowId}:${clientIp}`, { maxRequests: 120, windowSeconds: 60 })
 
   if (!rateLimit.allowed) {
     return NextResponse.json(

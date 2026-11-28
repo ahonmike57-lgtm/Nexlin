@@ -1,6 +1,8 @@
 /**
- * In-Memory Sliding-Window Rate Limiter for Next.js API Routes and Server Actions.
- * Tracks request counts within rolling time windows.
+ * Sliding-Window Rate Limiter for Next.js API Routes and Server Actions.
+ * Uses Upstash Redis REST (when UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN
+ * are configured) for distributed enforcement across serverless instances, and
+ * falls back cleanly to a bounded in-memory sliding-window store.
  */
 
 interface RateLimitRecord {
@@ -65,7 +67,7 @@ export function checkRateLimit(
     return {
       allowed: false,
       remaining: 0,
-      resetInSeconds: Math.max(1, resetInSeconds)
+      resetInSeconds: Math.max(1, resetInSeconds),
     }
   }
 
@@ -73,6 +75,58 @@ export function checkRateLimit(
   return {
     allowed: true,
     remaining: options.maxRequests - record.timestamps.length,
-    resetInSeconds: options.windowSeconds
+    resetInSeconds: options.windowSeconds,
+  }
+}
+
+export async function checkRateLimitAsync(
+  identifier: string,
+  options: RateLimitOptions = { maxRequests: 60, windowSeconds: 60 }
+): Promise<RateLimitResult> {
+  const upstashUrl = process.env.UPSTASH_REDIS_REST_URL?.trim()
+  const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
+
+  if (!upstashUrl || !upstashToken) {
+    return checkRateLimit(identifier, options)
+  }
+
+  const windowSeconds = Math.max(1, Math.floor(options.windowSeconds))
+  const windowMs = windowSeconds * 1000
+  const now = Date.now()
+  const bucket = Math.floor(now / windowMs)
+  const bucketKey = `rl:${identifier}:${bucket}`
+  const resetInSeconds = Math.max(1, Math.ceil(((bucket + 1) * windowMs - now) / 1000))
+
+  try {
+    const res = await fetch(`${upstashUrl.replace(/\/$/, "")}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${upstashToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([
+        ["INCR", bucketKey],
+        ["EXPIRE", bucketKey, windowSeconds, "NX"],
+      ]),
+      signal: AbortSignal.timeout(1500),
+    })
+
+    if (!res.ok) {
+      return checkRateLimit(identifier, options)
+    }
+
+    const data = (await res.json()) as Array<{ result?: unknown; error?: string }>
+    const rawCount = Array.isArray(data) ? Number(data[0]?.result) : NaN
+    if (!Number.isFinite(rawCount) || rawCount <= 0) {
+      return checkRateLimit(identifier, options)
+    }
+
+    return {
+      allowed: rawCount <= options.maxRequests,
+      remaining: Math.max(0, options.maxRequests - rawCount),
+      resetInSeconds,
+    }
+  } catch {
+    return checkRateLimit(identifier, options)
   }
 }

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimitAsync } from "@/lib/rate-limit"
 import { triggerWorkflowsInternal } from "@/lib/workflow-engine"
 
 export async function POST(request: Request) {
   // IP / Header Rate Limiting (60 requests per minute per IP)
   const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown-ip"
-  const rateLimit = checkRateLimit(`forge-submit:${clientIp}`, { maxRequests: 60, windowSeconds: 60 })
+  const rateLimit = await checkRateLimitAsync(`forge-submit:${clientIp}`, { maxRequests: 60, windowSeconds: 60 })
 
   if (!rateLimit.allowed) {
     return NextResponse.json(

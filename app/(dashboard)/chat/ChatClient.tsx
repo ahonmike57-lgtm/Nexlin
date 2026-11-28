@@ -293,6 +293,7 @@ export default function ChatClient({
     // Subscribe to live Pusher events for the selected conversation
     try {
       const pusherClient = getPusherClient()
+      if (!pusherClient) return
       const channelName = `conversation-${selected.id}`
       const channel = pusherClient.subscribe(channelName)
 

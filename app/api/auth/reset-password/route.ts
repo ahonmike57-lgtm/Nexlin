@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { db } from "@/lib/db"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimitAsync } from "@/lib/rate-limit"
 
 const BCRYPT_ROUNDS = 12
 const MIN_PASSWORD_LENGTH = 8
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     const forwarded = req.headers.get("x-forwarded-for")
     const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown"
 
-    const ipLimit = checkRateLimit(`reset-pw-ip:${ip}`, {
+    const ipLimit = await checkRateLimitAsync(`reset-pw-ip:${ip}`, {
       maxRequests: 10,
       windowSeconds: 900,
     })

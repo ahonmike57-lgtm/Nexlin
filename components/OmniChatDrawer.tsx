@@ -123,6 +123,11 @@ export function OmniChatDrawer() {
     // Subscribe to live Pusher events for this thread
     const channelName = `conversation-${activeThreadId}`
     const pusher = getPusherClient()
+    if (!pusher) {
+      return () => {
+        isSubscribed = false
+      }
+    }
     const pusherChan = pusher.subscribe(channelName)
 
     pusherChan.bind("new-message", (incoming: any) => {
