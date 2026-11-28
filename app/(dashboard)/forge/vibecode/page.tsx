@@ -1,17 +1,44 @@
 "use client"
 
 import { useState, useRef, useEffect, Suspense } from "react"
+import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { generateAiReply } from "@/app/actions/ai"
 import { savePromptTemplate } from "@/app/actions/prompts"
-import { publishVibecodeToFunnel } from "@/app/actions/funnels"
+import {
+  generateWebsitePageWithAi,
+  getFunnels,
+  publishVibecodeToFunnel,
+  type BuilderTheme,
+} from "@/app/actions/funnels"
 import { VIBECODE_PROMPTS } from "@/lib/vibecode-prompts"
 import { toast } from "sonner"
 import {
-  Code2, Copy, Save, Play, Loader2, Sparkles, CheckCheck, Mic, MicOff, Rocket, ExternalLink
+  Code2,
+  Copy,
+  Save,
+  Play,
+  Loader2,
+  CheckCheck,
+  Mic,
+  MicOff,
+  Rocket,
+  ExternalLink,
+  Eye,
+  Monitor,
+  Tablet,
+  Smartphone,
+  RotateCcw,
+  Wand2,
 } from "lucide-react"
 
 const CATEGORIES = ["Landing Pages", "CRM Widgets", "Email Templates", "Automations", "Forms", "Voice AI"]
+
+const THEMES: Array<{ value: BuilderTheme; label: string }> = [
+  { value: "clean-light", label: "Clean Light" },
+  { value: "modern-dark", label: "Modern Dark" },
+  { value: "bold-agency", label: "Bold Agency" },
+  { value: "minimal", label: "Minimal" },
+]
 
 declare global {
   interface Window {
@@ -26,6 +53,11 @@ function VibecodeLabInner() {
 
   const [prompt, setPrompt] = useState(initialPrompt)
   const [generatedCode, setGeneratedCode] = useState("")
+  const [theme, setTheme] = useState<BuilderTheme>("clean-light")
+  const [aiMode, setAiMode] = useState<"generate" | "edit">("generate")
+  const [rightTab, setRightTab] = useState<"preview" | "code">("preview")
+  const [viewport, setViewport] = useState<"desktop" | "tablet" | "mobile">("desktop")
+
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [listening, setListening] = useState(false)
@@ -42,64 +74,66 @@ function VibecodeLabInner() {
   const [saveCategory, setSaveCategory] = useState("Landing Pages")
   const [saving, setSaving] = useState(false)
 
-  // Publish to Funnel state
+  // Publish modal state
   const [publishOpen, setPublishOpen] = useState(false)
+  const [publishTarget, setPublishTarget] = useState<"new" | "existing">("new")
+  const [existingSites, setExistingSites] = useState<Array<{ id: string; name: string; subdomain: string | null }>>([])
+  const [selectedSiteId, setSelectedSiteId] = useState("")
   const [funnelName, setFunnelName] = useState("AI Landing Page")
   const [publishing, setPublishing] = useState(false)
-  const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
+  const [publishedResult, setPublishedResult] = useState<{ liveUrl: string; funnelId: string } | null>(null)
 
   const recognitionRef = useRef<any>(null)
 
+  const openPublishModal = async () => {
+    setPublishedResult(null)
+    setPublishOpen(true)
+    const res = await getFunnels()
+    if (res.success && Array.isArray(res.data)) {
+      setExistingSites(res.data)
+      if (res.data.length > 0 && !selectedSiteId) {
+        setSelectedSiteId(res.data[0].id)
+      }
+    }
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return
+    const effectiveMode = aiMode === "edit" && generatedCode.trim() ? "edit" : "generate"
+
     setLoading(true)
-    setGeneratedCode("")
-    setPublishedUrl(null)
+    setPublishedResult(null)
+
     try {
-      const res = await generateAiReply(
-        "",
-        `You are an expert frontend developer who generates beautiful, self-contained HTML+CSS code.
+      const res = await generateWebsitePageWithAi({
+        prompt,
+        currentHtml: effectiveMode === "edit" ? generatedCode : undefined,
+        mode: effectiveMode,
+        theme,
+        siteName: funnelName || "AI Landing Page",
+        pageName: "Home",
+      })
 
-User request: "${prompt}"
-
-STRICT RULES:
-1. Return ONLY raw HTML — no markdown fences, no explanations, no comments outside the HTML.
-2. Always start with <!DOCTYPE html>
-3. Include <script src="https://cdn.tailwindcss.com"></script> in the <head>.
-4. Use dark mode colors: background #0f172a, primary #6366f1, text #f8fafc.
-5. Make the UI visually polished with rounded corners, shadows, and smooth hover transitions.
-6. The HTML must be entirely self-contained and renderable in a sandboxed iframe.`
-      )
-
-      if (res.success && res.data) {
-        let code = res.data
-          .replace(/```html\n?/gi, "")
-          .replace(/```\n?/g, "")
-          .trim()
-
-        if (!code.toLowerCase().startsWith("<!doctype")) {
-          code = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-900 text-white min-h-screen p-8">
-${code}
-</body>
-</html>`
-        }
-
-        setGeneratedCode(code)
-        toast.success("Code generated!")
+      if (res.success && res.data?.html) {
+        setGeneratedCode(res.data.html)
+        setAiMode("edit")
+        setRightTab("preview")
+        if (effectiveMode === "edit") setPrompt("")
+        toast.success(effectiveMode === "edit" ? "Page updated!" : "Page generated!")
       } else {
-        toast.error("Generation failed — check your AI settings")
+        toast.error(!res.success ? res.error : "Generation failed — check your AI settings")
       }
     } catch {
       toast.error("Failed to generate code")
     }
     setLoading(false)
+  }
+
+  const handleReset = () => {
+    setGeneratedCode("")
+    setAiMode("generate")
+    setPublishedResult(null)
+    setRightTab("preview")
   }
 
   const handleCopy = () => {
@@ -143,8 +177,14 @@ ${code}
   }
 
   const handleSave = async () => {
-    if (!saveName.trim()) { toast.error("Template name is required"); return }
-    if (!prompt.trim()) { toast.error("Prompt is empty"); return }
+    if (!saveName.trim()) {
+      toast.error("Template name is required")
+      return
+    }
+    if (!prompt.trim()) {
+      toast.error("Prompt is empty")
+      return
+    }
     setSaving(true)
     const res = await savePromptTemplate({ name: saveName, category: saveCategory, prompt })
     setSaving(false)
@@ -161,16 +201,20 @@ ${code}
     if (!generatedCode) return
     setPublishing(true)
     const res = await publishVibecodeToFunnel({
-      name: funnelName,
+      name: publishTarget === "new" ? funnelName : "",
       htmlContent: generatedCode,
+      existingFunnelId: publishTarget === "existing" ? selectedSiteId : undefined,
     })
     setPublishing(false)
 
     if (res.success && res.data) {
-      setPublishedUrl(res.data.liveUrl)
+      setPublishedResult({
+        liveUrl: res.data.liveUrl,
+        funnelId: res.data.funnelId,
+      })
       toast.success(`Published live to Funnel: ${res.data.subdomain}!`)
     } else {
-      toast.error('error' in res ? res.error : "Failed to publish funnel")
+      toast.error(!res.success ? res.error : "Failed to publish funnel")
     }
   }
 
@@ -184,13 +228,21 @@ ${code}
             Vibecode Lab
           </h1>
           <p className="text-sm text-text-secondary mt-0.5">
-            Describe a UI component or landing page — AI generates and deploys it live in seconds.
+            Generate, iteratively refine with AI or raw HTML, and publish or update live sites with CRM lead capture.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-text-secondary">
-          <kbd className="px-1.5 py-0.5 rounded bg-bg-secondary border border-border font-mono">⌘</kbd>
-          <kbd className="px-1.5 py-0.5 rounded bg-bg-secondary border border-border font-mono">Enter</kbd>
-          <span>to generate</span>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/forge"
+            className="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary hover:text-primary hover:border-primary/50"
+          >
+            Open Multi-Page Studio →
+          </Link>
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-text-secondary">
+            <kbd className="px-1.5 py-0.5 rounded bg-bg-secondary border border-border font-mono">⌘</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-bg-secondary border border-border font-mono">Enter</kbd>
+            <span>to run</span>
+          </div>
         </div>
       </div>
 
@@ -199,7 +251,10 @@ ${code}
         {VIBECODE_PROMPTS.slice(0, 5).map((p) => (
           <button
             key={p.id}
-            onClick={() => setPrompt(p.prompt)}
+            onClick={() => {
+              setPrompt(p.prompt)
+              setAiMode("generate")
+            }}
             className="text-xs px-3 py-1.5 rounded-full border border-border text-text-secondary hover:text-primary hover:border-primary/50 bg-bg-primary transition-colors max-w-xs truncate"
             title={p.prompt}
           >
@@ -209,38 +264,80 @@ ${code}
       </div>
 
       {/* Split Screen */}
-      <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0">
         {/* Left — Prompt Pad */}
         <div className="flex flex-col gap-3 bg-bg-primary border border-border rounded-xl p-4 min-h-0">
           {/* Toolbar */}
-          <div className="flex items-center justify-between flex-shrink-0">
-            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Prompt</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
             <div className="flex items-center gap-2">
+              <div className="flex bg-bg-secondary p-0.5 rounded-lg border border-border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAiMode("generate")}
+                  className={`px-2.5 py-1 rounded-md font-medium ${
+                    aiMode === "generate" ? "bg-primary text-white" : "text-text-secondary"
+                  }`}
+                >
+                  New
+                </button>
+                <button
+                  type="button"
+                  disabled={!generatedCode}
+                  onClick={() => setAiMode("edit")}
+                  className={`px-2.5 py-1 rounded-md font-medium disabled:opacity-40 ${
+                    aiMode === "edit" ? "bg-primary text-white" : "text-text-secondary"
+                  }`}
+                >
+                  Refine Current
+                </button>
+              </div>
+              <select
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as BuilderTheme)}
+                className="h-7 px-2 rounded-lg bg-bg-secondary border border-border text-xs text-text-primary"
+              >
+                {THEMES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={toggleVoice}
                 title="Voice input"
-                className={`p-1.5 rounded-lg border transition-colors ${listening ? "border-error text-error animate-pulse" : "border-border text-text-secondary hover:text-primary hover:border-primary/50"}`}
+                className={`p-1.5 rounded-lg border transition-colors ${
+                  listening
+                    ? "border-error text-error animate-pulse"
+                    : "border-border text-text-secondary hover:text-primary hover:border-primary/50"
+                }`}
               >
                 {listening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
               </button>
               {generatedCode && (
                 <>
                   <button
+                    onClick={handleReset}
+                    title="Start fresh"
+                    className="p-1.5 rounded-lg border border-border text-text-secondary hover:text-text-primary"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={() => setSaveOpen(true)}
-                    className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-border text-text-secondary hover:text-primary hover:border-primary/50 transition-colors"
+                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-border text-text-secondary hover:text-primary hover:border-primary/50 transition-colors"
                   >
                     <Save className="w-3.5 h-3.5" />
                     Save
                   </button>
                   <button
-                    onClick={() => {
-                      setPublishedUrl(null)
-                      setPublishOpen(true)
-                    }}
-                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                    onClick={openPublishModal}
+                    className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors shadow-sm"
                   >
                     <Rocket className="w-3.5 h-3.5" />
-                    Publish to Funnel
+                    Publish
                   </button>
                 </>
               )}
@@ -249,8 +346,14 @@ ${code}
                 disabled={loading || !prompt.trim()}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary text-white font-medium disabled:opacity-40 hover:bg-primary/90 transition-colors"
               >
-                {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                {loading ? "Generating…" : "Generate"}
+                {loading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : aiMode === "edit" && generatedCode ? (
+                  <Wand2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Play className="w-3.5 h-3.5" />
+                )}
+                {loading ? "Working…" : aiMode === "edit" && generatedCode ? "Refine" : "Generate"}
               </button>
             </div>
           </div>
@@ -262,56 +365,113 @@ ${code}
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") handleGenerate()
             }}
-            placeholder={`Describe what you want to build...\n\ne.g. "Build a high-converting B2B SaaS landing page with dark mode, hero section, pricing tiers, and contact lead capture form."`}
+            placeholder={
+              aiMode === "edit" && generatedCode
+                ? 'Describe edits to apply to the current HTML (e.g. "Add a 3-tier pricing comparison and change button color to emerald")'
+                : 'Describe what you want to build...\n\ne.g. "Build a high-converting B2B SaaS landing page with hero section, pricing tiers, and lead capture form."'
+            }
             className="flex-1 resize-none bg-bg-secondary rounded-lg p-3 text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono leading-relaxed min-h-0"
           />
-
-          {/* Code Preview */}
-          {generatedCode && (
-            <div className="flex-shrink-0">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Output Code</span>
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1 text-xs text-text-secondary hover:text-primary transition-colors"
-                >
-                  {copied ? <CheckCheck className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
-                  {copied ? "Copied!" : "Copy All"}
-                </button>
-              </div>
-              <pre className="text-[11px] bg-bg-secondary rounded-lg p-3 overflow-auto max-h-36 font-mono text-text-secondary whitespace-pre-wrap leading-relaxed">
-                {generatedCode.substring(0, 600)}
-                {generatedCode.length > 600 ? "\n…" : ""}
-              </pre>
-            </div>
-          )}
         </div>
 
-        {/* Right — Live Preview */}
+        {/* Right — Preview or Full Editable HTML Code */}
         <div className="flex flex-col gap-3 bg-bg-primary border border-border rounded-xl p-4 min-h-0">
           <div className="flex items-center justify-between flex-shrink-0">
-            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Live Preview</span>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-bg-secondary p-0.5 rounded-lg border border-border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setRightTab("preview")}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-medium ${
+                    rightTab === "preview" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-secondary"
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" /> Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab("code")}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-medium ${
+                    rightTab === "code" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-secondary"
+                  }`}
+                >
+                  <Code2 className="w-3.5 h-3.5" /> Full HTML Code
+                </button>
+              </div>
+
+              {rightTab === "preview" && (
+                <div className="flex bg-bg-secondary p-0.5 rounded-lg border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setViewport("desktop")}
+                    title="Desktop"
+                    className={`p-1 rounded ${viewport === "desktop" ? "bg-bg-primary text-primary" : "text-text-secondary"}`}
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewport("tablet")}
+                    title="Tablet"
+                    className={`p-1 rounded ${viewport === "tablet" ? "bg-bg-primary text-primary" : "text-text-secondary"}`}
+                  >
+                    <Tablet className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewport("mobile")}
+                    title="Mobile"
+                    className={`p-1 rounded ${viewport === "mobile" ? "bg-bg-primary text-primary" : "text-text-secondary"}`}
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
             {generatedCode && (
-              <span className="text-xs text-success font-medium flex items-center gap-1.5">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                Rendered
-              </span>
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1 text-xs text-text-secondary hover:text-primary transition-colors"
+              >
+                {copied ? <CheckCheck className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Copied!" : "Copy HTML"}
+              </button>
             )}
           </div>
-          <div className="flex-1 rounded-lg overflow-hidden border border-border bg-white min-h-0">
-            {!generatedCode ? (
-              <div className="h-full flex flex-col items-center justify-center text-text-secondary gap-3 bg-bg-secondary/30">
-                <Sparkles className="w-10 h-10 opacity-20" />
+
+          <div className="flex-1 rounded-lg overflow-hidden border border-border bg-bg-secondary/30 min-h-0 flex justify-center">
+            {rightTab === "code" ? (
+              <textarea
+                value={generatedCode}
+                onChange={(e) => setGeneratedCode(e.target.value)}
+                spellCheck={false}
+                placeholder="Generated HTML will appear here — you can also paste or edit HTML directly."
+                className="w-full h-full p-3 bg-bg-primary text-xs font-mono text-text-primary focus:outline-none resize-none leading-relaxed"
+              />
+            ) : !generatedCode ? (
+              <div className="h-full flex flex-col items-center justify-center text-text-secondary gap-3">
+                <Code2 className="w-10 h-10 opacity-20" />
                 <p className="text-sm font-medium">Preview appears here</p>
-                <p className="text-xs opacity-60">Type a prompt → click Generate</p>
+                <p className="text-xs opacity-60">Choose a theme, describe a page, and click Generate</p>
               </div>
             ) : (
-              <iframe
-                srcDoc={generatedCode}
-                className="w-full h-full"
-                title="vibecode-preview"
-                sandbox="allow-scripts"
-              />
+              <div
+                className={`h-full w-full bg-white transition-all overflow-hidden ${
+                  viewport === "tablet"
+                    ? "max-w-[768px] border-x border-border"
+                    : viewport === "mobile"
+                      ? "max-w-[390px] border-x border-border"
+                      : "max-w-full"
+                }`}
+              >
+                <iframe
+                  srcDoc={generatedCode}
+                  className="w-full h-full border-0"
+                  title="vibecode-preview"
+                  sandbox="allow-scripts"
+                />
+              </div>
             )}
           </div>
         </div>
@@ -329,7 +489,7 @@ ${code}
                 <input
                   value={saveName}
                   onChange={(e) => setSaveName(e.target.value)}
-                  placeholder="e.g. Dark SaaS Hero Section"
+                  placeholder="e.g. Clean Agency Hero Section"
                   className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   autoFocus
                 />
@@ -372,21 +532,21 @@ ${code}
           <div className="bg-bg-primary border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
             <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
               <Rocket className="w-5 h-5 text-emerald-500" />
-              Publish to Live Funnel
+              Publish Live Site
             </h3>
             <p className="text-xs text-text-secondary">
-              Deploy this generated landing page instantly to a live funnel URL.
+              Deploy as a brand-new live page or update an existing website/funnel in place.
             </p>
 
-            {publishedUrl ? (
+            {publishedResult ? (
               <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl space-y-3">
-                <p className="text-xs font-semibold text-emerald-500 flex items-center gap-1.5">
-                  🎉 Page is live and accessible on the web!
+                <p className="text-xs font-semibold text-emerald-500">
+                  Page is live and connected to CRM lead capture!
                 </p>
                 <div className="flex items-center justify-between bg-bg-primary p-2.5 rounded-lg border border-border text-xs font-mono">
-                  <span className="truncate">{publishedUrl}</span>
+                  <span className="truncate">{publishedResult.liveUrl}</span>
                   <a
-                    href={publishedUrl}
+                    href={publishedResult.liveUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="text-primary hover:underline flex items-center gap-1 flex-shrink-0 ml-2"
@@ -394,24 +554,71 @@ ${code}
                     Open <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
-                <button
-                  onClick={() => setPublishOpen(false)}
-                  className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors"
-                >
-                  Done
-                </button>
+                <div className="flex gap-2">
+                  <Link href={`/funnels/${publishedResult.funnelId}`} className="flex-1">
+                    <button className="w-full py-2 border border-border rounded-lg text-xs font-medium hover:bg-bg-secondary">
+                      Open in Studio
+                    </button>
+                  </Link>
+                  <button
+                    onClick={() => setPublishOpen(false)}
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             ) : (
               <>
-                <div>
-                  <label className="text-xs font-medium text-text-secondary block mb-1.5">Funnel Page Name</label>
-                  <input
-                    value={funnelName}
-                    onChange={(e) => setFunnelName(e.target.value)}
-                    placeholder="e.g. Acme Dental Landing Page"
-                    className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                </div>
+                {existingSites.length > 0 && (
+                  <div className="flex bg-bg-secondary p-1 rounded-lg border border-border text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPublishTarget("new")}
+                      className={`flex-1 py-1.5 rounded-md font-medium ${
+                        publishTarget === "new" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-secondary"
+                      }`}
+                    >
+                      New Site
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPublishTarget("existing")}
+                      className={`flex-1 py-1.5 rounded-md font-medium ${
+                        publishTarget === "existing" ? "bg-bg-primary text-text-primary shadow-sm" : "text-text-secondary"
+                      }`}
+                    >
+                      Update Existing Site
+                    </button>
+                  </div>
+                )}
+
+                {publishTarget === "new" ? (
+                  <div>
+                    <label className="text-xs font-medium text-text-secondary block mb-1.5">Site Name</label>
+                    <input
+                      value={funnelName}
+                      onChange={(e) => setFunnelName(e.target.value)}
+                      placeholder="e.g. Agency Growth Landing Page"
+                      className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-medium text-text-secondary block mb-1.5">Select Site to Update</label>
+                    <select
+                      value={selectedSiteId}
+                      onChange={(e) => setSelectedSiteId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border text-sm text-text-primary"
+                    >
+                      {existingSites.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.subdomain || s.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button
@@ -422,11 +629,14 @@ ${code}
                   </button>
                   <button
                     onClick={handlePublishFunnel}
-                    disabled={publishing || !funnelName.trim()}
+                    disabled={
+                      publishing ||
+                      (publishTarget === "new" ? !funnelName.trim() : !selectedSiteId)
+                    }
                     className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40 shadow-sm flex items-center justify-center gap-2"
                   >
                     {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
-                    {publishing ? "Publishing…" : "Publish Now"}
+                    {publishing ? "Publishing…" : publishTarget === "existing" ? "Update Live Site" : "Publish Now"}
                   </button>
                 </div>
               </>
@@ -445,6 +655,3 @@ export default function VibecodePage() {
     </Suspense>
   )
 }
-
-
-
